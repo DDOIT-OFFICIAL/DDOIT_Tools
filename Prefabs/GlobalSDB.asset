@@ -1,0 +1,48 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 6e10a5a7142e3784190ae5bdbcd9db3a, type: 3}
+  m_Name: GlobalSDB
+  m_EditorClassIdentifier: Assembly-CSharp::DDOIT.Tools.SoundDatabase
+  _bgmSounds: []
+  _narSounds: []
+  _uisSounds:
+  - soundName: UI_SFX_Open1
+    clip: {fileID: 8300000, guid: b3e5d9d40d1ae34438a4dd24739ea7a1, type: 3}
+    defaultVolume: 1
+    loop: 0
+    soundType: 0
+  - soundName: UI_SFX_Open2
+    clip: {fileID: 8300000, guid: e09ad30cd94834b4bb22482bf5f45c22, type: 3}
+    defaultVolume: 1
+    loop: 0
+    soundType: 0
+  - soundName: UI_SFX_Open3
+    clip: {fileID: 8300000, guid: b8221a6ad3805934da36a58591d32acd, type: 3}
+    defaultVolume: 1
+    loop: 0
+    soundType: 0
+  - soundName: UI_SFX_Poke1
+    clip: {fileID: 8300000, guid: 0449f74fed01d8745afa38952e6ed81b, type: 3}
+    defaultVolume: 1
+    loop: 0
+    soundType: 0
+  - soundName: UI_SFX_Poke2
+    clip: {fileID: 8300000, guid: dfe03439bb99a7649aa7ad7fb4df2adc, type: 3}
+    defaultVolume: 1
+    loop: 0
+    soundType: 0
+  - soundName: UI_SFX_Warn
+    clip: {fileID: 8300000, guid: 065650463c401c645badcd964e3bdde9, type: 3}
+    defaultVolume: 1
+    loop: 0
+    soundType: 0
+  _sfxSounds: []
