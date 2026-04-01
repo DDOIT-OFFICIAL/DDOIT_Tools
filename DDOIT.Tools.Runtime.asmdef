@@ -1,0 +1,19 @@
+{
+  "name": "DDOIT.Tools.Runtime",
+  "rootNamespace": "DDOIT.Tools",
+  "references": [
+    "Unity.TextMeshPro",
+    "Unity.Addressables",
+    "Unity.ResourceManager",
+    "Oculus.VR"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": true,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}
