@@ -17,7 +17,7 @@ namespace DDOIT.Tools.Editor
 
         private const string PANEL_PREFAB_PATH = "Assets/DDOIT_Tools/Prefabs/UIPanel.prefab";
 
-        private static readonly string[] TAB_NAMES = { "UI Theme", "Init Project" };
+        private static readonly string[] TAB_NAMES = { "Init Project", "UI Theme" };
 
         private static readonly string[] PROJECT_FOLDERS =
         {
@@ -92,10 +92,10 @@ namespace DDOIT.Tools.Editor
             switch (_selectedTab)
             {
                 case 0:
-                    DrawUIThemeTab();
+                    DrawInitProjectTab();
                     break;
                 case 1:
-                    DrawInitProjectTab();
+                    DrawUIThemeTab();
                     break;
             }
 
