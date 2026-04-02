@@ -35,6 +35,7 @@ namespace DDOIT.Tools
         [Header("디자인 요소")]
         [SerializeField] private Image _backgroundImage;
         [SerializeField] private Image _edgeImage;
+        [SerializeField] private Image _logoImage;
         [SerializeField] private GameObject _titleContextSplitter;
 
         [Header("배치")]
@@ -180,6 +181,10 @@ namespace DDOIT.Tools
 
             if (_edgeImage != null)
                 _edgeImage.color = theme.edgeColor;
+
+            // Logo는 Edge 색상을 따라감
+            if (_logoImage != null)
+                _logoImage.color = theme.edgeColor;
 
             // Splitter는 Edge 색상을 따라감
             if (_titleContextSplitter != null)
