@@ -51,6 +51,12 @@ git add Assets/DDOIT_Tools
 git commit -m "Update DDOIT_Tools"
 ```
 
+## 권장 도구
+
+AI 기반 vibe 코딩(Claude Code 등)을 활용할 경우, CLI에서 Unity 에디터를 직접 제어할 수 있는 **unity-cli** 설치를 권장합니다.
+
+- [unity-cli](https://github.com/youngwoocho02/unity-cli/tree/main)
+
 ## 주요 모듈
 
 | 모듈 | 설명 |
