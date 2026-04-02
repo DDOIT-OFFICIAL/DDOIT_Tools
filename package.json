@@ -1,6 +1,6 @@
 {
   "name": "com.ddoit.tools",
-  "version": "0.3.4",
+  "version": "0.3.5",
   "displayName": "DDOIT Tools",
   "description": "VR 교육프로그램 통합 개발 도구 모음 (Scenario, UI, Audio, Scene Management)",
   "unity": "6000.0",
