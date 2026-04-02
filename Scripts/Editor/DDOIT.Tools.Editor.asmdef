@@ -4,7 +4,8 @@
   "references": [
     "DDOIT.Tools.Runtime",
     "Unity.TextMeshPro",
-    "Unity.Addressables"
+    "Unity.Addressables",
+    "Unity.Addressables.Editor"
   ],
   "includePlatforms": [
     "Editor"
