@@ -1,3 +1,4 @@
+using System.IO;
 using System.Linq;
 using TMPro;
 using UnityEditor;
@@ -16,7 +17,15 @@ namespace DDOIT.Tools.Editor
 
         private const string PANEL_PREFAB_PATH = "Assets/DDOIT_Tools/Prefabs/UIPanel.prefab";
 
-        private static readonly string[] TAB_NAMES = { "UI Theme" };
+        private static readonly string[] TAB_NAMES = { "UI Theme", "Init Project" };
+
+        private static readonly string[] PROJECT_FOLDERS =
+        {
+            "01. Scenes", "02. Scripts", "03. Prefabs", "04. Models",
+            "05. SO", "06. Textures", "07. Shaders", "08. Materials",
+            "09. Sprites", "10. Audios", "11. Animations", "12. Particles",
+            "13. Fonts", "14. Timelines", "15. Videos"
+        };
 
         #endregion
 
@@ -84,6 +93,9 @@ namespace DDOIT.Tools.Editor
             {
                 case 0:
                     DrawUIThemeTab();
+                    break;
+                case 1:
+                    DrawInitProjectTab();
                     break;
             }
 
@@ -217,6 +229,104 @@ namespace DDOIT.Tools.Editor
             EditorGUILayout.PropertyField(so.FindProperty("textColor"), new GUIContent("Text"));
 
             so.ApplyModifiedProperties();
+        }
+
+        #endregion
+
+        #region Init Project Tab
+
+        private void DrawInitProjectTab()
+        {
+            EditorGUILayout.LabelField("프로젝트 초기화", EditorStyles.boldLabel);
+            EditorGUILayout.Space(4);
+
+            EditorGUILayout.HelpBox(
+                "Assets/ 하위에 폴더 템플릿을 생성하고,\n" +
+                "DDOIT, InitScene을 01. Scenes/DDOIT/ 에 복사합니다.",
+                MessageType.Info);
+
+            EditorGUILayout.Space(4);
+            EditorGUILayout.LabelField("생성될 폴더 구조:", EditorStyles.boldLabel);
+            EditorGUI.indentLevel++;
+            foreach (var folder in PROJECT_FOLDERS)
+                EditorGUILayout.LabelField(folder);
+            EditorGUI.indentLevel--;
+
+            EditorGUILayout.Space(8);
+
+            if (GUILayout.Button("Init Project", GUILayout.Height(32)))
+                ExecuteInitProject();
+        }
+
+        private void ExecuteInitProject()
+        {
+            // 1. 폴더 템플릿 생성
+            foreach (var folder in PROJECT_FOLDERS)
+            {
+                string path = Path.Combine("Assets", folder);
+                if (!AssetDatabase.IsValidFolder(path))
+                    AssetDatabase.CreateFolder("Assets", folder);
+            }
+
+            // 2. DDOIT 씬 폴더 생성
+            string sceneDdoitPath = "Assets/01. Scenes/DDOIT";
+            if (!AssetDatabase.IsValidFolder(sceneDdoitPath))
+                AssetDatabase.CreateFolder("Assets/01. Scenes", "DDOIT");
+
+            // 3. 패키지에서 씬 복사
+            string packageScenesPath = FindPackageScenesPath();
+            if (packageScenesPath == null)
+            {
+                Debug.LogError("[DDOITToolsWindow] DDOIT_Tools 패키지의 Scenes 폴더를 찾을 수 없습니다.");
+                return;
+            }
+
+            string[] sceneFiles = { "DDOIT.unity", "InitScene.unity" };
+            int copiedCount = 0;
+
+            foreach (var scene in sceneFiles)
+            {
+                string src = Path.Combine(packageScenesPath, scene);
+                string dst = Path.Combine(sceneDdoitPath, scene);
+
+                if (!File.Exists(src))
+                {
+                    Debug.LogWarning($"[DDOITToolsWindow] 원본 씬을 찾을 수 없습니다: {src}");
+                    continue;
+                }
+
+                if (File.Exists(dst))
+                {
+                    if (!EditorUtility.DisplayDialog(
+                        "씬 덮어쓰기",
+                        $"{scene}이 이미 존재합니다. 덮어쓰시겠습니까?",
+                        "덮어쓰기", "건너뛰기"))
+                        continue;
+                }
+
+                AssetDatabase.CopyAsset(src, dst);
+                copiedCount++;
+            }
+
+            AssetDatabase.Refresh();
+            Debug.Log($"[DDOITToolsWindow] 프로젝트 초기화 완료 (폴더 {PROJECT_FOLDERS.Length}개, 씬 {copiedCount}개 복사)");
+        }
+
+        /// <summary>
+        /// DDOIT_Tools 패키지의 Scenes 폴더 경로를 찾는다.
+        /// Assets/ 또는 Packages/ 어디에 있든 동적으로 탐색.
+        /// </summary>
+        private static string FindPackageScenesPath()
+        {
+            // Assets/DDOIT_Tools/Scenes/ (개발용)
+            if (AssetDatabase.IsValidFolder("Assets/DDOIT_Tools/Scenes"))
+                return "Assets/DDOIT_Tools/Scenes";
+
+            // Packages/com.ddoit.tools/Scenes/ (UPM)
+            if (AssetDatabase.IsValidFolder("Packages/com.ddoit.tools/Scenes"))
+                return "Packages/com.ddoit.tools/Scenes";
+
+            return null;
         }
 
         #endregion
