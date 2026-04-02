@@ -22,6 +22,7 @@ namespace DDOIT.Tools
         [SerializeField] private UIData _uiData;
         [SerializeField] private UITheme _theme;
         [SerializeField] private bool _titleBold = true;
+        [SerializeField] private Sprite _titleIcon;
 
         [SerializeField] private bool _isFixed;
         [SerializeField] private UILookAtMode _lookAtMode;
@@ -58,10 +59,11 @@ namespace DDOIT.Tools
                 return;
             }
 
-            // 볼드 래핑
+            // 볼드 래핑 + 아이콘
             var data = _uiData;
             if (_titleBold && !string.IsNullOrEmpty(data.title))
                 data.title = $"<b>{data.title}</b>";
+            data.titleIcon = _titleIcon;
 
             _activePanel = UIManager.Instance.OpenUI(data);
             if (_activePanel == null)

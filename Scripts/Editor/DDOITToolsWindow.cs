@@ -149,6 +149,9 @@ namespace DDOIT.Tools.Editor
             EditorGUILayout.PropertyField(so.FindProperty("contextFont"), new GUIContent("Context 폰트"));
             EditorGUILayout.PropertyField(so.FindProperty("contextFontSize"), new GUIContent("Context 크기"));
 
+            EditorGUILayout.Space(4);
+            EditorGUILayout.PropertyField(so.FindProperty("titleIcons"), new GUIContent("Title 아이콘 목록"), true);
+
             so.ApplyModifiedProperties();
 
             EditorGUILayout.Space(8);

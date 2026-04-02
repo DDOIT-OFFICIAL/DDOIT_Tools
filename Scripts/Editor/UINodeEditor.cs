@@ -28,8 +28,10 @@ namespace DDOIT.Tools.Editor
         private UITheme[] _themes;
         private string[] _themeNames;
 
-        // Title Bold
+        // Title Bold / Icon
         private SerializedProperty _titleBold;
+        private SerializedProperty _titleIcon;
+        private UIGlobalSettings _globalSettings;
 
         // Placement
         private SerializedProperty _isFixed;
@@ -57,6 +59,7 @@ namespace DDOIT.Tools.Editor
 
             _theme = serializedObject.FindProperty("_theme");
             _titleBold = serializedObject.FindProperty("_titleBold");
+            _titleIcon = serializedObject.FindProperty("_titleIcon");
 
             _isFixed = serializedObject.FindProperty("_isFixed");
             _lookAtMode = serializedObject.FindProperty("_lookAtMode");
@@ -65,6 +68,7 @@ namespace DDOIT.Tools.Editor
             _onButtonB = serializedObject.FindProperty("_onButtonB");
 
             RefreshThemeList();
+            RefreshGlobalSettings();
         }
 
         public override void OnInspectorGUI()
@@ -134,6 +138,9 @@ namespace DDOIT.Tools.Editor
             // Title: C1 제외 전부
             if (type != UIType.C1)
             {
+                // Title Icon (드롭다운) — 제목 위에 배치
+                DrawTitleIconDropdown();
+
                 // Bold 토글 + 제목 입력
                 EditorGUILayout.BeginHorizontal();
                 _titleBold.boolValue = GUILayout.Toggle(
@@ -247,6 +254,59 @@ namespace DDOIT.Tools.Editor
             }
         }
 
+        private void DrawTitleIconDropdown()
+        {
+            if (_globalSettings == null || _globalSettings.titleIcons == null ||
+                _globalSettings.titleIcons.Length == 0)
+            {
+                EditorGUILayout.BeginHorizontal();
+                EditorGUILayout.PrefixLabel("제목 아이콘");
+                EditorGUILayout.LabelField("(전역 설정에 아이콘 없음)", EditorStyles.miniLabel);
+                EditorGUILayout.EndHorizontal();
+                _titleIcon.objectReferenceValue = null;
+                return;
+            }
+
+            var icons = _globalSettings.titleIcons.Where(s => s != null).ToArray();
+            if (icons.Length == 0)
+            {
+                _titleIcon.objectReferenceValue = null;
+                return;
+            }
+
+            // "없음" + 아이콘 이름 목록
+            var names = new string[icons.Length + 1];
+            names[0] = "(없음)";
+            for (int i = 0; i < icons.Length; i++)
+                names[i + 1] = icons[i].name;
+
+            // 현재 선택 인덱스
+            var current = _titleIcon.objectReferenceValue as Sprite;
+            int selectedIndex = 0;
+            if (current != null)
+            {
+                int found = System.Array.IndexOf(icons, current);
+                if (found >= 0) selectedIndex = found + 1;
+            }
+
+            EditorGUILayout.BeginHorizontal();
+            EditorGUI.BeginChangeCheck();
+            selectedIndex = EditorGUILayout.Popup("제목 아이콘", selectedIndex, names);
+            if (EditorGUI.EndChangeCheck())
+                _titleIcon.objectReferenceValue = selectedIndex == 0 ? null : icons[selectedIndex - 1];
+
+            // 미리보기 (어두운 배경 + 아이콘)
+            var iconSprite = _titleIcon.objectReferenceValue as Sprite;
+            if (iconSprite != null)
+            {
+                var previewRect = GUILayoutUtility.GetRect(32, 32, GUILayout.Width(32));
+                EditorGUI.DrawRect(previewRect, new Color(0.15f, 0.15f, 0.15f, 1f));
+                GUI.DrawTexture(previewRect, iconSprite.texture, ScaleMode.ScaleToFit);
+            }
+
+            EditorGUILayout.EndHorizontal();
+        }
+
         private void DrawWarnings()
         {
             if (!_isStepCondition.boolValue) return;
@@ -280,6 +340,16 @@ namespace DDOIT.Tools.Editor
                 .ToArray();
 
             _themeNames = _themes.Select(t => t.name).ToArray();
+        }
+
+        private void RefreshGlobalSettings()
+        {
+            var guids = AssetDatabase.FindAssets("t:UIGlobalSettings");
+            if (guids.Length > 0)
+            {
+                var path = AssetDatabase.GUIDToAssetPath(guids[0]);
+                _globalSettings = AssetDatabase.LoadAssetAtPath<UIGlobalSettings>(path);
+            }
         }
     }
 }

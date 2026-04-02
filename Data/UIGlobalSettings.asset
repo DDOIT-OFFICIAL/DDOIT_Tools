@@ -22,3 +22,7 @@ MonoBehaviour:
   titleFontSize: 48
   contextFont: {fileID: 11400000, guid: b055901777dea7b4a9e2d4cbd7a5ff29, type: 2}
   contextFontSize: 32
+  titleIcons:
+  - {fileID: 21300000, guid: 24e39e896c6511841886e2bb09f177e0, type: 3}
+  - {fileID: 21300000, guid: f031c0f0a41a3254d943ee3537a88e81, type: 3}
+  - {fileID: 21300000, guid: 0f22fb834d2a47c43bd9b2929b4cbed4, type: 3}

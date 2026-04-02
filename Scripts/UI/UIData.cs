@@ -16,6 +16,9 @@ namespace DDOIT.Tools
         [Tooltip("제목 텍스트")]
         public string title;
 
+        [Tooltip("제목 옆 아이콘 (선택)")]
+        public Sprite titleIcon;
+
         [Tooltip("본문 텍스트")]
         [TextArea(2, 5)] public string context;
 

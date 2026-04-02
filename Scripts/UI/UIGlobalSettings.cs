@@ -23,5 +23,7 @@ namespace DDOIT.Tools
 
         public TMP_FontAsset contextFont;
         public float contextFontSize = 32f;
+
+        public Sprite[] titleIcons = new Sprite[0];
     }
 }

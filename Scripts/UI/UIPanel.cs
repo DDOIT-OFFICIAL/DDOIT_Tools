@@ -20,6 +20,7 @@ namespace DDOIT.Tools
         [SerializeField] private RectTransform _designPanel;
 
         [Header("콘텐츠 요소")]
+        [SerializeField] private Image _titleIcon;
         [SerializeField] private TMP_Text _titleText;
         [SerializeField] private TMP_Text _contextText;
         [SerializeField] private TMP_Text _contextSubText;
@@ -186,14 +187,6 @@ namespace DDOIT.Tools
             if (_logoImage != null)
                 _logoImage.color = theme.edgeColor;
 
-            // Splitter는 Edge 색상을 따라감
-            if (_titleContextSplitter != null)
-            {
-                var splitterImage = _titleContextSplitter.GetComponent<Image>();
-                if (splitterImage != null)
-                    splitterImage.color = theme.edgeColor;
-            }
-
             // 텍스트 색상
             if (_titleText != null)
                 _titleText.color = theme.textColor;
@@ -203,6 +196,17 @@ namespace DDOIT.Tools
 
             if (_contextSubText != null)
                 _contextSubText.color = theme.textColor;
+
+            // Splitter, TitleIcon은 텍스트 색상을 따라감
+            if (_titleContextSplitter != null)
+            {
+                var splitterImage = _titleContextSplitter.GetComponent<Image>();
+                if (splitterImage != null)
+                    splitterImage.color = theme.textColor;
+            }
+
+            if (_titleIcon != null)
+                _titleIcon.color = theme.textColor;
         }
 
         #endregion
@@ -346,6 +350,15 @@ namespace DDOIT.Tools
 
         private void BindData(UIData data)
         {
+            // Title Icon
+            if (_titleIcon != null)
+            {
+                bool hasIcon = data.titleIcon != null;
+                _titleIcon.gameObject.SetActive(hasIcon);
+                if (hasIcon)
+                    _titleIcon.sprite = data.titleIcon;
+            }
+
             if (_titleText != null)
                 _titleText.text = data.title;
 
