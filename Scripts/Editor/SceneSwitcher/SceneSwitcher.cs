@@ -20,7 +20,8 @@ namespace DDOIT.Tools.Editor
     {
         private const string DDOIT_SCENE = "DDOIT";
         private const string INIT_SCENE = "InitScene";
-        private const string GENERATED_PATH = "Assets/DDOIT_Tools/Scripts/Editor/SceneSwitcher/SceneSwitcherItems.g.cs";
+        private const string GENERATED_DIR = "Assets/Editor/DDOIT_Generated";
+        private const string GENERATED_PATH = "Assets/Editor/DDOIT_Generated/SceneSwitcherItems.g.cs";
 
         static SceneSwitcher()
         {
@@ -45,6 +46,7 @@ namespace DDOIT.Tools.Editor
         [MenuItem("DDOIT Tools/Scene Switcher/Refresh", priority = 100)]
         private static void ForceRegenerate()
         {
+            EnsureGeneratedDirectory();
             File.WriteAllText(GENERATED_PATH, BuildCode());
             AssetDatabase.Refresh();
         }
@@ -55,8 +57,15 @@ namespace DDOIT.Tools.Editor
             if (File.Exists(GENERATED_PATH) && File.ReadAllText(GENERATED_PATH) == newContent)
                 return;
 
+            EnsureGeneratedDirectory();
             File.WriteAllText(GENERATED_PATH, newContent);
             AssetDatabase.Refresh();
+        }
+
+        private static void EnsureGeneratedDirectory()
+        {
+            if (!Directory.Exists(GENERATED_DIR))
+                Directory.CreateDirectory(GENERATED_DIR);
         }
 
         private static string BuildCode()
