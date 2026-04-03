@@ -400,6 +400,12 @@ namespace DDOIT.Tools.Setup
             appliedCount++;
             Debug.Log("[DDOITSetupWindow] Texture Compression → ASTC");
 
+            // ── 7. OVR Overlay 레이어 등록 ──
+            RegisterLayer(3, "Overlay UI");
+            RegisterLayer(31, "OVROverlayCanvas Rendering");
+            appliedCount++;
+            Debug.Log("[DDOITSetupWindow] OVR Overlay 레이어 등록 완료");
+
             AssetDatabase.SaveAssets();
 
             EditorUtility.DisplayDialog(
@@ -609,6 +615,29 @@ namespace DDOIT.Tools.Setup
             }
 
             File.WriteAllLines(fullPath, lines);
+        }
+
+        /// <summary>
+        /// TagManager에 레이어를 등록한다. 이미 등록되어 있으면 건너뛴다.
+        /// </summary>
+        private static void RegisterLayer(int index, string layerName)
+        {
+            string tagManagerPath = Path.Combine(Application.dataPath, "..", "ProjectSettings", "TagManager.asset");
+            if (!File.Exists(tagManagerPath)) return;
+
+            var tagManagerAsset = AssetDatabase.LoadAllAssetsAtPath("ProjectSettings/TagManager.asset");
+            if (tagManagerAsset == null || tagManagerAsset.Length == 0) return;
+
+            var so = new SerializedObject(tagManagerAsset[0]);
+            var layersProp = so.FindProperty("layers");
+            if (layersProp == null || index >= layersProp.arraySize) return;
+
+            var element = layersProp.GetArrayElementAtIndex(index);
+            if (string.IsNullOrEmpty(element.stringValue))
+            {
+                element.stringValue = layerName;
+                so.ApplyModifiedProperties();
+            }
         }
 
         private static bool IsPackageInstalled(string packageId)
