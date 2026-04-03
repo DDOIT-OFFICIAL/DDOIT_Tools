@@ -245,8 +245,8 @@ namespace DDOIT.Tools.Setup
                 "  - DDOIT_Renderer → Renderer Data\n" +
                 "  - DDOIT_VolumeProfile → Default Volume Profile\n\n" +
                 "[ Player Settings ]\n" +
-                "  - Linear / Vulkan / IL2CPP / ARM64\n" +
-                "  - Managed Stripping: Medium\n\n" +
+                "  - Linear / Vulkan + OpenGLES3 / IL2CPP / ARM64\n" +
+                "  - Managed Stripping: Medium / Min API: 32\n\n" +
                 "[ Physics / Audio ]\n" +
                 "  - Fixed Timestep: 72Hz (0.01389)\n" +
                 "  - DSP Buffer: 256 (Best Latency)\n\n" +
@@ -362,7 +362,8 @@ namespace DDOIT.Tools.Setup
             // ── 3. Player Settings ──
             PlayerSettings.colorSpace = ColorSpace.Linear;
             PlayerSettings.SetGraphicsAPIs(BuildTarget.Android,
-                new[] { UnityEngine.Rendering.GraphicsDeviceType.Vulkan });
+                new[] { UnityEngine.Rendering.GraphicsDeviceType.Vulkan,
+                        UnityEngine.Rendering.GraphicsDeviceType.OpenGLES3 });
             PlayerSettings.SetScriptingBackend(
                 UnityEditor.Build.NamedBuildTarget.Android,
                 ScriptingImplementation.IL2CPP);
@@ -370,7 +371,7 @@ namespace DDOIT.Tools.Setup
             PlayerSettings.SetManagedStrippingLevel(
                 UnityEditor.Build.NamedBuildTarget.Android,
                 ManagedStrippingLevel.Medium);
-            PlayerSettings.Android.minSdkVersion = AndroidSdkVersions.AndroidApiLevel29;
+            PlayerSettings.Android.minSdkVersion = AndroidSdkVersions.AndroidApiLevel32;
             appliedCount++;
             Debug.Log("[DDOITSetupWindow] Player Settings 적용 완료");
 
