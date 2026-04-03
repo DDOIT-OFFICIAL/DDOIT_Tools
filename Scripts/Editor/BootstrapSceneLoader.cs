@@ -12,9 +12,24 @@ namespace DDOIT.Tools.Editor
     [InitializeOnLoad]
     public static class BootstrapSceneLoader
     {
-        private const string BOOTSTRAP_SCENE = "Assets/DDOIT_Tools/Scenes/DDOIT.unity";
+        private const string BOOTSTRAP_SCENE_NAME = "DDOIT";
         private const string PREVIOUS_SCENE_KEY = "BootstrapSceneLoader.PreviousScene";
         private const string MENU_PATH = "DDOIT Tools/Bootstrap Scene Loader 활성화";
+
+        /// <summary>
+        /// DDOIT 씬 경로를 동적으로 찾는다. Assets/ 또는 Packages/ 어디든 대응.
+        /// </summary>
+        private static string FindBootstrapScenePath()
+        {
+            var guids = AssetDatabase.FindAssets($"t:Scene {BOOTSTRAP_SCENE_NAME}");
+            foreach (var guid in guids)
+            {
+                var path = AssetDatabase.GUIDToAssetPath(guid);
+                if (System.IO.Path.GetFileNameWithoutExtension(path) == BOOTSTRAP_SCENE_NAME)
+                    return path;
+            }
+            return null;
+        }
 
         private static bool IsEnabled
         {
@@ -46,9 +61,16 @@ namespace DDOIT.Tools.Editor
 
             if (state == PlayModeStateChange.ExitingEditMode)
             {
+                string bootstrapScene = FindBootstrapScenePath();
+                if (string.IsNullOrEmpty(bootstrapScene))
+                {
+                    Debug.LogWarning("[BootstrapSceneLoader] DDOIT 씬을 찾을 수 없습니다.");
+                    return;
+                }
+
                 string currentScenePath = EditorSceneManager.GetActiveScene().path;
 
-                if (currentScenePath == BOOTSTRAP_SCENE)
+                if (currentScenePath == bootstrapScene)
                 {
                     // DDOIT 씬에서 직접 Play한 경우, 저장된 씬 정보 초기화
                     SessionState.EraseString(PREVIOUS_SCENE_KEY);
@@ -68,7 +90,7 @@ namespace DDOIT.Tools.Editor
 
                 // 현재 작업 중인 씬 경로를 저장하고 DDOIT 씬으로 전환
                 SessionState.SetString(PREVIOUS_SCENE_KEY, currentScenePath);
-                EditorSceneManager.OpenScene(BOOTSTRAP_SCENE);
+                EditorSceneManager.OpenScene(bootstrapScene);
             }
 
             if (state == PlayModeStateChange.EnteredEditMode)
