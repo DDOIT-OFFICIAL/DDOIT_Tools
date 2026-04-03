@@ -75,15 +75,22 @@ namespace DDOIT.Tools.Setup
             EditorApplication.delayCall += ShowOnFirstLoad;
         }
 
+        [InitializeOnLoadMethod]
+        private static void InitOnLoad()
+        {
+            EditorApplication.delayCall += ShowOnFirstLoad;
+        }
+
         private static void ShowOnFirstLoad()
         {
-            // 의존성이 모두 설치된 상태면 팝업하지 않음
-            bool allInstalled = REQUIRED_DEPENDENCIES.All(d => IsPackageInstalled(d.packageId));
-            if (allInstalled && SessionState.GetBool(SHOWN_KEY, false))
+            // 이미 이 세션에서 체크했으면 스킵
+            if (SessionState.GetBool(SHOWN_KEY, false))
                 return;
 
             SessionState.SetBool(SHOWN_KEY, true);
 
+            // 필수 의존성이 하나라도 없으면 자동 팝업
+            bool allInstalled = REQUIRED_DEPENDENCIES.All(d => IsPackageInstalled(d.packageId));
             if (!allInstalled)
                 ShowWindow();
         }
