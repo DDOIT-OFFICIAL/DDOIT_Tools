@@ -43,7 +43,7 @@ TextureImporter:
   nPOTScale: 0
   lightmap: 0
   compressionQuality: 50
-  spriteMode: 1
+  spriteMode: 2
   spriteExtrude: 1
   spriteMeshType: 1
   alignment: 0
@@ -53,7 +53,7 @@ TextureImporter:
   spriteGenerateFallbackPhysicsShape: 1
   alphaUsage: 1
   alphaIsTransparency: 1
-  spriteTessellationDetail: -1
+  spriteTessellationDetail: 0
   textureType: 8
   textureShape: 1
   singleChannelComponent: 0
@@ -134,21 +134,137 @@ TextureImporter:
     forceMaximumCompressionQuality_BC6H_BC7: 0
   spriteSheet:
     serializedVersion: 2
-    sprites: []
-    outline: []
+    sprites:
+    - serializedVersion: 2
+      name: DDOIT_Logo_0
+      rect:
+        serializedVersion: 2
+        x: 228
+        y: 57
+        width: 538
+        height: 477
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 7cae3154aa19db342a77aa766a4aaddd
+      internalID: -1396549961
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
+    outline:
+    - - {x: 122, y: -56.5}
+      - {x: 122, y: 238.5}
+      - {x: -2, y: 238.5}
+      - {x: -3, y: 236.5}
+      - {x: -3, y: -86.5}
+      - {x: -1, y: -88.5}
+      - {x: 94, y: -88.5}
+    - - {x: -15, y: 102.5}
+      - {x: -16, y: 120.5}
+      - {x: -84, y: 120.5}
+      - {x: -192, y: 55.5}
+      - {x: -192, y: -140.5}
+      - {x: -160, y: -225.5}
+      - {x: -15, y: -225.5}
+    - - {x: 123, y: -195.5}
+      - {x: 123, y: -108.5}
+      - {x: 113, y: -95.5}
+      - {x: 20, y: -95.5}
+      - {x: -1, y: -103.5}
+      - {x: -1, y: -191.5}
+      - {x: 15, y: -219.5}
+      - {x: 117, y: -219.5}
     customData: 
     physicsShape: []
     bones: []
     spriteID: 5e97eb03825dee720800000000000000
-    internalID: 0
+    internalID: 1537655665
     vertices: []
     indices: 
     edges: []
     weights: []
     secondaryTextures: []
     spriteCustomMetadata:
-      entries: []
-    nameFileIdTable: {}
+      entries:
+      - key: SpriteEditor.SliceSettings
+        value: '{"sliceOnImport":false,"gridCellCount":{"x":1.0,"y":1.0},"gridSpriteSize":{"x":64.0,"y":64.0},"gridSpriteOffset":{"x":0.0,"y":0.0},"gridSpritePadding":{"x":0.0,"y":0.0},"pivot":{"x":0.5,"y":0.5},"pivotPixels":{"x":0.0,"y":0.0},"autoSlicingMethod":0,"spriteAlignment":0,"pivotUnitMode":0,"slicingType":3,"keepEmptyRects":false,"isAlternate":false}'
+    nameFileIdTable:
+      DDOIT_Logo_0: -1396549961
+      DDOIT_Logo_1: 557327990
+      DDOIT_Logo_10: -1609994478
+      DDOIT_Logo_11: -21130989
+      DDOIT_Logo_12: 1984170817
+      DDOIT_Logo_13: 1845219870
+      DDOIT_Logo_14: -1553410477
+      DDOIT_Logo_15: 1174857135
+      DDOIT_Logo_16: 204509119
+      DDOIT_Logo_17: -2095084980
+      DDOIT_Logo_18: -878981568
+      DDOIT_Logo_19: -388170021
+      DDOIT_Logo_2: 1969737593
+      DDOIT_Logo_20: 458856797
+      DDOIT_Logo_21: 1942298484
+      DDOIT_Logo_22: -1882640850
+      DDOIT_Logo_23: 1669170860
+      DDOIT_Logo_24: -1427247124
+      DDOIT_Logo_25: -838373463
+      DDOIT_Logo_26: -456054377
+      DDOIT_Logo_27: -16539286
+      DDOIT_Logo_28: -529831861
+      DDOIT_Logo_29: 899220078
+      DDOIT_Logo_3: -2009456863
+      DDOIT_Logo_30: 132426531
+      DDOIT_Logo_31: -622455159
+      DDOIT_Logo_32: -592351476
+      DDOIT_Logo_33: -719903789
+      DDOIT_Logo_34: 911843213
+      DDOIT_Logo_35: 1237671388
+      DDOIT_Logo_36: -1216018362
+      DDOIT_Logo_37: -2146032542
+      DDOIT_Logo_38: 1018649705
+      DDOIT_Logo_39: -1352082929
+      DDOIT_Logo_4: 1632686030
+      DDOIT_Logo_40: 2136217388
+      DDOIT_Logo_41: -982791626
+      DDOIT_Logo_42: -1519496035
+      DDOIT_Logo_43: -61585583
+      DDOIT_Logo_44: -147876881
+      DDOIT_Logo_45: -680695926
+      DDOIT_Logo_46: 2114765152
+      DDOIT_Logo_47: -1481071391
+      DDOIT_Logo_48: 449276179
+      DDOIT_Logo_49: 521567426
+      DDOIT_Logo_5: 1011017804
+      DDOIT_Logo_50: -65061136
+      DDOIT_Logo_51: -1715503145
+      DDOIT_Logo_52: 1965702116
+      DDOIT_Logo_53: -1669328705
+      DDOIT_Logo_54: 823026981
+      DDOIT_Logo_55: -584694981
+      DDOIT_Logo_56: 302510123
+      DDOIT_Logo_57: 35393294
+      DDOIT_Logo_58: 1427963056
+      DDOIT_Logo_59: -428666719
+      DDOIT_Logo_6: -736221998
+      DDOIT_Logo_60: 96830026
+      DDOIT_Logo_61: -748950484
+      DDOIT_Logo_62: -1532712160
+      DDOIT_Logo_63: -389601950
+      DDOIT_Logo_64: 1831410645
+      DDOIT_Logo_65: 1779217335
+      DDOIT_Logo_66: 1498967144
+      DDOIT_Logo_67: 2074770323
+      DDOIT_Logo_68: -1261435135
+      DDOIT_Logo_69: 1831487256
+      DDOIT_Logo_7: 2018550044
+      DDOIT_Logo_8: -1174324296
+      DDOIT_Logo_9: -1294731814
   mipmapLimitGroupName: 
   pSDRemoveMatte: 0
   userData: 

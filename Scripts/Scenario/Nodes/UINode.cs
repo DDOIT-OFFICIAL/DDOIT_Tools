@@ -5,8 +5,7 @@ namespace DDOIT.Tools
 {
     /// <summary>
     /// UIManager를 통해 UI 패널을 표시하는 노드.
-    /// _isStepCondition이 켜져 있고 버튼형 UI(T1C1B2)인 경우,
-    /// 버튼 클릭 시 조건을 충족한다.
+    /// 버튼이 활성화된 경우, 버튼 클릭 시 조건을 충족한다.
     /// </summary>
     public enum UILookAtMode
     {
@@ -79,7 +78,7 @@ namespace DDOIT.Tools
             _activePanel.SetPlacement(_isFixed, _isFixed ? transform : null, _lookAtMode);
 
             // 버튼 이벤트 연결
-            if (HasButtons(_uiData.type))
+            if (_uiData.useButtonA || _uiData.useButtonB)
             {
                 _activePanel.OnButtonClicked += OnButtonClicked;
             }
@@ -126,9 +125,9 @@ namespace DDOIT.Tools
             }
         }
 
-        private static bool HasButtons(UIType type)
+        private bool HasButtons()
         {
-            return type == UIType.T1C1B1 || type == UIType.T1C1B2;
+            return _uiData.useButtonA || _uiData.useButtonB;
         }
 
         #endregion

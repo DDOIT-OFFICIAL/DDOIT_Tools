@@ -12,7 +12,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 16be94f6351087443b0fd1daaaf71e6d, type: 3}
   m_Name: UITheme_Red
   m_EditorClassIdentifier: Assembly-CSharp::DDOIT.Tools.UITheme
-  backgroundColorTop: {r: 0.6901961, g: 0.03529412, b: 0.03529412, a: 1}
-  backgroundColorBottom: {r: 1, g: 0.22745098, b: 0.22745098, a: 1}
+  backgroundColorTop: {r: 0.6901961, g: 0.03529412, b: 0.03529412, a: 0.78431374}
+  backgroundColorBottom: {r: 1, g: 0.22745098, b: 0.22745098, a: 0.78431374}
   edgeColor: {r: 1, g: 0.63529414, b: 0.63529414, a: 1}
   textColor: {r: 1, g: 1, b: 1, a: 1}

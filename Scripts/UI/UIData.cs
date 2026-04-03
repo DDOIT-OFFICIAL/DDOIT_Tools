@@ -5,39 +5,35 @@ namespace DDOIT.Tools
 {
     /// <summary>
     /// UI 패널에 표시할 콘텐츠 데이터.
-    /// UIType에 따라 사용되는 필드가 달라진다.
+    /// 활성화 플래그에 따라 사용되는 요소가 결정된다.
     /// </summary>
     [System.Serializable]
     public struct UIData
     {
-        [Tooltip("UI 레이아웃 타입")]
-        public UIType type;
+        // 활성화 플래그
+        public bool useTitle;
+        public bool useContext;
+        public bool useImageA;
+        public bool useImageSub;
+        public bool useVideo;
+        public bool useButtonA;
+        public bool useButtonB;
+        public bool useContextSub;
 
-        [Tooltip("제목 텍스트")]
+        // 데이터
         public string title;
-
-        [Tooltip("제목 옆 아이콘 (선택)")]
         public Sprite titleIcon;
-
-        [Tooltip("본문 텍스트")]
         [TextArea(2, 5)] public string context;
-
-        [Tooltip("두 번째 본문 텍스트 (T1C2)")]
+        public Sprite image;
+        public Sprite imageSub;
+        public VideoClip video;
+        public string buttonLabelA;
+        public string buttonLabelB;
         [TextArea(2, 5)] public string contextSub;
 
-        [Tooltip("이미지 (T1C1P1, T1C1P2)")]
-        public Sprite image;
-
-        [Tooltip("두 번째 이미지 (T1C1P2)")]
-        public Sprite imageSub;
-
-        [Tooltip("비디오 클립 (T1C1V1)")]
-        public VideoClip video;
-
-        [Tooltip("버튼 A 텍스트 (T1C1B2)")]
-        public string buttonLabelA;
-
-        [Tooltip("버튼 B 텍스트 (T1C1B2)")]
-        public string buttonLabelB;
+        /// <summary>Title 외 다른 요소가 하나라도 활성화되어 있는지.</summary>
+        public bool HasNonTitleElement =>
+            useContext || useImageA || useImageSub || useVideo ||
+            useButtonA || useButtonB || useContextSub;
     }
 }

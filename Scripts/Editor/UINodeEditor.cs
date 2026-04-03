@@ -13,7 +13,15 @@ namespace DDOIT.Tools.Editor
 
         // UI Data
         private SerializedProperty _uiData;
-        private SerializedProperty _uiDataType;
+        private SerializedProperty _useTitle;
+        private SerializedProperty _useContext;
+        private SerializedProperty _useImageA;
+        private SerializedProperty _useImageSub;
+        private SerializedProperty _useVideo;
+        private SerializedProperty _useButtonA;
+        private SerializedProperty _useButtonB;
+        private SerializedProperty _useContextSub;
+
         private SerializedProperty _uiDataTitle;
         private SerializedProperty _uiDataContext;
         private SerializedProperty _uiDataContextSub;
@@ -47,7 +55,15 @@ namespace DDOIT.Tools.Editor
             _onRelease = serializedObject.FindProperty("_onRelease");
 
             _uiData = serializedObject.FindProperty("_uiData");
-            _uiDataType = _uiData.FindPropertyRelative("type");
+            _useTitle = _uiData.FindPropertyRelative("useTitle");
+            _useContext = _uiData.FindPropertyRelative("useContext");
+            _useImageA = _uiData.FindPropertyRelative("useImageA");
+            _useImageSub = _uiData.FindPropertyRelative("useImageSub");
+            _useVideo = _uiData.FindPropertyRelative("useVideo");
+            _useButtonA = _uiData.FindPropertyRelative("useButtonA");
+            _useButtonB = _uiData.FindPropertyRelative("useButtonB");
+            _useContextSub = _uiData.FindPropertyRelative("useContextSub");
+
             _uiDataTitle = _uiData.FindPropertyRelative("title");
             _uiDataContext = _uiData.FindPropertyRelative("context");
             _uiDataContextSub = _uiData.FindPropertyRelative("contextSub");
@@ -80,17 +96,20 @@ namespace DDOIT.Tools.Editor
             EditorGUILayout.PropertyField(_onRelease);
             EditorGUILayout.Space(4);
 
-            // Theme (dropdown)
+            // Theme
             DrawThemeDropdown();
             EditorGUILayout.Space(4);
 
-            // UI Data
+            // Element Toggles
+            DrawElementToggles();
+            EditorGUILayout.Space(4);
+
+            // UI Data Fields
             DrawUIDataSection();
             EditorGUILayout.Space(4);
 
             // Button Events
-            var currentType = (UIType)_uiDataType.enumValueIndex;
-            if (currentType == UIType.T1C1B1 || currentType == UIType.T1C1B2)
+            if (_useButtonA.boolValue || _useButtonB.boolValue)
             {
                 DrawButtonEventSection();
                 EditorGUILayout.Space(4);
@@ -115,7 +134,6 @@ namespace DDOIT.Tools.Editor
                 return;
             }
 
-            // 현재 선택된 인덱스 찾기
             var currentTheme = _theme.objectReferenceValue as UITheme;
             int selectedIndex = System.Array.IndexOf(_themes, currentTheme);
             if (selectedIndex < 0) selectedIndex = 0;
@@ -126,19 +144,51 @@ namespace DDOIT.Tools.Editor
                 _theme.objectReferenceValue = _themes[selectedIndex];
         }
 
+        private void DrawElementToggles()
+        {
+            EditorGUILayout.LabelField("UI 요소", EditorStyles.boldLabel);
+
+            EditorGUILayout.BeginHorizontal();
+
+            DrawToggle(_useTitle, "T", "Title");
+            DrawToggle(_useContext, "C", "Context");
+            DrawToggle(_useImageA, "P", "Image");
+            DrawToggle(_useImageSub, "P", "Image 2");
+            DrawToggle(_useVideo, "V", "Video");
+            DrawToggle(_useButtonA, "B", "Button A");
+            DrawToggle(_useButtonB, "B", "Button B");
+            DrawToggle(_useContextSub, "C", "Context Sub");
+
+            EditorGUILayout.EndHorizontal();
+        }
+
+        private static void DrawToggle(SerializedProperty prop, string label, string tooltip)
+        {
+            var style = prop.boolValue ? new GUIStyle(EditorStyles.miniButton)
+            {
+                normal = { textColor = Color.white },
+                fontStyle = FontStyle.Bold
+            } : EditorStyles.miniButton;
+
+            var originalBg = GUI.backgroundColor;
+            if (prop.boolValue)
+                GUI.backgroundColor = new Color(0.3f, 0.6f, 1f);
+
+            if (GUILayout.Button(new GUIContent(label, tooltip), style, GUILayout.Width(28)))
+                prop.boolValue = !prop.boolValue;
+
+            GUI.backgroundColor = originalBg;
+        }
+
         private void DrawUIDataSection()
         {
             EditorGUILayout.LabelField("UI 데이터", EditorStyles.boldLabel);
-
-            EditorGUILayout.PropertyField(_uiDataType, new GUIContent("타입"));
-            var type = (UIType)_uiDataType.enumValueIndex;
-
             EditorGUI.indentLevel++;
 
-            // Title: C1 제외 전부
-            if (type != UIType.C1)
+            // Title
+            if (_useTitle.boolValue)
             {
-                // Title Icon (드롭다운) — 제목 위에 배치
+                // Title Icon (드롭다운)
                 DrawTitleIconDropdown();
 
                 // Bold 토글 + 제목 입력
@@ -152,50 +202,40 @@ namespace DDOIT.Tools.Editor
                 EditorGUILayout.EndHorizontal();
             }
 
-            // Context: T1 제외 전부
-            if (type != UIType.T1)
-            {
+            // Context
+            if (_useContext.boolValue)
                 EditorGUILayout.PropertyField(_uiDataContext, new GUIContent("본문"));
-            }
 
-            // ContextSub: T1C2만
-            if (type == UIType.T1C2)
-            {
-                EditorGUILayout.PropertyField(_uiDataContextSub, new GUIContent("본문 2"));
-            }
-
-            // Image: P1, P2
-            if (type == UIType.T1C1P1 || type == UIType.T1C1P2)
-            {
+            // ImageA
+            if (_useImageA.boolValue)
                 EditorGUILayout.PropertyField(_uiDataImage, new GUIContent("이미지"));
-            }
 
-            // ImageSub: P2만
-            if (type == UIType.T1C1P2)
-            {
+            // ImageSub
+            if (_useImageSub.boolValue)
                 EditorGUILayout.PropertyField(_uiDataImageSub, new GUIContent("이미지 2"));
-            }
 
-            // Video: V1만
-            if (type == UIType.T1C1V1)
-            {
+            // Video
+            if (_useVideo.boolValue)
                 EditorGUILayout.PropertyField(_uiDataVideo, new GUIContent("비디오"));
-            }
 
-            // Buttons: B1, B2
-            if (type == UIType.T1C1B1 || type == UIType.T1C1B2)
-            {
+            // ButtonA
+            if (_useButtonA.boolValue)
                 EditorGUILayout.PropertyField(_uiDataButtonLabelA, new GUIContent("버튼 A"));
-            }
-            if (type == UIType.T1C1B2)
-            {
+
+            // ButtonB
+            if (_useButtonB.boolValue)
                 EditorGUILayout.PropertyField(_uiDataButtonLabelB, new GUIContent("버튼 B"));
-            }
+
+            // ContextSub
+            if (_useContextSub.boolValue)
+                EditorGUILayout.PropertyField(_uiDataContextSub, new GUIContent("하단 본문"));
 
             EditorGUI.indentLevel--;
 
             // 빈 데이터 힌트
-            if (type != UIType.T1 && type != UIType.C1)
+            bool hasMultiple = (_useTitle.boolValue ? 1 : 0) + (_useContext.boolValue ? 1 : 0) +
+                               (_useImageA.boolValue ? 1 : 0) + (_useContextSub.boolValue ? 1 : 0) > 1;
+            if (hasMultiple)
             {
                 EditorGUILayout.HelpBox(
                     "비어있는 텍스트/이미지 필드는 자동으로 숨겨집니다.",
@@ -203,14 +243,64 @@ namespace DDOIT.Tools.Editor
             }
         }
 
+        private void DrawTitleIconDropdown()
+        {
+            if (_globalSettings == null || _globalSettings.titleIcons == null ||
+                _globalSettings.titleIcons.Length == 0)
+            {
+                EditorGUILayout.BeginHorizontal();
+                EditorGUILayout.PrefixLabel("제목 아이콘");
+                EditorGUILayout.LabelField("(전역 설정에 아이콘 없음)", EditorStyles.miniLabel);
+                EditorGUILayout.EndHorizontal();
+                _titleIcon.objectReferenceValue = null;
+                return;
+            }
+
+            var icons = _globalSettings.titleIcons.Where(s => s != null).ToArray();
+            if (icons.Length == 0)
+            {
+                _titleIcon.objectReferenceValue = null;
+                return;
+            }
+
+            var names = new string[icons.Length + 1];
+            names[0] = "(없음)";
+            for (int i = 0; i < icons.Length; i++)
+                names[i + 1] = icons[i].name;
+
+            var current = _titleIcon.objectReferenceValue as Sprite;
+            int selectedIndex = 0;
+            if (current != null)
+            {
+                int found = System.Array.IndexOf(icons, current);
+                if (found >= 0) selectedIndex = found + 1;
+            }
+
+            EditorGUILayout.BeginHorizontal();
+            EditorGUI.BeginChangeCheck();
+            selectedIndex = EditorGUILayout.Popup("제목 아이콘", selectedIndex, names);
+            if (EditorGUI.EndChangeCheck())
+                _titleIcon.objectReferenceValue = selectedIndex == 0 ? null : icons[selectedIndex - 1];
+
+            var iconSprite = _titleIcon.objectReferenceValue as Sprite;
+            if (iconSprite != null)
+            {
+                var previewRect = GUILayoutUtility.GetRect(32, 32, GUILayout.Width(32));
+                EditorGUI.DrawRect(previewRect, new Color(0.15f, 0.15f, 0.15f, 1f));
+                GUI.DrawTexture(previewRect, iconSprite.texture, ScaleMode.ScaleToFit);
+            }
+
+            EditorGUILayout.EndHorizontal();
+        }
+
         private void DrawButtonEventSection()
         {
-            var type = (UIType)_uiDataType.enumValueIndex;
-
             EditorGUILayout.LabelField("버튼 이벤트", EditorStyles.boldLabel);
-            EditorGUILayout.PropertyField(_onButtonA, new GUIContent("버튼 A 클릭"));
 
-            if (type == UIType.T1C1B2)
+            if (_useButtonA.boolValue)
+                EditorGUILayout.PropertyField(_onButtonA, new GUIContent("버튼 A 클릭"));
+
+            if (_useButtonB.boolValue)
                 EditorGUILayout.PropertyField(_onButtonB, new GUIContent("버튼 B 클릭"));
         }
 
@@ -254,66 +344,11 @@ namespace DDOIT.Tools.Editor
             }
         }
 
-        private void DrawTitleIconDropdown()
-        {
-            if (_globalSettings == null || _globalSettings.titleIcons == null ||
-                _globalSettings.titleIcons.Length == 0)
-            {
-                EditorGUILayout.BeginHorizontal();
-                EditorGUILayout.PrefixLabel("제목 아이콘");
-                EditorGUILayout.LabelField("(전역 설정에 아이콘 없음)", EditorStyles.miniLabel);
-                EditorGUILayout.EndHorizontal();
-                _titleIcon.objectReferenceValue = null;
-                return;
-            }
-
-            var icons = _globalSettings.titleIcons.Where(s => s != null).ToArray();
-            if (icons.Length == 0)
-            {
-                _titleIcon.objectReferenceValue = null;
-                return;
-            }
-
-            // "없음" + 아이콘 이름 목록
-            var names = new string[icons.Length + 1];
-            names[0] = "(없음)";
-            for (int i = 0; i < icons.Length; i++)
-                names[i + 1] = icons[i].name;
-
-            // 현재 선택 인덱스
-            var current = _titleIcon.objectReferenceValue as Sprite;
-            int selectedIndex = 0;
-            if (current != null)
-            {
-                int found = System.Array.IndexOf(icons, current);
-                if (found >= 0) selectedIndex = found + 1;
-            }
-
-            EditorGUILayout.BeginHorizontal();
-            EditorGUI.BeginChangeCheck();
-            selectedIndex = EditorGUILayout.Popup("제목 아이콘", selectedIndex, names);
-            if (EditorGUI.EndChangeCheck())
-                _titleIcon.objectReferenceValue = selectedIndex == 0 ? null : icons[selectedIndex - 1];
-
-            // 미리보기 (어두운 배경 + 아이콘)
-            var iconSprite = _titleIcon.objectReferenceValue as Sprite;
-            if (iconSprite != null)
-            {
-                var previewRect = GUILayoutUtility.GetRect(32, 32, GUILayout.Width(32));
-                EditorGUI.DrawRect(previewRect, new Color(0.15f, 0.15f, 0.15f, 1f));
-                GUI.DrawTexture(previewRect, iconSprite.texture, ScaleMode.ScaleToFit);
-            }
-
-            EditorGUILayout.EndHorizontal();
-        }
-
         private void DrawWarnings()
         {
             if (!_isStepCondition.boolValue) return;
 
-            var type = (UIType)_uiDataType.enumValueIndex;
-
-            if (type == UIType.T1C1B1 || type == UIType.T1C1B2)
+            if (_useButtonA.boolValue || _useButtonB.boolValue)
             {
                 EditorGUILayout.Space(4);
                 EditorGUILayout.HelpBox(

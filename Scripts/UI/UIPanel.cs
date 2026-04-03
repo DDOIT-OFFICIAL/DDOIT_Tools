@@ -9,7 +9,7 @@ namespace DDOIT.Tools
     /// <summary>
     /// 풀링되는 UI 패널 단위. 독립 Canvas(World Space)를 가지며,
     /// DesignPanel(비주얼 컨테이너)과 모든 데이터 요소를 내장한다.
-    /// UIType에 따라 필요한 요소만 활성화하고 데이터를 바인딩한다.
+    /// 활성화 플래그에 따라 필요한 요소만 활성화하고 데이터를 바인딩한다.
     /// </summary>
     public class UIPanel : MonoBehaviour
     {
@@ -84,7 +84,7 @@ namespace DDOIT.Tools
             _isActive = true;
             gameObject.SetActive(true);
 
-            ConfigureElements(data.type);
+            ConfigureElements(data);
             BindData(data);
             HideEmptyElements(data);
             SetupButtons(data);
@@ -233,79 +233,19 @@ namespace DDOIT.Tools
 
         #region Private Methods - Element Configuration
 
-        private void ConfigureElements(UIType type)
+        private void ConfigureElements(UIData data)
         {
-            // 전부 비활성화
-            SetElementActive(_titleText, false);
-            SetElementActive(_contextText, false);
-            SetElementActive(_contextSubText, false);
-            SetElementActive(_imageA, false);
-            SetElementActive(_imageSub, false);
-            SetElementActive(_videoSurface, false);
-            SetElementActive(_buttonA, false);
-            SetElementActive(_buttonB, false);
-            SetGameObjectActive(_titleContextSplitter, false);
+            SetElementActive(_titleText, data.useTitle);
+            SetElementActive(_contextText, data.useContext);
+            SetElementActive(_imageA, data.useImageA);
+            SetElementActive(_imageSub, data.useImageSub);
+            SetElementActive(_videoSurface, data.useVideo);
+            SetElementActive(_buttonA, data.useButtonA);
+            SetElementActive(_buttonB, data.useButtonB);
+            SetElementActive(_contextSubText, data.useContextSub);
 
-            switch (type)
-            {
-                case UIType.T1:
-                    SetElementActive(_titleText, true);
-                    break;
-
-                case UIType.C1:
-                    SetElementActive(_contextText, true);
-                    break;
-
-                case UIType.T1C1:
-                    SetElementActive(_titleText, true);
-                    SetElementActive(_contextText, true);
-                    SetGameObjectActive(_titleContextSplitter, true);
-                    break;
-
-                case UIType.T1C2:
-                    SetElementActive(_titleText, true);
-                    SetElementActive(_contextText, true);
-                    SetElementActive(_contextSubText, true);
-                    SetGameObjectActive(_titleContextSplitter, true);
-                    break;
-
-                case UIType.T1C1P1:
-                    SetElementActive(_titleText, true);
-                    SetElementActive(_contextText, true);
-                    SetElementActive(_imageA, true);
-                    SetGameObjectActive(_titleContextSplitter, true);
-                    break;
-
-                case UIType.T1C1P2:
-                    SetElementActive(_titleText, true);
-                    SetElementActive(_contextText, true);
-                    SetElementActive(_imageA, true);
-                    SetElementActive(_imageSub, true);
-                    SetGameObjectActive(_titleContextSplitter, true);
-                    break;
-
-                case UIType.T1C1V1:
-                    SetElementActive(_titleText, true);
-                    SetElementActive(_contextText, true);
-                    SetElementActive(_videoSurface, true);
-                    SetGameObjectActive(_titleContextSplitter, true);
-                    break;
-
-                case UIType.T1C1B1:
-                    SetElementActive(_titleText, true);
-                    SetElementActive(_contextText, true);
-                    SetElementActive(_buttonA, true);
-                    SetGameObjectActive(_titleContextSplitter, true);
-                    break;
-
-                case UIType.T1C1B2:
-                    SetElementActive(_titleText, true);
-                    SetElementActive(_contextText, true);
-                    SetElementActive(_buttonA, true);
-                    SetElementActive(_buttonB, true);
-                    SetGameObjectActive(_titleContextSplitter, true);
-                    break;
-            }
+            // Splitter: Title이 켜진 상태에서 다른 요소가 하나라도 있으면 활성화
+            SetGameObjectActive(_titleContextSplitter, data.useTitle && data.HasNonTitleElement);
         }
 
         private static void SetElementActive(Component element, bool active)
