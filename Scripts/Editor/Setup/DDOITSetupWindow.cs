@@ -40,6 +40,17 @@ namespace DDOIT.Tools.Setup
 
         private const string SHOWN_KEY = "DDOIT_SetupWindow_Shown";
 
+        private const string DDOIT_DATA_FOLDER = "Assets/DDOIT_Tools/Data";
+        private const string PACKAGE_DATA_PATH_DEV = "Assets/DDOIT_Tools/Data";
+        private const string PACKAGE_DATA_PATH_UPM = "Packages/com.ddoit.tools/Data";
+
+        private static readonly string[] OPTIMIZE_ASSETS =
+        {
+            "DDOIT_RPAsset.asset",
+            "DDOIT_Renderer.asset",
+            "DDOIT_VolumeProfile.asset",
+        };
+
         #endregion
 
         #region Types
@@ -124,6 +135,11 @@ namespace DDOIT.Tools.Setup
 
             // ── 프로젝트 초기화 ──
             DrawInitProjectSection();
+
+            DrawSeparator();
+
+            // ── 프로젝트 최적화 ──
+            DrawOptimizeSection();
 
             EditorGUILayout.EndScrollView();
         }
@@ -211,6 +227,181 @@ namespace DDOIT.Tools.Setup
 
             if (GUILayout.Button("Init Project", GUILayout.Height(32)))
                 ExecuteInitProject();
+        }
+
+        #endregion
+
+        #region Optimize Section
+
+        private void DrawOptimizeSection()
+        {
+            EditorGUILayout.LabelField("프로젝트 최적화 (Quest VR)", EditorStyles.boldLabel);
+            EditorGUILayout.Space(4);
+
+            EditorGUILayout.HelpBox(
+                "Meta Quest VR에 최적화된 프로젝트 설정을 일괄 적용합니다.\n\n" +
+                "[ 에셋 교체 ]\n" +
+                "  - DDOIT_RPAsset → Graphics Default Pipeline\n" +
+                "  - DDOIT_Renderer → Renderer Data\n" +
+                "  - DDOIT_VolumeProfile → Default Volume Profile\n\n" +
+                "[ Player Settings ]\n" +
+                "  - Linear / Vulkan / IL2CPP / ARM64\n" +
+                "  - Managed Stripping: Medium\n\n" +
+                "[ Physics / Audio ]\n" +
+                "  - Fixed Timestep: 72Hz (0.01389)\n" +
+                "  - DSP Buffer: 256 (Best Latency)\n\n" +
+                "[ Build ]\n" +
+                "  - Texture Compression: ASTC\n" +
+                "  - Compression Method: LZ4",
+                MessageType.Info);
+
+            EditorGUILayout.Space(8);
+
+            if (GUILayout.Button("Optimize Project", GUILayout.Height(32)))
+                ExecuteOptimizeProject();
+        }
+
+        private static void ExecuteOptimizeProject()
+        {
+            if (!EditorUtility.DisplayDialog(
+                "프로젝트 최적화",
+                "Quest VR 최적화 설정을 적용합니다.\n" +
+                "기존 Graphics/Quality 설정이 변경됩니다.\n\n" +
+                "계속하시겠습니까?",
+                "적용", "취소"))
+                return;
+
+            int appliedCount = 0;
+
+            // ── 1. 에셋 복사 (UPM → Assets/) ──
+            string srcDataPath = FindPackageDataPath();
+            if (srcDataPath == null)
+            {
+                Debug.LogError("[DDOITSetupWindow] DDOIT_Tools Data 폴더를 찾을 수 없습니다.");
+                return;
+            }
+
+            // 목적지 폴더 확보
+            string dstFolder = "Assets/Settings/DDOIT";
+            if (!AssetDatabase.IsValidFolder("Assets/Settings"))
+                AssetDatabase.CreateFolder("Assets", "Settings");
+            if (!AssetDatabase.IsValidFolder(dstFolder))
+                AssetDatabase.CreateFolder("Assets/Settings", "DDOIT");
+
+            foreach (var assetName in OPTIMIZE_ASSETS)
+            {
+                string src = $"{srcDataPath}/{assetName}";
+                string dst = $"{dstFolder}/{assetName}";
+
+                if (!File.Exists(Path.GetFullPath(src)))
+                {
+                    Debug.LogWarning($"[DDOITSetupWindow] 원본 에셋 없음: {src}");
+                    continue;
+                }
+
+                if (File.Exists(Path.GetFullPath(dst)))
+                    AssetDatabase.DeleteAsset(dst);
+
+                AssetDatabase.CopyAsset(src, dst);
+            }
+
+            AssetDatabase.Refresh();
+
+            // ── 2. RP Asset → Graphics 설정 적용 ──
+            string rpAssetPath = $"{dstFolder}/DDOIT_RPAsset.asset";
+            var rpAsset = AssetDatabase.LoadAssetAtPath<ScriptableObject>(rpAssetPath);
+            if (rpAsset != null)
+            {
+                // Renderer 재연결 (복사 후 참조 깨질 수 있음)
+                string rendererPath = $"{dstFolder}/DDOIT_Renderer.asset";
+                var renderer = AssetDatabase.LoadAssetAtPath<ScriptableObject>(rendererPath);
+                if (renderer != null)
+                {
+                    var rpSo = new SerializedObject(rpAsset);
+                    var rendererList = rpSo.FindProperty("m_RendererDataList");
+                    if (rendererList != null && rendererList.arraySize > 0)
+                    {
+                        rendererList.GetArrayElementAtIndex(0).objectReferenceValue = renderer;
+                        rpSo.ApplyModifiedProperties();
+                    }
+                }
+
+                // Volume Profile 재연결
+                string volPath = $"{dstFolder}/DDOIT_VolumeProfile.asset";
+                var volProfile = AssetDatabase.LoadAssetAtPath<ScriptableObject>(volPath);
+                if (volProfile != null)
+                {
+                    var rpSo = new SerializedObject(rpAsset);
+                    var volProp = rpSo.FindProperty("m_VolumeProfile");
+                    if (volProp != null)
+                    {
+                        volProp.objectReferenceValue = volProfile;
+                        rpSo.ApplyModifiedProperties();
+                    }
+                }
+
+                // Graphics Settings에 Default RP 설정
+                UnityEngine.Rendering.GraphicsSettings.defaultRenderPipeline = rpAsset as UnityEngine.Rendering.RenderPipelineAsset;
+
+                // Quality Settings에도 적용
+                QualitySettings.renderPipeline = rpAsset as UnityEngine.Rendering.RenderPipelineAsset;
+
+                appliedCount++;
+                Debug.Log("[DDOITSetupWindow] DDOIT_RPAsset → Graphics/Quality 적용 완료");
+            }
+
+            // ── 3. Player Settings ──
+            PlayerSettings.colorSpace = ColorSpace.Linear;
+            PlayerSettings.SetGraphicsAPIs(BuildTarget.Android,
+                new[] { UnityEngine.Rendering.GraphicsDeviceType.Vulkan });
+            PlayerSettings.SetScriptingBackend(
+                UnityEditor.Build.NamedBuildTarget.Android,
+                ScriptingImplementation.IL2CPP);
+            PlayerSettings.Android.targetArchitectures = AndroidArchitecture.ARM64;
+            PlayerSettings.SetManagedStrippingLevel(
+                UnityEditor.Build.NamedBuildTarget.Android,
+                ManagedStrippingLevel.Medium);
+            PlayerSettings.Android.minSdkVersion = AndroidSdkVersions.AndroidApiLevel29;
+            appliedCount++;
+            Debug.Log("[DDOITSetupWindow] Player Settings 적용 완료");
+
+            // ── 4. Physics ──
+            Time.fixedDeltaTime = 0.01389f;
+            appliedCount++;
+            Debug.Log("[DDOITSetupWindow] Fixed Timestep → 0.01389 (72Hz)");
+
+            // ── 5. Audio ──
+            var audioConfig = AudioSettings.GetConfiguration();
+            audioConfig.dspBufferSize = 256;
+            AudioSettings.Reset(audioConfig);
+            appliedCount++;
+            Debug.Log("[DDOITSetupWindow] DSP Buffer Size → 256");
+
+            // ── 6. Build Settings ──
+            EditorUserBuildSettings.androidBuildSubtarget = MobileTextureSubtarget.ASTC;
+            appliedCount++;
+            Debug.Log("[DDOITSetupWindow] Texture Compression → ASTC");
+
+            AssetDatabase.SaveAssets();
+
+            EditorUtility.DisplayDialog(
+                "최적화 완료",
+                $"Quest VR 최적화 설정이 적용되었습니다.\n" +
+                $"총 {appliedCount}개 항목 적용.",
+                "확인");
+
+            Debug.Log($"[DDOITSetupWindow] 프로젝트 최적화 완료 ({appliedCount}개 항목)");
+        }
+
+        private static string FindPackageDataPath()
+        {
+            if (AssetDatabase.IsValidFolder(PACKAGE_DATA_PATH_DEV))
+                return PACKAGE_DATA_PATH_DEV;
+
+            if (AssetDatabase.IsValidFolder(PACKAGE_DATA_PATH_UPM))
+                return PACKAGE_DATA_PATH_UPM;
+
+            return null;
         }
 
         #endregion
