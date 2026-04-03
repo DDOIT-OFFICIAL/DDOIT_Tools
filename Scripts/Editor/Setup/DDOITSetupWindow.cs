@@ -348,6 +348,15 @@ namespace DDOIT.Tools.Setup
 
                 appliedCount++;
                 Debug.Log("[DDOITSetupWindow] DDOIT_RPAsset → Graphics/Quality 적용 완료");
+
+                // URP Global Settings의 Default Volume Profile 교체
+                string volPath2 = $"{dstFolder}/DDOIT_VolumeProfile.asset";
+                var volProfileForGlobal = AssetDatabase.LoadAssetAtPath<ScriptableObject>(volPath2);
+                if (volProfileForGlobal != null)
+                {
+                    ApplyGlobalVolumeProfile(volProfileForGlobal);
+                    Debug.Log("[DDOITSetupWindow] URP Global Default Volume Profile → DDOIT_VolumeProfile");
+                }
             }
 
             // ── 3. Player Settings ──
@@ -528,6 +537,44 @@ namespace DDOIT.Tools.Setup
         #endregion
 
         #region Utility
+
+        /// <summary>
+        /// URP Global Settings에서 Volume Profile 프로퍼티를 이름 기반으로 찾아 교체한다.
+        /// 배열 인덱스에 의존하지 않아 프로젝트마다 안전하게 동작한다.
+        /// </summary>
+        private static void ApplyGlobalVolumeProfile(ScriptableObject profile)
+        {
+            // URP Global Settings를 타입 이름으로 찾기 (asmdef 참조 없이)
+            var allSettings = Resources.FindObjectsOfTypeAll<ScriptableObject>();
+            ScriptableObject globalSettings = null;
+            foreach (var s in allSettings)
+            {
+                if (s.GetType().Name == "UniversalRenderPipelineGlobalSettings")
+                {
+                    globalSettings = s;
+                    break;
+                }
+            }
+
+            if (globalSettings == null) return;
+
+            var so = new SerializedObject(globalSettings);
+            var prop = so.GetIterator();
+            prop.Next(true);
+            do
+            {
+                if (prop.propertyType == SerializedPropertyType.ObjectReference &&
+                    (prop.name == "m_DefaultSettingsVolumeProfile" || prop.name == "m_VolumeProfile") &&
+                    prop.objectReferenceValue != null &&
+                    prop.objectReferenceValue.GetType().Name == "VolumeProfile")
+                {
+                    prop.objectReferenceValue = profile;
+                }
+            } while (prop.Next(true));
+
+            so.ApplyModifiedProperties();
+            AssetDatabase.SaveAssets();
+        }
 
         private static bool IsPackageInstalled(string packageId)
         {
