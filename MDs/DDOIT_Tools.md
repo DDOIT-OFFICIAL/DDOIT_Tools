@@ -729,11 +729,11 @@ MAJOR.MINOR.PATCH
 
 ## 9. 참고 문서
 
-| 문서 | 경로 | 내용 |
+| 문서 | 경로 (UPM / 개발자 모드) | 내용 |
 |---|---|---|
 | 코딩 규칙 | `CLAUDE.md` (프로젝트 루트) | 명명 규칙, 네임스페이스, 코드 구조화 |
-| Meta XR SDK 가이드 | `Assets/DDOIT_Tools/MDs/Meta_XR_SDK_Unity_Guide.md` | SDK 설치, 설정, 기능별 사용법 |
-| 이 문서 | `Assets/DDOIT_Tools/MDs/DDOIT_Tools.md` | 템플릿 구조, 모듈별 가이드 |
+| Meta XR SDK 가이드 | `Packages/com.ddoit.tools/MDs/Meta_XR_SDK_Unity_Guide.md` / `Assets/DDOIT_Tools/MDs/Meta_XR_SDK_Unity_Guide.md` | SDK 설치, 설정, 기능별 사용법 |
+| 이 문서 | `Packages/com.ddoit.tools/MDs/DDOIT_Tools.md` / `Assets/DDOIT_Tools/MDs/DDOIT_Tools.md` | 템플릿 구조, 모듈별 가이드 |
 
 ---
 
