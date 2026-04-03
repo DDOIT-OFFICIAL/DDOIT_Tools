@@ -374,12 +374,20 @@ namespace DDOIT.Tools.Setup
             appliedCount++;
             Debug.Log("[DDOITSetupWindow] Player Settings 적용 완료");
 
-            // ── 4. Physics ──
+            // ── 4. Physics (ProjectSettings 파일 직접 수정) ──
+            ModifyProjectSettingsFile(
+                "ProjectSettings/TimeManager.asset",
+                "Fixed Timestep: ",
+                "Fixed Timestep: 0.01389");
             Time.fixedDeltaTime = 0.01389f;
             appliedCount++;
             Debug.Log("[DDOITSetupWindow] Fixed Timestep → 0.01389 (72Hz)");
 
-            // ── 5. Audio ──
+            // ── 5. Audio (ProjectSettings 파일 직접 수정) ──
+            ModifyProjectSettingsFile(
+                "ProjectSettings/AudioManager.asset",
+                "m_DSPBufferSize: ",
+                "m_DSPBufferSize: 256");
             var audioConfig = AudioSettings.GetConfiguration();
             audioConfig.dspBufferSize = 256;
             AudioSettings.Reset(audioConfig);
@@ -574,6 +582,32 @@ namespace DDOIT.Tools.Setup
 
             so.ApplyModifiedProperties();
             AssetDatabase.SaveAssets();
+        }
+
+        /// <summary>
+        /// ProjectSettings YAML 파일의 특정 키를 찾아 줄 전체를 교체한다.
+        /// </summary>
+        private static void ModifyProjectSettingsFile(string relativePath, string keyPrefix, string newLine)
+        {
+            string fullPath = Path.Combine(Application.dataPath, "..", relativePath);
+            if (!File.Exists(fullPath))
+            {
+                Debug.LogWarning($"[DDOITSetupWindow] 파일 없음: {relativePath}");
+                return;
+            }
+
+            var lines = File.ReadAllLines(fullPath);
+            for (int i = 0; i < lines.Length; i++)
+            {
+                if (lines[i].TrimStart().StartsWith(keyPrefix))
+                {
+                    string indent = lines[i].Substring(0, lines[i].Length - lines[i].TrimStart().Length);
+                    lines[i] = indent + newLine;
+                    break;
+                }
+            }
+
+            File.WriteAllLines(fullPath, lines);
         }
 
         private static bool IsPackageInstalled(string packageId)
