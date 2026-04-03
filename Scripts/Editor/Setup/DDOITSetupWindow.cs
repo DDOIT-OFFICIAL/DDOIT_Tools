@@ -110,7 +110,7 @@ namespace DDOIT.Tools.Setup
 
         #region Menu
 
-        [MenuItem("DDOIT Tools/Setup", priority = -99)]
+        [MenuItem("DDOIT Tools/Setup", priority = -200)]
         public static void ShowWindow()
         {
             var window = GetWindow<DDOITSetupWindow>("DDOIT Setup");
