@@ -16,7 +16,7 @@ namespace DDOIT.Tools.Editor
 
         private const string PANEL_PREFAB_PATH = "Assets/DDOIT_Tools/Prefabs/UIPanel.prefab";
 
-        private static readonly string[] TAB_NAMES = { "UI Theme" };
+        private static readonly string[] TAB_NAMES = { "Scene Setup", "UI Theme" };
 
         #endregion
 
@@ -83,6 +83,9 @@ namespace DDOIT.Tools.Editor
             switch (_selectedTab)
             {
                 case 0:
+                    DrawSceneSetupTab();
+                    break;
+                case 1:
                     DrawUIThemeTab();
                     break;
             }
@@ -217,6 +220,126 @@ namespace DDOIT.Tools.Editor
             EditorGUILayout.PropertyField(so.FindProperty("textColor"), new GUIContent("Text"));
 
             so.ApplyModifiedProperties();
+        }
+
+        #endregion
+
+        #region Scene Setup Tab
+
+        private static readonly string[] INIT_SCENE_OBJECTS =
+        {
+            "Stage", "InitTr", "GameManager", "ScenarioManager"
+        };
+
+        private void DrawSceneSetupTab()
+        {
+            EditorGUILayout.LabelField("씬 초기 구성", EditorStyles.boldLabel);
+            EditorGUILayout.Space(4);
+
+            EditorGUILayout.HelpBox(
+                "Init Scene: 콘텐츠 씬에 필요한 기본 오브젝트를 생성합니다.\n" +
+                "• Stage — 맵 오브젝트 부모\n" +
+                "• InitTr — 플레이어 초기 위치\n" +
+                "• GameManager — 씬 매니저 (SpawnPoint 자동 연결)\n" +
+                "• ScenarioManager — 시나리오 관리자",
+                MessageType.Info);
+
+            EditorGUILayout.Space(4);
+
+            // 이미 존재하는 오브젝트 체크
+            var existingNames = GetExistingInitObjects();
+            if (existingNames.Length > 0)
+            {
+                EditorGUILayout.HelpBox(
+                    $"이미 존재하는 오브젝트: {string.Join(", ", existingNames)}\n" +
+                    "중복 오브젝트는 건너뜁니다.",
+                    MessageType.Warning);
+            }
+
+            EditorGUI.BeginDisabledGroup(existingNames.Length == INIT_SCENE_OBJECTS.Length);
+            if (GUILayout.Button("Init Scene", GUILayout.Height(32)))
+                ExecuteInitScene();
+            EditorGUI.EndDisabledGroup();
+        }
+
+        private static string[] GetExistingInitObjects()
+        {
+            return INIT_SCENE_OBJECTS
+                .Where(name => GameObject.Find(name) != null)
+                .ToArray();
+        }
+
+        private static void ExecuteInitScene()
+        {
+            // 1. Stage
+            var stage = FindOrCreate("Stage");
+
+            // 2. InitTr
+            var initTr = FindOrCreate("InitTr");
+
+            // 3. GameManager
+            var gameManagerObj = FindOrCreate("GameManager", typeof(GameManager));
+
+            // 4. ScenarioManager
+            var scenarioManagerObj = FindOrCreate("ScenarioManager", typeof(ScenarioManager));
+
+            // 5. Scenario_01 (ScenarioManager 하위)
+            var scenario = FindOrCreateChild(scenarioManagerObj, "Scenario_01", typeof(Scenario));
+
+            // GameManager._spawnPoint ← InitTr 자동 연결
+            var gm = gameManagerObj.GetComponent<GameManager>();
+            if (gm != null)
+            {
+                var so = new SerializedObject(gm);
+                var spawnProp = so.FindProperty("_spawnPoint");
+                if (spawnProp != null && spawnProp.objectReferenceValue == null)
+                {
+                    spawnProp.objectReferenceValue = initTr.transform;
+                    so.ApplyModifiedProperties();
+                }
+            }
+
+            // ScenarioManager._entryScenario ← Scenario_01 자동 연결
+            var sm = scenarioManagerObj.GetComponent<ScenarioManager>();
+            if (sm != null)
+            {
+                var so = new SerializedObject(sm);
+                var entryProp = so.FindProperty("_entryScenario");
+                if (entryProp != null && entryProp.objectReferenceValue == null)
+                {
+                    entryProp.objectReferenceValue = scenario.GetComponent<Scenario>();
+                    so.ApplyModifiedProperties();
+                }
+            }
+
+            Debug.Log("[DDOITToolsWindow] Init Scene 완료: Stage, InitTr, GameManager, ScenarioManager > Scenario_01");
+        }
+
+        private static GameObject FindOrCreate(string objectName, params System.Type[] components)
+        {
+            var existing = GameObject.Find(objectName);
+            if (existing != null) return existing;
+
+            var go = components.Length > 0
+                ? new GameObject(objectName, components)
+                : new GameObject(objectName);
+
+            Undo.RegisterCreatedObjectUndo(go, $"Create {objectName}");
+            return go;
+        }
+
+        private static GameObject FindOrCreateChild(GameObject parent, string childName, params System.Type[] components)
+        {
+            var existing = parent.transform.Find(childName);
+            if (existing != null) return existing.gameObject;
+
+            var go = components.Length > 0
+                ? new GameObject(childName, components)
+                : new GameObject(childName);
+
+            Undo.RegisterCreatedObjectUndo(go, $"Create {childName}");
+            go.transform.SetParent(parent.transform);
+            return go;
         }
 
         #endregion
