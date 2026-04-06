@@ -6,18 +6,18 @@ namespace DDOIT.Tools.Editor
     [CustomEditor(typeof(SoundNode))]
     public class SoundNodeEditor : UnityEditor.Editor
     {
-        private SerializedProperty _isStepCondition;
-        private SerializedProperty _onRelease;
+        private SerializedProperty _conditionGroup;
         private SerializedProperty _soundName;
+        private SerializedProperty _onEnd;
 
         private AudioClip _previewClip;
         private bool _isPlaying;
 
         private void OnEnable()
         {
-            _isStepCondition = serializedObject.FindProperty("_isStepCondition");
-            _onRelease = serializedObject.FindProperty("_onRelease");
+            _conditionGroup = serializedObject.FindProperty("_conditionGroup");
             _soundName = serializedObject.FindProperty("_soundName");
+            _onEnd = serializedObject.FindProperty("_onEnd");
         }
 
         private void OnDisable()
@@ -29,8 +29,7 @@ namespace DDOIT.Tools.Editor
         {
             serializedObject.Update();
 
-            EditorGUILayout.PropertyField(_isStepCondition, new GUIContent("Step 조건"));
-            EditorGUILayout.PropertyField(_onRelease);
+            ConditionGroupDrawer.Draw(_conditionGroup, (MonoBehaviour)target);
             EditorGUILayout.Space(4);
 
             EditorGUILayout.LabelField("사운드 설정", EditorStyles.boldLabel);
@@ -44,6 +43,9 @@ namespace DDOIT.Tools.Editor
             {
                 DrawPreviewButtons();
             }
+
+            EditorGUILayout.Space(4);
+            EditorGUILayout.PropertyField(_onEnd, new GUIContent("재생 완료 이벤트"));
 
             serializedObject.ApplyModifiedProperties();
         }

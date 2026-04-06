@@ -1,21 +1,22 @@
 using System.Collections;
 using UnityEngine;
+using UnityEngine.Events;
 
 namespace DDOIT.Tools
 {
     /// <summary>
     /// SoundManager를 통해 오디오를 재생하는 노드.
     /// SoundDatabase에 등록된 soundName으로 재생한다.
-    /// _isStepCondition이 켜져 있으면 재생 완료 시 조건을 충족한다.
+    /// 조건 그룹에 속해 있으면 재생 완료 시 조건을 충족한다.
     /// </summary>
     public class SoundNode : ScenarioNode
     {
         #region Serialized Fields
 
-        [Header("설정")]
-        [Tooltip("SoundDatabase에 등록된 사운드 이름")]
         [SoundName]
         [SerializeField] private string _soundName;
+
+        [SerializeField] private UnityEvent _onEnd;
 
         #endregion
 
@@ -30,9 +31,7 @@ namespace DDOIT.Tools
         protected override void OnInit()
         {
             SoundManager.Instance.PlaySound(_soundName);
-
-            if (IsStepCondition)
-                _coroutine = StartCoroutine(WaitForAudioEnd());
+            _coroutine = StartCoroutine(WaitForAudioEnd());
         }
 
         #endregion
@@ -57,6 +56,7 @@ namespace DDOIT.Tools
             float length = SoundManager.Instance.GetSoundLength(_soundName);
             yield return new WaitForSeconds(length);
             _coroutine = null;
+            _onEnd?.Invoke();
             SetConditionMet();
         }
 

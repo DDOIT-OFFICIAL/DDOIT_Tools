@@ -6,25 +6,24 @@ namespace DDOIT.Tools.Editor
     [CustomEditor(typeof(TriggerConditionNode))]
     public class TriggerConditionNodeEditor : UnityEditor.Editor
     {
-        private SerializedProperty _isStepCondition;
-        private SerializedProperty _onRelease;
+        private SerializedProperty _conditionGroup;
         private SerializedProperty _targetTag;
         private SerializedProperty _colliderSource;
+        private SerializedProperty _onEnd;
 
         private void OnEnable()
         {
-            _isStepCondition = serializedObject.FindProperty("_isStepCondition");
-            _onRelease = serializedObject.FindProperty("_onRelease");
+            _conditionGroup = serializedObject.FindProperty("_conditionGroup");
             _targetTag = serializedObject.FindProperty("_targetTag");
             _colliderSource = serializedObject.FindProperty("_colliderSource");
+            _onEnd = serializedObject.FindProperty("_onEnd");
         }
 
         public override void OnInspectorGUI()
         {
             serializedObject.Update();
 
-            EditorGUILayout.PropertyField(_isStepCondition, new GUIContent("Step 조건"));
-            EditorGUILayout.PropertyField(_onRelease);
+            ConditionGroupDrawer.Draw(_conditionGroup, (MonoBehaviour)target);
             EditorGUILayout.Space(4);
 
             EditorGUILayout.LabelField("트리거 설정", EditorStyles.boldLabel);
@@ -56,6 +55,9 @@ namespace DDOIT.Tools.Editor
                     ReplaceCollider<CapsuleCollider>(node);
                 EditorGUILayout.EndHorizontal();
             }
+
+            EditorGUILayout.Space(4);
+            EditorGUILayout.PropertyField(_onEnd, new GUIContent("트리거 감지 이벤트"));
 
             serializedObject.ApplyModifiedProperties();
         }

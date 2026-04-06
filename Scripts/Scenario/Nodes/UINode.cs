@@ -29,6 +29,8 @@ namespace DDOIT.Tools
         [SerializeField] private UnityEvent _onButtonA;
         [SerializeField] private UnityEvent _onButtonB;
 
+        [SerializeField] private UnityEvent _onEnd;
+
         #endregion
 
         #region Private Fields
@@ -111,6 +113,8 @@ namespace DDOIT.Tools
 
             if (index == 0) _onButtonA?.Invoke();
             else _onButtonB?.Invoke();
+
+            _onEnd?.Invoke();
 
             if (IsStepCondition)
                 SetConditionMet();

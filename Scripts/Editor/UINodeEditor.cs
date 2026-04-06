@@ -8,8 +8,7 @@ namespace DDOIT.Tools.Editor
     public class UINodeEditor : UnityEditor.Editor
     {
         // Base
-        private SerializedProperty _isStepCondition;
-        private SerializedProperty _onRelease;
+        private SerializedProperty _conditionGroup;
 
         // UI Data
         private SerializedProperty _uiData;
@@ -48,11 +47,11 @@ namespace DDOIT.Tools.Editor
         // Button Events
         private SerializedProperty _onButtonA;
         private SerializedProperty _onButtonB;
+        private SerializedProperty _onEnd;
 
         private void OnEnable()
         {
-            _isStepCondition = serializedObject.FindProperty("_isStepCondition");
-            _onRelease = serializedObject.FindProperty("_onRelease");
+            _conditionGroup = serializedObject.FindProperty("_conditionGroup");
 
             _uiData = serializedObject.FindProperty("_uiData");
             _useTitle = _uiData.FindPropertyRelative("useTitle");
@@ -82,6 +81,7 @@ namespace DDOIT.Tools.Editor
 
             _onButtonA = serializedObject.FindProperty("_onButtonA");
             _onButtonB = serializedObject.FindProperty("_onButtonB");
+            _onEnd = serializedObject.FindProperty("_onEnd");
 
             RefreshThemeList();
             RefreshGlobalSettings();
@@ -92,8 +92,7 @@ namespace DDOIT.Tools.Editor
             serializedObject.Update();
 
             // Base
-            EditorGUILayout.PropertyField(_isStepCondition, new GUIContent("Step 조건"));
-            EditorGUILayout.PropertyField(_onRelease);
+            ConditionGroupDrawer.Draw(_conditionGroup, (MonoBehaviour)target);
             EditorGUILayout.Space(4);
 
             // Theme
@@ -112,6 +111,8 @@ namespace DDOIT.Tools.Editor
             if (_useButtonA.boolValue || _useButtonB.boolValue)
             {
                 DrawButtonEventSection();
+                EditorGUILayout.Space(4);
+                EditorGUILayout.PropertyField(_onEnd, new GUIContent("버튼 클릭 이벤트 (공통)"));
                 EditorGUILayout.Space(4);
             }
 
@@ -346,7 +347,7 @@ namespace DDOIT.Tools.Editor
 
         private void DrawWarnings()
         {
-            if (!_isStepCondition.boolValue) return;
+            if (_conditionGroup.intValue <= 0) return;
 
             if (_useButtonA.boolValue || _useButtonB.boolValue)
             {

@@ -1,12 +1,13 @@
 using System.Collections;
 using UnityEngine;
+using UnityEngine.Events;
 
 namespace DDOIT.Tools
 {
     /// <summary>
-    /// Transform의 이동/회전을 독립적으로 제어하는 노드.
-    /// 이동과 회전은 각각 별도 코루틴으로 실행되며,
-    /// _isStepCondition이 켜져 있으면 둘 다 완료되어야 조건을 충족한다.
+    /// Transform의 이동/회전/스케일을 독립적으로 제어하는 노드.
+    /// 각각 별도 코루틴으로 실행되며,
+    /// 조건 그룹에 속해 있으면 활성화된 모든 항목이 완료되어야 조건을 충족한다.
     /// </summary>
     public class TransformNode : ScenarioNode
     {
@@ -15,11 +16,8 @@ namespace DDOIT.Tools
 
         #region Serialized Fields
 
-        [Header("대상")]
         [SerializeField] private Transform _target;
 
-        // 이동
-        [Header("이동")]
         [SerializeField] private bool _useTranslate = true;
         [SerializeField] private TargetMode _translateTargetMode = TargetMode.Transform;
         [SerializeField] private Transform _translateTransform;
@@ -30,8 +28,6 @@ namespace DDOIT.Tools
         [SerializeField] private AnimationCurve _translateCurve = AnimationCurve.EaseInOut(0, 0, 1, 1);
         [SerializeField] private float _translateSpeed = 5f;
 
-        // 회전
-        [Header("회전")]
         [SerializeField] private bool _useRotate;
         [SerializeField] private TargetMode _rotateTargetMode = TargetMode.Vector3;
         [SerializeField] private Transform _rotateTransform;
@@ -42,14 +38,25 @@ namespace DDOIT.Tools
         [SerializeField] private AnimationCurve _rotateCurve = AnimationCurve.EaseInOut(0, 0, 1, 1);
         [SerializeField] private float _rotateSpeed = 90f;
 
+        [SerializeField] private bool _useScale;
+        [SerializeField] private Vector3 _scaleTarget = Vector3.one;
+        [SerializeField] private MoveMode _scaleMoveMode = MoveMode.Duration;
+        [SerializeField] private float _scaleDuration = 1f;
+        [SerializeField] private AnimationCurve _scaleCurve = AnimationCurve.EaseInOut(0, 0, 1, 1);
+        [SerializeField] private float _scaleSpeed = 5f;
+
+        [SerializeField] private UnityEvent _onEnd;
+
         #endregion
 
         #region Private Fields
 
         private Coroutine _translateCoroutine;
         private Coroutine _rotateCoroutine;
+        private Coroutine _scaleCoroutine;
         private bool _translateDone;
         private bool _rotateDone;
+        private bool _scaleDone;
 
         #endregion
 
@@ -61,8 +68,9 @@ namespace DDOIT.Tools
 
             _translateDone = !_useTranslate;
             _rotateDone = !_useRotate;
+            _scaleDone = !_useScale;
 
-            if (!_useTranslate && !_useRotate)
+            if (!_useTranslate && !_useRotate && !_useScale)
             {
                 if (IsStepCondition) SetConditionMet();
                 return;
@@ -77,6 +85,7 @@ namespace DDOIT.Tools
 
             if (_useTranslate) InitTranslate();
             if (_useRotate) InitRotate();
+            if (_useScale) InitScale();
         }
 
         #endregion
@@ -247,6 +256,63 @@ namespace DDOIT.Tools
 
         #endregion
 
+        #region Scale
+
+        private void InitScale()
+        {
+            Vector3 startScale = _target.localScale;
+            Vector3 endScale = _scaleTarget;
+
+            float duration;
+            AnimationCurve curve;
+
+            if (_scaleMoveMode == MoveMode.Duration)
+            {
+                if (_scaleDuration <= 0f) { OnScaleDone(); return; }
+
+                duration = _scaleDuration;
+                curve = _scaleCurve;
+            }
+            else
+            {
+                if (_scaleSpeed <= 0f) { OnScaleDone(); return; }
+
+                float dist = Vector3.Distance(startScale, endScale);
+                if (dist < 0.001f) { OnScaleDone(); return; }
+
+                duration = dist / _scaleSpeed;
+                curve = AnimationCurve.Linear(0, 0, 1, 1);
+            }
+
+            _scaleCoroutine = StartCoroutine(DoScale(startScale, endScale, duration, curve));
+        }
+
+        private IEnumerator DoScale(Vector3 startScale, Vector3 endScale,
+            float duration, AnimationCurve curve)
+        {
+            float elapsed = 0f;
+
+            while (elapsed < duration)
+            {
+                elapsed += Time.deltaTime;
+                float t = curve.Evaluate(Mathf.Clamp01(elapsed / duration));
+                _target.localScale = Vector3.Lerp(startScale, endScale, t);
+                yield return null;
+            }
+
+            _target.localScale = endScale;
+            _scaleCoroutine = null;
+            OnScaleDone();
+        }
+
+        private void OnScaleDone()
+        {
+            _scaleDone = true;
+            CheckCompletion();
+        }
+
+        #endregion
+
         #region Lifecycle
 
         private void OnDisable()
@@ -260,11 +326,12 @@ namespace DDOIT.Tools
 
         private void CheckCompletion()
         {
-            if (!_translateDone || !_rotateDone) return;
+            if (!_translateDone || !_rotateDone || !_scaleDone) return;
 
             if (ScenarioManager.DebugMode)
                 Debug.Log($"[TransformNode] '{gameObject.name}' 완료");
 
+            _onEnd?.Invoke();
             if (IsStepCondition) SetConditionMet();
         }
 
@@ -280,6 +347,12 @@ namespace DDOIT.Tools
             {
                 StopCoroutine(_rotateCoroutine);
                 _rotateCoroutine = null;
+            }
+
+            if (_scaleCoroutine != null)
+            {
+                StopCoroutine(_scaleCoroutine);
+                _scaleCoroutine = null;
             }
         }
 

@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.Events;
 
 namespace DDOIT.Tools
 {
@@ -11,12 +12,10 @@ namespace DDOIT.Tools
     {
         #region Serialized Fields
 
-        [Header("설정")]
-        [Tooltip("OnTriggerEnter에서 감지할 태그")]
         [SerializeField] private string _targetTag = "Player";
-
-        [Tooltip("외부 Collider 사용 시 지정. 비워두면 자기 자신의 Collider 사용")]
         [SerializeField] private Collider _colliderSource;
+
+        [SerializeField] private UnityEvent _onEnd;
 
         #endregion
 
@@ -72,6 +71,7 @@ namespace DDOIT.Tools
             {
                 if (ScenarioManager.DebugMode)
                     Debug.Log($"[TriggerConditionNode] '{gameObject.name}' 트리거 감지: {other.gameObject.name}");
+                _onEnd?.Invoke();
                 SetConditionMet();
             }
         }

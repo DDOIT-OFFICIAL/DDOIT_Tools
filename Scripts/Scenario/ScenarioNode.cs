@@ -1,32 +1,28 @@
 using UnityEngine;
-using UnityEngine.Events;
 
 namespace DDOIT.Tools
 {
     /// <summary>
     /// 단일 기능을 수행하는 노드의 추상 베이스 클래스.
     /// Step이 활성화되면 Init()이 호출되며,
-    /// _isStepCondition이 켜져 있으면 SetConditionMet()으로 Step 완료 조건에 참여한다.
+    /// _conditionGroup이 1 이상이면 해당 그룹의 완료 조건에 참여한다.
     /// Step이 종료되면 Release()가 호출되어 노드를 정리한다.
     /// </summary>
     public abstract class ScenarioNode : MonoBehaviour
     {
         #region Serialized Fields
 
-        [Header("Step 조건")]
-        [Tooltip("이 노드가 Step 완료 조건에 포함되는지 여부")]
-        [SerializeField] private bool _isStepCondition;
-
-        [Header("이벤트")]
-        [Tooltip("노드 종료 시 (Step 종료 직전)")]
-        [SerializeField] private UnityEvent _onRelease;
+        [SerializeField] private int _conditionGroup;
 
         #endregion
 
         #region Properties
 
-        /// <summary>이 노드가 Step 완료 조건인지 여부.</summary>
-        public bool IsStepCondition => _isStepCondition;
+        /// <summary>이 노드가 Step 완료 조건에 참여하는지 여부.</summary>
+        public bool IsStepCondition => _conditionGroup > 0;
+
+        /// <summary>이 노드가 속한 조건 그룹 번호 (0=미참여).</summary>
+        public int ConditionGroup => _conditionGroup;
 
         /// <summary>이 노드의 조건이 충족되었는지 여부.</summary>
         public bool IsConditionMet { get; private set; }
@@ -48,7 +44,8 @@ namespace DDOIT.Tools
             _parentStep = GetComponentInParent<Step>();
             IsConditionMet = false;
 
-            if (ScenarioManager.DebugMode) Debug.Log($"[Node] '{gameObject.name}' Init (조건: {_isStepCondition})");
+            if (ScenarioManager.DebugMode)
+                Debug.Log($"[Node] '{gameObject.name}' Init (조건 그룹: {_conditionGroup})");
 
             OnInit();
         }
@@ -58,7 +55,6 @@ namespace DDOIT.Tools
             if (ScenarioManager.DebugMode) Debug.Log($"[Node] '{gameObject.name}' Release");
 
             OnRelease();
-            _onRelease?.Invoke();
         }
 
         #endregion
@@ -73,16 +69,17 @@ namespace DDOIT.Tools
 
         /// <summary>
         /// 이 노드의 조건이 충족되었을 때 호출한다.
-        /// Step에 조건 충족을 보고하고, Step은 모든 조건 노드를 확인한 뒤 완료 여부를 결정한다.
+        /// Step에 조건 충족을 보고하고, Step은 그룹별로 완료 여부를 판단한다.
         /// </summary>
         protected void SetConditionMet()
         {
-            if (!_isStepCondition) return;
+            if (_conditionGroup <= 0) return;
             if (IsConditionMet) return;
 
             IsConditionMet = true;
 
-            if (ScenarioManager.DebugMode) Debug.Log($"[Node] '{gameObject.name}' 조건 충족");
+            if (ScenarioManager.DebugMode)
+                Debug.Log($"[Node] '{gameObject.name}' 조건 충족 (그룹 {_conditionGroup})");
 
             if (_parentStep != null)
                 _parentStep.OnNodeConditionMet();
