@@ -534,8 +534,39 @@ namespace DDOIT.Tools.Setup
                 copiedCount++;
             }
 
+            // 4. CLAUDE.md 배포
+            CopyClaudeMdToProjectRoot();
+
             AssetDatabase.Refresh();
             Debug.Log($"[DDOITSetupWindow] 프로젝트 초기화 완료 (폴더 {PROJECT_FOLDERS.Length}개, 씬 {copiedCount}개 복사)");
+        }
+
+        /// <summary>
+        /// 패키지 내 CLAUDE.md를 프로젝트 루트에 복사한다. 이미 있으면 건너뛴다.
+        /// </summary>
+        private static void CopyClaudeMdToProjectRoot()
+        {
+            string projectRoot = Path.GetDirectoryName(Application.dataPath);
+            string destPath = Path.Combine(projectRoot, "CLAUDE.md");
+
+            if (File.Exists(destPath)) return;
+
+            // 개발자 모드
+            string devPath = Path.Combine(Application.dataPath, "DDOIT_Tools", "MDs", "CLAUDE.md");
+            if (File.Exists(devPath))
+            {
+                File.Copy(devPath, destPath);
+                Debug.Log("[DDOITSetupWindow] CLAUDE.md → 프로젝트 루트에 배포 완료");
+                return;
+            }
+
+            // UPM 모드
+            string upmPath = Path.GetFullPath("Packages/com.ddoit.tools/MDs/CLAUDE.md");
+            if (File.Exists(upmPath))
+            {
+                File.Copy(upmPath, destPath);
+                Debug.Log("[DDOITSetupWindow] CLAUDE.md → 프로젝트 루트에 배포 완료");
+            }
         }
 
         private static string FindPackageScenesPath()
