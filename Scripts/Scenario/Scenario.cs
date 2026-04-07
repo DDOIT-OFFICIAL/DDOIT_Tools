@@ -4,7 +4,9 @@ using UnityEngine.Events;
 namespace DDOIT.Tools
 {
     /// <summary>
-    /// Step들을 직렬로 실행하는 시나리오 단위.
+    /// Step들을 실행하는 시나리오 단위.
+    /// Step 완료 시 지정된 타겟 Step으로 분기하거나 다음 순번으로 진행한다.
+    /// Step이 다른 Scenario로 분기하면 현재 Scenario를 종료하고 타겟을 시작한다.
     /// 종료 시 _nextScenario가 있으면 해당 시나리오를 시작한다.
     /// </summary>
     public class Scenario : MonoBehaviour
@@ -72,16 +74,39 @@ namespace DDOIT.Tools
 
         /// <summary>
         /// 런타임에 다음 시나리오를 동적으로 변경한다.
-        /// 분기 노드에서 호출 가능.
         /// </summary>
         public void SetNextScenario(Scenario scenario)
         {
             _nextScenario = scenario;
         }
 
-        internal void OnStepCompleted()
+        /// <summary>
+        /// Step 완료 시 호출. targetStep이 있으면 해당 Step으로 분기, 없으면 다음 순번.
+        /// </summary>
+        internal void OnStepCompleted(Step targetStep = null)
         {
-            RunNextStep();
+            if (targetStep != null)
+                RunSpecificStep(targetStep);
+            else
+                RunNextStep();
+        }
+
+        /// <summary>
+        /// Step이 다른 Scenario로 분기할 때 호출.
+        /// 현재 Scenario를 종료하고 타겟 Scenario를 시작한다.
+        /// </summary>
+        internal void OnStepBranch(Scenario targetScenario)
+        {
+            if (!IsActive) return;
+
+            if (ScenarioManager.DebugMode)
+                Debug.Log($"[Scenario] '{gameObject.name}' → '{targetScenario.gameObject.name}'으로 Scenario 분기");
+
+            IsActive = false;
+            _onEnd?.Invoke();
+            gameObject.SetActive(false);
+
+            targetScenario.StartTrigger();
         }
 
         #endregion
@@ -92,7 +117,6 @@ namespace DDOIT.Tools
         {
             _currentStepIndex++;
 
-            // Skip이 켜진 Step은 건너뛴다
             while (_currentStepIndex < _steps.Length && _steps[_currentStepIndex].Skip)
             {
                 if (ScenarioManager.DebugMode)
@@ -107,6 +131,26 @@ namespace DDOIT.Tools
             }
 
             _steps[_currentStepIndex].StartTrigger();
+        }
+
+        private void RunSpecificStep(Step target)
+        {
+            for (int i = 0; i < _steps.Length; i++)
+            {
+                if (_steps[i] == target)
+                {
+                    _currentStepIndex = i;
+
+                    if (ScenarioManager.DebugMode)
+                        Debug.Log($"[Scenario] '{gameObject.name}' → '{target.gameObject.name}'으로 Step 분기");
+
+                    _steps[i].StartTrigger();
+                    return;
+                }
+            }
+
+            Debug.LogWarning($"[Scenario] '{gameObject.name}': 타겟 Step '{target.gameObject.name}'을 찾을 수 없습니다. 다음 순번으로 진행.");
+            RunNextStep();
         }
 
         #endregion

@@ -6,11 +6,11 @@ namespace DDOIT.Tools.Editor
     [CustomEditor(typeof(ToggleNode))]
     public class ToggleNodeEditor : UnityEditor.Editor
     {
-        // Toggle
         private SerializedProperty _mode;
         private SerializedProperty _targetObject;
         private SerializedProperty _targetComponent;
         private SerializedProperty _targetParticle;
+        private SerializedProperty _targetScript;
         private SerializedProperty _activate;
 
         private void OnEnable()
@@ -19,6 +19,7 @@ namespace DDOIT.Tools.Editor
             _targetObject = serializedObject.FindProperty("_targetObject");
             _targetComponent = serializedObject.FindProperty("_targetComponent");
             _targetParticle = serializedObject.FindProperty("_targetParticle");
+            _targetScript = serializedObject.FindProperty("_targetScript");
             _activate = serializedObject.FindProperty("_activate");
         }
 
@@ -26,11 +27,9 @@ namespace DDOIT.Tools.Editor
         {
             serializedObject.Update();
 
-            // Mode
             EditorGUILayout.LabelField("토글 설정", EditorStyles.boldLabel);
             EditorGUILayout.PropertyField(_mode, new GUIContent("모드"));
 
-            // Mode별 대상 필드
             var mode = (ToggleMode)_mode.enumValueIndex;
             switch (mode)
             {
@@ -43,20 +42,25 @@ namespace DDOIT.Tools.Editor
                 case ToggleMode.Particle:
                     EditorGUILayout.PropertyField(_targetParticle, new GUIContent("대상"));
                     break;
+                case ToggleMode.Script:
+                    EditorGUILayout.PropertyField(_targetScript, new GUIContent("대상"));
+                    DrawScriptWarnings();
+                    break;
             }
 
-            // On/Off 토글
             EditorGUILayout.Space(4);
-            DrawActivateToggle();
+            DrawActivateToggle(mode);
 
-            // 경고
             DrawWarnings(mode);
 
             serializedObject.ApplyModifiedProperties();
         }
 
-        private void DrawActivateToggle()
+        private void DrawActivateToggle(ToggleMode mode)
         {
+            string onLabel = mode == ToggleMode.Script ? "Go()" : "ON";
+            string offLabel = mode == ToggleMode.Script ? "Stop()" : "OFF";
+
             EditorGUILayout.BeginHorizontal();
             EditorGUILayout.PrefixLabel("동작");
 
@@ -70,15 +74,26 @@ namespace DDOIT.Tools.Editor
             var originalBg = GUI.backgroundColor;
 
             GUI.backgroundColor = _activate.boolValue ? new Color(0.3f, 0.8f, 0.3f) : Color.white;
-            if (GUILayout.Button("ON", onStyle))
+            if (GUILayout.Button(onLabel, onStyle))
                 _activate.boolValue = true;
 
             GUI.backgroundColor = !_activate.boolValue ? new Color(0.8f, 0.3f, 0.3f) : Color.white;
-            if (GUILayout.Button("OFF", offStyle))
+            if (GUILayout.Button(offLabel, offStyle))
                 _activate.boolValue = false;
 
             GUI.backgroundColor = originalBg;
             EditorGUILayout.EndHorizontal();
+        }
+
+        private void DrawScriptWarnings()
+        {
+            var script = _targetScript.objectReferenceValue as MonoBehaviour;
+            if (script != null && !(script is IToggleable))
+            {
+                EditorGUILayout.HelpBox(
+                    $"'{script.GetType().Name}'은 IToggleable을 구현하지 않습니다.",
+                    MessageType.Error);
+            }
         }
 
         private void DrawWarnings(ToggleMode mode)
@@ -88,6 +103,7 @@ namespace DDOIT.Tools.Editor
                 ToggleMode.GameObject => _targetObject.objectReferenceValue != null,
                 ToggleMode.Component => _targetComponent.objectReferenceValue != null,
                 ToggleMode.Particle => _targetParticle.objectReferenceValue != null,
+                ToggleMode.Script => _targetScript.objectReferenceValue != null,
                 _ => false,
             };
 

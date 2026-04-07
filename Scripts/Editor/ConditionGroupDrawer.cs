@@ -43,7 +43,7 @@ namespace DDOIT.Tools.Editor
             var step = target.GetComponentInParent<Step>();
             if (step == null) return 1;
 
-            return Mathf.Max(1, step.ConditionGroupCount);
+            return Mathf.Max(0, step.ConditionGroupCount);
         }
     }
 }

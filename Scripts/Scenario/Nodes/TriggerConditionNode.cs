@@ -1,19 +1,30 @@
+using System.Collections;
 using UnityEngine;
 using UnityEngine.Events;
 
 namespace DDOIT.Tools
 {
     /// <summary>
-    /// 특정 태그를 가진 객체의 트리거 진입을 감지하는 조건 전용 노드.
-    /// _colliderSource가 지정되면 외부 Collider를 사용하고,
-    /// 미지정이면 자기 자신의 Collider를 사용한다.
+    /// 특정 태그를 가진 객체의 트리거 이벤트를 감지하는 조건 노드.
+    /// Enter: 진입 시 즉시 충족
+    /// Exit: 이탈 시 즉시 충족
+    /// Stay: 진입 후 지정 시간 동안 체류하면 충족 (중간에 이탈 시 리셋)
     /// </summary>
+    public enum TriggerDetectMode
+    {
+        Enter,
+        Exit,
+        Stay,
+    }
+
     public class TriggerConditionNode : ScenarioNode
     {
         #region Serialized Fields
 
+        [SerializeField] private TriggerDetectMode _detectMode = TriggerDetectMode.Enter;
         [SerializeField] private string _targetTag = "Player";
         [SerializeField] private Collider _colliderSource;
+        [SerializeField] private float _stayDuration = 2f;
 
         [SerializeField] private UnityEvent _onEnd;
 
@@ -22,6 +33,8 @@ namespace DDOIT.Tools
         #region Private Fields
 
         private TriggerRelay _relay;
+        private Coroutine _stayCoroutine;
+        private bool _isInside;
 
         #endregion
 
@@ -30,6 +43,13 @@ namespace DDOIT.Tools
         protected override void OnInit()
         {
             CleanupRelay();
+            _isInside = false;
+
+            if (_stayCoroutine != null)
+            {
+                StopCoroutine(_stayCoroutine);
+                _stayCoroutine = null;
+            }
 
             Collider col = _colliderSource != null ? _colliderSource : GetComponent<Collider>();
 
@@ -45,35 +65,116 @@ namespace DDOIT.Tools
             }
         }
 
+        protected override void OnRelease()
+        {
+            if (_stayCoroutine != null)
+            {
+                StopCoroutine(_stayCoroutine);
+                _stayCoroutine = null;
+            }
+        }
+
         #endregion
 
-        #region Trigger Handling
+        #region Trigger Handling — Self
 
-        /// <summary>자기 자신의 Collider에서 발생한 트리거.</summary>
         private void OnTriggerEnter(Collider other)
         {
-            if (_colliderSource != null) return; // 외부 Collider 사용 중이면 무시
-            HandleTrigger(other);
+            if (_colliderSource != null) return;
+            HandleEnter(other);
         }
 
-        /// <summary>TriggerRelay를 통해 외부 Collider에서 전달된 트리거.</summary>
+        private void OnTriggerExit(Collider other)
+        {
+            if (_colliderSource != null) return;
+            HandleExit(other);
+        }
+
+        #endregion
+
+        #region Trigger Handling — Relay
+
         public void OnRelayTriggerEnter(Collider other)
         {
-            HandleTrigger(other);
+            HandleEnter(other);
         }
 
-        private void HandleTrigger(Collider other)
+        public void OnRelayTriggerExit(Collider other)
         {
-            if (!IsStepCondition) return;
-            if (IsConditionMet) return;
+            HandleExit(other);
+        }
 
-            if (other.CompareTag(_targetTag))
+        #endregion
+
+        #region Logic
+
+        private void HandleEnter(Collider other)
+        {
+            if (!IsStepCondition || IsConditionMet) return;
+            if (!other.CompareTag(_targetTag)) return;
+
+            _isInside = true;
+
+            if (ScenarioManager.DebugMode)
+                Debug.Log($"[TriggerConditionNode] '{gameObject.name}' Enter: {other.gameObject.name}");
+
+            switch (_detectMode)
+            {
+                case TriggerDetectMode.Enter:
+                    Complete();
+                    break;
+                case TriggerDetectMode.Stay:
+                    if (_stayCoroutine != null)
+                        StopCoroutine(_stayCoroutine);
+                    _stayCoroutine = StartCoroutine(StayTimer());
+                    break;
+            }
+        }
+
+        private void HandleExit(Collider other)
+        {
+            if (!IsStepCondition || IsConditionMet) return;
+            if (!other.CompareTag(_targetTag)) return;
+
+            _isInside = false;
+
+            if (ScenarioManager.DebugMode)
+                Debug.Log($"[TriggerConditionNode] '{gameObject.name}' Exit: {other.gameObject.name}");
+
+            switch (_detectMode)
+            {
+                case TriggerDetectMode.Exit:
+                    Complete();
+                    break;
+                case TriggerDetectMode.Stay:
+                    if (_stayCoroutine != null)
+                    {
+                        StopCoroutine(_stayCoroutine);
+                        _stayCoroutine = null;
+                        if (ScenarioManager.DebugMode)
+                            Debug.Log($"[TriggerConditionNode] '{gameObject.name}' 체류 타이머 리셋");
+                    }
+                    break;
+            }
+        }
+
+        private IEnumerator StayTimer()
+        {
+            yield return new WaitForSeconds(_stayDuration);
+            _stayCoroutine = null;
+
+            if (_isInside && !IsConditionMet)
             {
                 if (ScenarioManager.DebugMode)
-                    Debug.Log($"[TriggerConditionNode] '{gameObject.name}' 트리거 감지: {other.gameObject.name}");
-                _onEnd?.Invoke();
-                SetConditionMet();
+                    Debug.Log($"[TriggerConditionNode] '{gameObject.name}' 체류 {_stayDuration}초 완료");
+                Complete();
             }
+        }
+
+        private void Complete()
+        {
+            _onEnd?.Invoke();
+            SetConditionMet();
         }
 
         #endregion
@@ -92,6 +193,11 @@ namespace DDOIT.Tools
         private void OnDisable()
         {
             CleanupRelay();
+            if (_stayCoroutine != null)
+            {
+                StopCoroutine(_stayCoroutine);
+                _stayCoroutine = null;
+            }
         }
 
         private void OnDestroy()

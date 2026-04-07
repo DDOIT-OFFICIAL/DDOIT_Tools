@@ -3,7 +3,7 @@ using UnityEngine;
 namespace DDOIT.Tools
 {
     /// <summary>
-    /// 외부 객체의 OnTriggerEnter 이벤트를 TriggerConditionNode로 전달하는 경량 헬퍼.
+    /// 외부 객체의 트리거 이벤트를 TriggerConditionNode로 전달하는 경량 헬퍼.
     /// TriggerConditionNode가 런타임에 자동으로 부착/제거한다.
     /// </summary>
     public class TriggerRelay : MonoBehaviour
@@ -19,6 +19,12 @@ namespace DDOIT.Tools
         {
             if (_owner != null)
                 _owner.OnRelayTriggerEnter(other);
+        }
+
+        private void OnTriggerExit(Collider other)
+        {
+            if (_owner != null)
+                _owner.OnRelayTriggerExit(other);
         }
     }
 }

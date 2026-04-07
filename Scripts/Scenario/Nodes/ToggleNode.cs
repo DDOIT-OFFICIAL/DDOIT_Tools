@@ -4,13 +4,14 @@ namespace DDOIT.Tools
 {
     /// <summary>
     /// 대상의 활성/비활성 상태를 토글하는 노드.
-    /// GameObject, Component, ParticleSystem을 On/Off 제어한다.
+    /// GameObject, Component, ParticleSystem, IToggleable 스크립트를 On/Off 제어한다.
     /// </summary>
     public enum ToggleMode
     {
         GameObject,
         Component,
         Particle,
+        Script,
     }
 
     public class ToggleNode : ScenarioNode
@@ -21,6 +22,7 @@ namespace DDOIT.Tools
         [SerializeField] private GameObject _targetObject;
         [SerializeField] private Component _targetComponent;
         [SerializeField] private ParticleSystem _targetParticle;
+        [SerializeField] private MonoBehaviour _targetScript;
         [SerializeField] private bool _activate = true;
 
         #endregion
@@ -69,9 +71,25 @@ namespace DDOIT.Tools
                         Debug.LogWarning($"[ToggleNode] '{gameObject.name}': 대상 ParticleSystem이 없습니다.");
                     }
                     break;
+
+                case ToggleMode.Script:
+                    if (_targetScript is IToggleable toggleable)
+                    {
+                        if (_activate)
+                            toggleable.Go();
+                        else
+                            toggleable.Stop();
+                    }
+                    else if (_targetScript != null)
+                    {
+                        Debug.LogWarning($"[ToggleNode] '{gameObject.name}': '{_targetScript.GetType().Name}'은 IToggleable을 구현하지 않습니다.");
+                    }
+                    else
+                    {
+                        Debug.LogWarning($"[ToggleNode] '{gameObject.name}': 대상 Script가 없습니다.");
+                    }
+                    break;
             }
-
-
         }
 
         #endregion

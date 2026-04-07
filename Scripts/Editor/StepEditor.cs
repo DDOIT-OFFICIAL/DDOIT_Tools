@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using UnityEditor;
 using UnityEngine;
 
@@ -9,15 +10,32 @@ namespace DDOIT.Tools.Editor
     {
         private SerializedProperty _skip;
         private SerializedProperty _conditionGroupCount;
+        private SerializedProperty _defaultTargetStep;
+        private SerializedProperty _defaultTargetScenario;
+        private SerializedProperty _groupTargetSteps;
+        private SerializedProperty _groupTargetScenarios;
         private SerializedProperty _onStart;
         private SerializedProperty _onEnd;
+
+        // 드롭다운 캐시
+        private Step[] _siblingSteps;
+        private Scenario[] _allScenarios;
+        private string[] _targetNames;
+        private int _stepOffset;
+        private int _scenarioOffset;
 
         private void OnEnable()
         {
             _skip = serializedObject.FindProperty("_skip");
             _conditionGroupCount = serializedObject.FindProperty("_conditionGroupCount");
+            _defaultTargetStep = serializedObject.FindProperty("_defaultTargetStep");
+            _defaultTargetScenario = serializedObject.FindProperty("_defaultTargetScenario");
+            _groupTargetSteps = serializedObject.FindProperty("_groupTargetSteps");
+            _groupTargetScenarios = serializedObject.FindProperty("_groupTargetScenarios");
             _onStart = serializedObject.FindProperty("_onStart");
             _onEnd = serializedObject.FindProperty("_onEnd");
+
+            RefreshTargetCache();
         }
 
         public override void OnInspectorGUI()
@@ -27,8 +45,7 @@ namespace DDOIT.Tools.Editor
             EditorGUILayout.PropertyField(_skip, new GUIContent("건너뛰기"));
             EditorGUILayout.Space(4);
 
-            // 조건 그룹 수
-            DrawConditionGroupCount();
+            DrawConditionGroupSection();
             EditorGUILayout.Space(4);
 
             EditorGUILayout.PropertyField(_onStart, new GUIContent("Step 시작 이벤트"));
@@ -55,36 +72,192 @@ namespace DDOIT.Tools.Editor
             serializedObject.ApplyModifiedProperties();
         }
 
-        private void DrawConditionGroupCount()
+        #region Condition Group Section
+
+        private void DrawConditionGroupSection()
         {
             EditorGUILayout.LabelField("조건 그룹", EditorStyles.boldLabel);
 
+            // 그룹 수 +/-
             EditorGUILayout.BeginHorizontal();
-
             EditorGUILayout.LabelField($"그룹 수: {_conditionGroupCount.intValue}", GUILayout.Width(80));
 
             if (GUILayout.Button("+", GUILayout.Width(24)))
+            {
                 _conditionGroupCount.intValue++;
+                SyncArraySizes();
+            }
 
-            EditorGUI.BeginDisabledGroup(_conditionGroupCount.intValue <= 1);
+            EditorGUI.BeginDisabledGroup(_conditionGroupCount.intValue <= 0);
             if (GUILayout.Button("-", GUILayout.Width(24)))
+            {
                 _conditionGroupCount.intValue--;
+                SyncArraySizes();
+            }
             EditorGUI.EndDisabledGroup();
 
             EditorGUILayout.EndHorizontal();
 
-            if (_conditionGroupCount.intValue > 1)
+            int groupCount = _conditionGroupCount.intValue;
+
+            // 조건 없음
+            if (groupCount == 0)
             {
-                EditorGUILayout.HelpBox(
-                    "그룹 간 OR: 아무 그룹이든 전원 충족 시 Step 종료\n" +
-                    "그룹 내 AND: 같은 그룹의 모든 노드가 충족되어야 그룹 완료",
-                    MessageType.None);
+                EditorGUILayout.HelpBox("조건 그룹 없음 → 기본 대기 후 자동 진행", MessageType.None);
+                DrawTargetDropdown("완료 시 이동", _defaultTargetStep, _defaultTargetScenario);
+            }
+            else
+            {
+                if (groupCount > 1)
+                {
+                    EditorGUILayout.HelpBox(
+                        "그룹 간 OR: 아무 그룹이든 전원 충족 시 Step 종료\n" +
+                        "그룹 내 AND: 같은 그룹의 모든 노드가 충족되어야 그룹 완료",
+                        MessageType.None);
+                }
+
+                SyncArraySizes();
+
+                for (int i = 0; i < groupCount; i++)
+                {
+                    var groupColor = GetGroupColor(i + 1);
+                    var prevBg = GUI.backgroundColor;
+                    GUI.backgroundColor = groupColor;
+
+                    var stepElement = i < _groupTargetSteps.arraySize
+                        ? _groupTargetSteps.GetArrayElementAtIndex(i) : null;
+                    var scenarioElement = i < _groupTargetScenarios.arraySize
+                        ? _groupTargetScenarios.GetArrayElementAtIndex(i) : null;
+
+                    if (stepElement != null && scenarioElement != null)
+                        DrawTargetDropdown($"그룹 {i + 1} 완료 시 이동", stepElement, scenarioElement);
+
+                    GUI.backgroundColor = prevBg;
+                }
             }
         }
 
+        private void DrawTargetDropdown(string label, SerializedProperty stepProp, SerializedProperty scenarioProp)
+        {
+            if (_targetNames == null) RefreshTargetCache();
+
+            // 현재 선택 인덱스 찾기
+            int currentIndex = 0;
+            var currentStep = stepProp.objectReferenceValue as Step;
+            var currentScenario = scenarioProp.objectReferenceValue as Scenario;
+
+            if (currentStep != null)
+            {
+                for (int i = 0; i < _siblingSteps.Length; i++)
+                {
+                    if (_siblingSteps[i] == currentStep)
+                    {
+                        currentIndex = _stepOffset + i;
+                        break;
+                    }
+                }
+            }
+            else if (currentScenario != null)
+            {
+                for (int i = 0; i < _allScenarios.Length; i++)
+                {
+                    if (_allScenarios[i] == currentScenario)
+                    {
+                        currentIndex = _scenarioOffset + i;
+                        break;
+                    }
+                }
+            }
+
+            EditorGUI.BeginChangeCheck();
+            int selected = EditorGUILayout.Popup(label, currentIndex, _targetNames);
+            if (EditorGUI.EndChangeCheck())
+            {
+                if (selected == 0)
+                {
+                    // 다음 스텝
+                    stepProp.objectReferenceValue = null;
+                    scenarioProp.objectReferenceValue = null;
+                }
+                else if (selected >= _stepOffset && selected < _stepOffset + _siblingSteps.Length)
+                {
+                    // Step 선택
+                    stepProp.objectReferenceValue = _siblingSteps[selected - _stepOffset];
+                    scenarioProp.objectReferenceValue = null;
+                }
+                else if (selected >= _scenarioOffset && selected < _scenarioOffset + _allScenarios.Length)
+                {
+                    // Scenario 선택
+                    stepProp.objectReferenceValue = null;
+                    scenarioProp.objectReferenceValue = _allScenarios[selected - _scenarioOffset];
+                }
+            }
+        }
+
+        private void SyncArraySizes()
+        {
+            int count = _conditionGroupCount.intValue;
+
+            while (_groupTargetSteps.arraySize < count)
+                _groupTargetSteps.InsertArrayElementAtIndex(_groupTargetSteps.arraySize);
+            while (_groupTargetSteps.arraySize > count)
+                _groupTargetSteps.DeleteArrayElementAtIndex(_groupTargetSteps.arraySize - 1);
+
+            while (_groupTargetScenarios.arraySize < count)
+                _groupTargetScenarios.InsertArrayElementAtIndex(_groupTargetScenarios.arraySize);
+            while (_groupTargetScenarios.arraySize > count)
+                _groupTargetScenarios.DeleteArrayElementAtIndex(_groupTargetScenarios.arraySize - 1);
+        }
+
+        private void RefreshTargetCache()
+        {
+            var step = (Step)target;
+            var scenario = step.GetComponentInParent<Scenario>();
+
+            // 형제 Step
+            if (scenario != null)
+                _siblingSteps = scenario.GetComponentsInChildren<Step>(true).Where(s => s != step).ToArray();
+            else
+                _siblingSteps = new Step[0];
+
+            // 모든 Scenario (ScenarioManager 하위)
+            var scenarioManager = step.GetComponentInParent<ScenarioManager>();
+            if (scenarioManager != null)
+                _allScenarios = scenarioManager.GetComponentsInChildren<Scenario>(true);
+            else if (scenario != null)
+                _allScenarios = new[] { scenario };
+            else
+                _allScenarios = new Scenario[0];
+
+            // 드롭다운 이름 배열 구성
+            // [다음 스텝] [── Step ──] [Step_01] ... [── Scenario ──] [Scenario_01] ...
+            var names = new List<string>();
+            names.Add("다음 스텝");
+
+            _stepOffset = 1;
+            if (_siblingSteps.Length > 0)
+            {
+                _stepOffset = names.Count;
+                for (int i = 0; i < _siblingSteps.Length; i++)
+                    names.Add($"  Step: {_siblingSteps[i].gameObject.name}");
+            }
+
+            _scenarioOffset = names.Count;
+            if (_allScenarios.Length > 0)
+            {
+                for (int i = 0; i < _allScenarios.Length; i++)
+                    names.Add($"  Scenario: {_allScenarios[i].gameObject.name}");
+            }
+
+            _targetNames = names.ToArray();
+        }
+
+        #endregion
+
+        #region Node List
+
         private void DrawNodeListByGroup(ScenarioNode[] nodes, int groupCount)
         {
-            // 그룹별 분류
             var grouped = new Dictionary<int, List<ScenarioNode>>();
             var ungrouped = new List<ScenarioNode>();
 
@@ -92,9 +265,7 @@ namespace DDOIT.Tools.Editor
             {
                 int g = node.ConditionGroup;
                 if (g <= 0)
-                {
                     ungrouped.Add(node);
-                }
                 else
                 {
                     if (!grouped.ContainsKey(g))
@@ -105,14 +276,12 @@ namespace DDOIT.Tools.Editor
 
             EditorGUILayout.LabelField($"노드 목록 ({nodes.Length}개)", EditorStyles.boldLabel);
 
-            // 그룹별 표시
             for (int g = 1; g <= groupCount; g++)
             {
                 var groupColor = GetGroupColor(g);
 
                 EditorGUILayout.BeginVertical("box");
 
-                // 그룹 헤더
                 var prevBg = GUI.backgroundColor;
                 GUI.backgroundColor = groupColor;
                 int count = grouped.ContainsKey(g) ? grouped[g].Count : 0;
@@ -132,7 +301,6 @@ namespace DDOIT.Tools.Editor
                 EditorGUILayout.EndVertical();
             }
 
-            // 비조건 노드
             if (ungrouped.Count > 0)
             {
                 EditorGUILayout.BeginVertical("box");
@@ -142,7 +310,6 @@ namespace DDOIT.Tools.Editor
                 EditorGUILayout.EndVertical();
             }
 
-            // 범위 초과 경고
             foreach (var kvp in grouped)
             {
                 if (kvp.Key > groupCount)
@@ -160,7 +327,6 @@ namespace DDOIT.Tools.Editor
 
             EditorGUILayout.BeginHorizontal();
 
-            // 런타임 조건 충족 표시
             if (Application.isPlaying && node.IsStepCondition)
             {
                 var prevColor = GUI.contentColor;
@@ -180,14 +346,12 @@ namespace DDOIT.Tools.Editor
                 EditorGUILayout.LabelField("—", GUILayout.Width(14));
             }
 
-            // 노드 이름
             if (GUILayout.Button(node.gameObject.name, EditorStyles.label))
             {
                 Selection.activeGameObject = node.gameObject;
                 EditorGUIUtility.PingObject(node.gameObject);
             }
 
-            // 타입
             var prevContentColor = GUI.contentColor;
             GUI.contentColor = new Color(0.7f, 0.8f, 1f);
             EditorGUILayout.LabelField(typeName, EditorStyles.miniLabel, GUILayout.Width(130));
@@ -196,11 +360,14 @@ namespace DDOIT.Tools.Editor
             EditorGUILayout.EndHorizontal();
         }
 
+        #endregion
+
+        #region Runtime
+
         private void DrawRuntimeStatus(ScenarioNode[] nodes, int groupCount)
         {
             EditorGUILayout.LabelField("런타임 상태", EditorStyles.boldLabel);
 
-            // 그룹별 분류
             var grouped = new Dictionary<int, List<ScenarioNode>>();
             foreach (var node in nodes)
             {
@@ -213,7 +380,7 @@ namespace DDOIT.Tools.Editor
 
             if (grouped.Count == 0)
             {
-                EditorGUILayout.HelpBox("조건 노드 없음 (외부에서 EndTrigger 호출 필요)", MessageType.None);
+                EditorGUILayout.HelpBox("조건 없음 → 기본 대기 후 자동 진행", MessageType.None);
             }
             else
             {
@@ -228,7 +395,6 @@ namespace DDOIT.Tools.Editor
                         if (node.IsConditionMet) met++;
                     }
 
-                    var groupColor = GetGroupColor(g);
                     string status = met == total ? "완료" : $"{met}/{total}";
                     var msgType = met == total ? MessageType.Info : MessageType.Warning;
                     EditorGUILayout.HelpBox($"그룹 {g}: {status}", msgType);
@@ -241,30 +407,30 @@ namespace DDOIT.Tools.Editor
             Repaint();
         }
 
+        #endregion
+
+        #region Add Nodes
+
         private void DrawAddNodeButtons(Step step)
         {
             EditorGUILayout.LabelField("노드 추가", EditorStyles.boldLabel);
 
             if (GUILayout.Button("+ SoundNode"))
                 CreateNodeChild<SoundNode>(step.transform, "SoundNode");
-
             if (GUILayout.Button("+ TransformNode"))
                 CreateNodeChild<TransformNode>(step.transform, "TransformNode");
-
             if (GUILayout.Button("+ TriggerCondition"))
                 CreateNodeChild<TriggerConditionNode>(step.transform, "TriggerConditionNode");
-
             if (GUILayout.Button("+ TimerCondition"))
                 CreateNodeChild<TimerConditionNode>(step.transform, "TimerConditionNode");
-
             if (GUILayout.Button("+ UINode"))
                 CreateNodeChild<UINode>(step.transform, "UINode");
-
             if (GUILayout.Button("+ ToggleNode"))
                 CreateNodeChild<ToggleNode>(step.transform, "ToggleNode");
-
             if (GUILayout.Button("+ AnimatorNode"))
                 CreateNodeChild<AnimatorNode>(step.transform, "AnimatorNode");
+            if (GUILayout.Button("+ TeleportNode"))
+                CreateNodeChild<TeleportNode>(step.transform, "TeleportNode");
         }
 
         private void CreateNodeChild<T>(Transform parent, string name) where T : Component
@@ -274,6 +440,10 @@ namespace DDOIT.Tools.Editor
             go.transform.SetParent(parent);
             Undo.RegisterCreatedObjectUndo(go, $"Add {name}");
         }
+
+        #endregion
+
+        #region Utility
 
         private static Color GetGroupColor(int group)
         {
@@ -287,5 +457,7 @@ namespace DDOIT.Tools.Editor
                 _ => new Color(0.7f, 0.7f, 0.7f),
             };
         }
+
+        #endregion
     }
 }

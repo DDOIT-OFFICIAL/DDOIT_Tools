@@ -121,7 +121,13 @@ namespace DDOIT.Tools
 
             if (_translateMoveMode == MoveMode.Duration)
             {
-                if (_translateDuration <= 0f) { OnTranslateDone(); return; }
+                if (_translateDuration <= 0f)
+                {
+                    if (useLocal) _target.localPosition = endPos;
+                    else _target.position = endPos;
+                    OnTranslateDone();
+                    return;
+                }
 
                 duration = _translateDuration;
                 curve = _translateCurve;
@@ -204,7 +210,13 @@ namespace DDOIT.Tools
 
             if (_rotateMoveMode == MoveMode.Duration)
             {
-                if (_rotateDuration <= 0f) { OnRotateDone(); return; }
+                if (_rotateDuration <= 0f)
+                {
+                    if (useLocal) _target.localRotation = endRot;
+                    else _target.rotation = endRot;
+                    OnRotateDone();
+                    return;
+                }
 
                 duration = _rotateDuration;
                 curve = _rotateCurve;
@@ -268,7 +280,12 @@ namespace DDOIT.Tools
 
             if (_scaleMoveMode == MoveMode.Duration)
             {
-                if (_scaleDuration <= 0f) { OnScaleDone(); return; }
+                if (_scaleDuration <= 0f)
+                {
+                    _target.localScale = endScale;
+                    OnScaleDone();
+                    return;
+                }
 
                 duration = _scaleDuration;
                 curve = _scaleCurve;

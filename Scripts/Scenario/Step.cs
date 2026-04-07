@@ -1,3 +1,4 @@
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Events;
@@ -9,23 +10,25 @@ namespace DDOIT.Tools
     /// 조건 그룹 시스템: 노드는 1~N 그룹에 소속되며,
     /// 그룹 내 모든 노드가 충족되면(AND) 해당 그룹이 완료된다.
     /// 그룹 중 하나라도 완료되면(OR) Step이 종료된다.
+    /// 각 그룹은 완료 시 이동할 Step 또는 Scenario를 지정할 수 있다.
+    /// 조건 그룹이 0개이면 기본 대기 후 자동 진행한다.
     /// </summary>
     public class Step : MonoBehaviour
     {
+        // TODO: 전체 세팅 SO에서 제어
+        private const float DEFAULT_STEP_WAIT = 0.5f;
+
         #region Serialized Fields
 
-        [Header("설정")]
-        [Tooltip("이 Step을 건너뛸지 여부")]
         [SerializeField] private bool _skip;
+        [SerializeField] private int _conditionGroupCount;
 
-        [Tooltip("조건 그룹 수 (1 이상)")]
-        [SerializeField] private int _conditionGroupCount = 1;
+        [SerializeField] private Step _defaultTargetStep;
+        [SerializeField] private Scenario _defaultTargetScenario;
+        [SerializeField] private Step[] _groupTargetSteps;
+        [SerializeField] private Scenario[] _groupTargetScenarios;
 
-        [Header("이벤트")]
-        [Tooltip("Step 시작 시")]
         [SerializeField] private UnityEvent _onStart;
-
-        [Tooltip("Step 종료 시")]
         [SerializeField] private UnityEvent _onEnd;
 
         #endregion
@@ -34,8 +37,6 @@ namespace DDOIT.Tools
 
         public bool IsActive { get; private set; }
         public bool Skip => _skip;
-
-        /// <summary>조건 그룹 수.</summary>
         public int ConditionGroupCount => _conditionGroupCount;
 
         #endregion
@@ -44,9 +45,9 @@ namespace DDOIT.Tools
 
         private Scenario _parentScenario;
         private ScenarioNode[] _nodes;
-
-        // 그룹별 조건 노드 (key: 그룹 번호 1~N)
         private Dictionary<int, List<ScenarioNode>> _conditionGroups;
+        private int _completedGroupIndex;
+        private Coroutine _defaultWaitCoroutine;
 
         #endregion
 
@@ -56,6 +57,7 @@ namespace DDOIT.Tools
         {
             gameObject.SetActive(true);
             IsActive = true;
+            _completedGroupIndex = -1;
 
             _parentScenario = GetComponentInParent<Scenario>();
             _nodes = GetComponentsInChildren<ScenarioNode>(true);
@@ -89,11 +91,12 @@ namespace DDOIT.Tools
                 node.Init();
             }
 
-            // 조건 노드가 없으면 무한 대기 (외부에서 EndTrigger 호출 필요)
+            // 조건 노드가 없으면 기본 대기 후 자동 진행
             if (_conditionGroups.Count == 0)
             {
                 if (ScenarioManager.DebugMode)
-                    Debug.Log($"[Step] '{gameObject.name}' 조건 노드 없음 → 대기 (EndTrigger 호출 필요)");
+                    Debug.Log($"[Step] '{gameObject.name}' 조건 없음 → {DEFAULT_STEP_WAIT}초 대기 후 자동 진행");
+                _defaultWaitCoroutine = StartCoroutine(DefaultWait());
             }
         }
 
@@ -121,6 +124,7 @@ namespace DDOIT.Tools
                 {
                     if (ScenarioManager.DebugMode)
                         Debug.Log($"[Step] '{gameObject.name}' 조건 그룹 {kvp.Key} 완료 → 종료");
+                    _completedGroupIndex = kvp.Key;
                     EndTrigger();
                     return;
                 }
@@ -133,17 +137,72 @@ namespace DDOIT.Tools
 
             if (ScenarioManager.DebugMode) Debug.Log($"[Step] '{gameObject.name}' 종료");
 
+            if (_defaultWaitCoroutine != null)
+            {
+                StopCoroutine(_defaultWaitCoroutine);
+                _defaultWaitCoroutine = null;
+            }
+
             if (_nodes != null)
             {
                 foreach (var node in _nodes)
                     node.Release();
             }
 
+            Step targetStep = ResolveTargetStep();
+            Scenario targetScenario = ResolveTargetScenario();
+
             _onEnd?.Invoke();
             IsActive = false;
             gameObject.SetActive(false);
 
-            _parentScenario?.OnStepCompleted();
+            // Scenario 분기가 있으면 현재 Scenario를 종료하고 타겟 Scenario로
+            if (targetScenario != null)
+                _parentScenario?.OnStepBranch(targetScenario);
+            else
+                _parentScenario?.OnStepCompleted(targetStep);
+        }
+
+        #endregion
+
+        #region Private Methods
+
+        private IEnumerator DefaultWait()
+        {
+            yield return new WaitForSeconds(DEFAULT_STEP_WAIT);
+            _defaultWaitCoroutine = null;
+            _completedGroupIndex = 0;
+            EndTrigger();
+        }
+
+        private Step ResolveTargetStep()
+        {
+            if (_completedGroupIndex == 0)
+                return _defaultTargetStep;
+
+            if (_completedGroupIndex > 0 &&
+                _groupTargetSteps != null &&
+                _completedGroupIndex - 1 < _groupTargetSteps.Length)
+            {
+                return _groupTargetSteps[_completedGroupIndex - 1];
+            }
+
+            return null;
+        }
+
+        private Scenario ResolveTargetScenario()
+        {
+            if (_completedGroupIndex == 0)
+                return _defaultTargetScenario;
+
+            if (_completedGroupIndex > 0 &&
+                _groupTargetScenarios != null &&
+                _completedGroupIndex - 1 < _groupTargetScenarios.Length)
+            {
+                return _groupTargetScenarios[_completedGroupIndex - 1];
+            }
+
+            return null;
         }
 
         #endregion
