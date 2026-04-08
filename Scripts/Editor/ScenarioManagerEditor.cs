@@ -8,15 +8,28 @@ namespace DDOIT.Tools.Editor
     [CustomEditor(typeof(ScenarioManager))]
     public class ScenarioManagerEditor : UnityEditor.Editor
     {
+        private SerializedProperty _entryScenario;
+        private SerializedProperty _debugLog;
+
+        private void OnEnable()
+        {
+            _entryScenario = serializedObject.FindProperty("_entryScenario");
+            _debugLog = serializedObject.FindProperty("_debugLog");
+        }
+
         public override void OnInspectorGUI()
         {
-            DrawDefaultInspector();
+            serializedObject.Update();
+
+            EditorGUILayout.PropertyField(_entryScenario, new GUIContent("Entry Scenario"));
+            EditorGUILayout.PropertyField(_debugLog, new GUIContent("디버그 로그"));
+
+            serializedObject.ApplyModifiedProperties();
 
             var manager = (ScenarioManager)target;
-            var entryProp = serializedObject.FindProperty("_entryScenario");
 
             // Entry Scenario 경고
-            if (entryProp.objectReferenceValue == null)
+            if (_entryScenario.objectReferenceValue == null)
             {
                 EditorGUILayout.Space();
                 EditorGUILayout.HelpBox("Entry Scenario가 지정되지 않았습니다.", MessageType.Warning);
@@ -27,7 +40,7 @@ namespace DDOIT.Tools.Editor
             if (scenarios.Length > 0)
             {
                 EditorGUILayout.Space();
-                DrawFlowPreview(entryProp.objectReferenceValue as Scenario);
+                DrawFlowPreview(_entryScenario.objectReferenceValue as Scenario, scenarios);
 
                 EditorGUILayout.Space();
                 DrawScenarioList(scenarios);
@@ -69,7 +82,7 @@ namespace DDOIT.Tools.Editor
             return maxNumber + 1;
         }
 
-        private void DrawFlowPreview(Scenario entry)
+        private void DrawFlowPreview(Scenario entry, Scenario[] allScenarios)
         {
             EditorGUILayout.LabelField("흐름 미리보기", EditorStyles.boldLabel);
 
@@ -79,6 +92,7 @@ namespace DDOIT.Tools.Editor
                 return;
             }
 
+            // 메인 체이닝 플로우
             var visited = new HashSet<Scenario>();
             var flow = new System.Text.StringBuilder();
             var current = entry;
@@ -102,6 +116,62 @@ namespace DDOIT.Tools.Editor
                 flow.Append("  →  (종료)");
 
             EditorGUILayout.HelpBox(flow.ToString(), MessageType.None);
+
+            // Step 분기로 인한 교차 참조 표시
+            var branchTargets = CollectStepBranchScenarios(allScenarios);
+            if (branchTargets.Count > 0)
+            {
+                var branchFlow = new System.Text.StringBuilder();
+                foreach (var kvp in branchTargets)
+                {
+                    foreach (var targetName in kvp.Value)
+                        branchFlow.AppendLine($"↳ {kvp.Key} → {targetName}");
+                }
+
+                var prevColor = GUI.contentColor;
+                GUI.contentColor = new Color(1f, 0.8f, 0.4f);
+                EditorGUILayout.HelpBox("Step 분기:\n" + branchFlow.ToString().TrimEnd(), MessageType.None);
+                GUI.contentColor = prevColor;
+            }
+        }
+
+        private static Dictionary<string, List<string>> CollectStepBranchScenarios(Scenario[] scenarios)
+        {
+            var result = new Dictionary<string, List<string>>();
+
+            foreach (var scenario in scenarios)
+            {
+                var steps = scenario.GetComponentsInChildren<Step>(true);
+                foreach (var step in steps)
+                {
+                    using var so = new SerializedObject(step);
+                    int groupCount = so.FindProperty("_conditionGroupCount").intValue;
+
+                    // 기본 타겟
+                    var defaultScenario = so.FindProperty("_defaultTargetScenario").objectReferenceValue as Scenario;
+                    if (defaultScenario != null)
+                        AddBranch(result, $"{scenario.gameObject.name}/{step.gameObject.name}", defaultScenario.gameObject.name);
+
+                    // 그룹별 타겟
+                    var groupScenarios = so.FindProperty("_groupTargetScenarios");
+                    for (int g = 0; g < groupCount && g < groupScenarios.arraySize; g++)
+                    {
+                        var targetScenario = groupScenarios.GetArrayElementAtIndex(g).objectReferenceValue as Scenario;
+                        if (targetScenario != null)
+                            AddBranch(result, $"{scenario.gameObject.name}/{step.gameObject.name}", targetScenario.gameObject.name);
+                    }
+                }
+            }
+
+            return result;
+        }
+
+        private static void AddBranch(Dictionary<string, List<string>> dict, string from, string to)
+        {
+            if (!dict.ContainsKey(from))
+                dict[from] = new List<string>();
+            if (!dict[from].Contains(to))
+                dict[from].Add(to);
         }
 
         private void DrawScenarioList(Scenario[] scenarios)
@@ -119,7 +189,7 @@ namespace DDOIT.Tools.Editor
 
                 EditorGUILayout.BeginHorizontal();
 
-                // 활성 표시 (플레이 모드)
+                // 활성 표시
                 if (Application.isPlaying && scenario.IsActive)
                 {
                     var prevColor = GUI.contentColor;
@@ -132,14 +202,12 @@ namespace DDOIT.Tools.Editor
                     EditorGUILayout.LabelField("○", GUILayout.Width(14));
                 }
 
-                // 시나리오 이름 (클릭하면 해당 오브젝트 선택)
                 if (GUILayout.Button(scenario.gameObject.name, EditorStyles.label))
                 {
                     Selection.activeGameObject = scenario.gameObject;
                     EditorGUIUtility.PingObject(scenario.gameObject);
                 }
 
-                // 다음 시나리오 표시
                 var prevContentColor = GUI.contentColor;
                 GUI.contentColor = nextScenario != null ? new Color(0.5f, 0.9f, 1f) : Color.gray;
                 EditorGUILayout.LabelField($"→ {nextName}", EditorStyles.miniLabel, GUILayout.Width(160));
@@ -167,7 +235,6 @@ namespace DDOIT.Tools.Editor
                 return;
             }
 
-            // 활성 Step 찾기
             var steps = activeScenario.GetComponentsInChildren<Step>(true);
             Step activeStep = null;
             int stepIndex = -1;
@@ -192,7 +259,6 @@ namespace DDOIT.Tools.Editor
                 activeScenario.EndTrigger();
             }
 
-            // 실시간 갱신
             Repaint();
         }
     }

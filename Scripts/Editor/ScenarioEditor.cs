@@ -7,9 +7,27 @@ namespace DDOIT.Tools.Editor
     [CustomEditor(typeof(Scenario))]
     public class ScenarioEditor : UnityEditor.Editor
     {
+        private SerializedProperty _nextScenario;
+        private SerializedProperty _onStart;
+        private SerializedProperty _onEnd;
+
+        private void OnEnable()
+        {
+            _nextScenario = serializedObject.FindProperty("_nextScenario");
+            _onStart = serializedObject.FindProperty("_onStart");
+            _onEnd = serializedObject.FindProperty("_onEnd");
+        }
+
         public override void OnInspectorGUI()
         {
-            DrawDefaultInspector();
+            serializedObject.Update();
+
+            EditorGUILayout.PropertyField(_nextScenario, new GUIContent("다음 시나리오"));
+            EditorGUILayout.Space(4);
+            EditorGUILayout.PropertyField(_onStart, new GUIContent("시나리오 시작 이벤트"));
+            EditorGUILayout.PropertyField(_onEnd, new GUIContent("시나리오 종료 이벤트"));
+
+            serializedObject.ApplyModifiedProperties();
 
             var scenario = (Scenario)target;
             var steps = scenario.GetComponentsInChildren<Step>(true);
@@ -67,7 +85,6 @@ namespace DDOIT.Tools.Editor
                 var step = steps[i];
                 var nodes = step.GetComponentsInChildren<ScenarioNode>(true);
 
-                // 조건 노드 개수 계산
                 int conditionCount = 0;
                 foreach (var node in nodes)
                 {
@@ -119,9 +136,77 @@ namespace DDOIT.Tools.Editor
                 }
 
                 EditorGUILayout.EndHorizontal();
+
+                // 메모 표시
+                using (var stepSo = new SerializedObject(step))
+                {
+                    string memo = stepSo.FindProperty("_memo").stringValue;
+                    if (!string.IsNullOrEmpty(memo))
+                    {
+                        var prevColor = GUI.contentColor;
+                        GUI.contentColor = new Color(0.8f, 0.8f, 0.5f);
+                        EditorGUILayout.LabelField($"  \"{memo}\"", EditorStyles.miniLabel);
+                        GUI.contentColor = prevColor;
+                    }
+                }
+
+                // 분기 정보 표시
+                if (!step.Skip)
+                    DrawStepBranchInfo(step, i, steps);
             }
 
             EditorGUILayout.EndVertical();
+        }
+
+        private static void DrawStepBranchInfo(Step step, int stepIndex, Step[] allSteps)
+        {
+            using var so = new SerializedObject(step);
+            int groupCount = so.FindProperty("_conditionGroupCount").intValue;
+
+            if (groupCount == 0)
+            {
+                // 조건 없음 → 기본 타겟
+                var defaultStep = so.FindProperty("_defaultTargetStep").objectReferenceValue as Step;
+                var defaultScenario = so.FindProperty("_defaultTargetScenario").objectReferenceValue as Scenario;
+
+                if (defaultStep != null || defaultScenario != null)
+                {
+                    string targetName = defaultScenario != null
+                        ? $"Scenario: {defaultScenario.gameObject.name}"
+                        : $"Step: {defaultStep.gameObject.name}";
+                    DrawBranchArrow($"  ↳ 자동 → {targetName}", new Color(0.6f, 0.6f, 0.6f));
+                }
+            }
+            else
+            {
+                var groupSteps = so.FindProperty("_groupTargetSteps");
+                var groupScenarios = so.FindProperty("_groupTargetScenarios");
+
+                for (int g = 0; g < groupCount; g++)
+                {
+                    Step targetStep = g < groupSteps.arraySize
+                        ? groupSteps.GetArrayElementAtIndex(g).objectReferenceValue as Step : null;
+                    Scenario targetScenario = g < groupScenarios.arraySize
+                        ? groupScenarios.GetArrayElementAtIndex(g).objectReferenceValue as Scenario : null;
+
+                    if (targetStep == null && targetScenario == null) continue;
+
+                    var groupColor = GetGroupColor(g + 1);
+                    string targetName = targetScenario != null
+                        ? $"Scenario: {targetScenario.gameObject.name}"
+                        : $"Step: {targetStep.gameObject.name}";
+
+                    DrawBranchArrow($"  ↳ 그룹{g + 1} → {targetName}", groupColor);
+                }
+            }
+        }
+
+        private static void DrawBranchArrow(string text, Color color)
+        {
+            var prevColor = GUI.contentColor;
+            GUI.contentColor = color;
+            EditorGUILayout.LabelField(text, EditorStyles.miniLabel);
+            GUI.contentColor = prevColor;
         }
 
         private void DrawRuntimeStatus(Step[] steps)
@@ -168,6 +253,19 @@ namespace DDOIT.Tools.Editor
             }
 
             Repaint();
+        }
+
+        private static Color GetGroupColor(int group)
+        {
+            return group switch
+            {
+                1 => new Color(0.3f, 0.7f, 1f),
+                2 => new Color(1f, 0.6f, 0.3f),
+                3 => new Color(0.5f, 1f, 0.5f),
+                4 => new Color(1f, 0.5f, 1f),
+                5 => new Color(1f, 1f, 0.4f),
+                _ => new Color(0.7f, 0.7f, 0.7f),
+            };
         }
     }
 }

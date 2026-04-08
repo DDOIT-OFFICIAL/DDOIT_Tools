@@ -9,6 +9,7 @@ namespace DDOIT.Tools.Editor
     public class StepEditor : UnityEditor.Editor
     {
         private SerializedProperty _skip;
+        private SerializedProperty _memo;
         private SerializedProperty _conditionGroupCount;
         private SerializedProperty _defaultTargetStep;
         private SerializedProperty _defaultTargetScenario;
@@ -27,6 +28,7 @@ namespace DDOIT.Tools.Editor
         private void OnEnable()
         {
             _skip = serializedObject.FindProperty("_skip");
+            _memo = serializedObject.FindProperty("_memo");
             _conditionGroupCount = serializedObject.FindProperty("_conditionGroupCount");
             _defaultTargetStep = serializedObject.FindProperty("_defaultTargetStep");
             _defaultTargetScenario = serializedObject.FindProperty("_defaultTargetScenario");
@@ -43,6 +45,7 @@ namespace DDOIT.Tools.Editor
             serializedObject.Update();
 
             EditorGUILayout.PropertyField(_skip, new GUIContent("건너뛰기"));
+            EditorGUILayout.PropertyField(_memo, new GUIContent("메모"));
             EditorGUILayout.Space(4);
 
             DrawConditionGroupSection();

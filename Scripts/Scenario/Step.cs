@@ -21,6 +21,7 @@ namespace DDOIT.Tools
         #region Serialized Fields
 
         [SerializeField] private bool _skip;
+        [SerializeField] private string _memo;
         [SerializeField] private int _conditionGroupCount;
 
         [SerializeField] private Step _defaultTargetStep;
