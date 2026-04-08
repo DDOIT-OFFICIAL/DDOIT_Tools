@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.Events;
 
 namespace DDOIT.Tools
 {
@@ -24,6 +25,7 @@ namespace DDOIT.Tools
         [SerializeField] private ParticleSystem _targetParticle;
         [SerializeField] private MonoBehaviour _targetScript;
         [SerializeField] private bool _activate = true;
+        [SerializeField] private UnityEvent _onEnd;
 
         #endregion
 
@@ -90,6 +92,8 @@ namespace DDOIT.Tools
                     }
                     break;
             }
+
+            _onEnd?.Invoke();
         }
 
         #endregion

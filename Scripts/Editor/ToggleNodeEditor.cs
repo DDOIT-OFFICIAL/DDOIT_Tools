@@ -12,6 +12,7 @@ namespace DDOIT.Tools.Editor
         private SerializedProperty _targetParticle;
         private SerializedProperty _targetScript;
         private SerializedProperty _activate;
+        private SerializedProperty _onEnd;
 
         private void OnEnable()
         {
@@ -21,6 +22,7 @@ namespace DDOIT.Tools.Editor
             _targetParticle = serializedObject.FindProperty("_targetParticle");
             _targetScript = serializedObject.FindProperty("_targetScript");
             _activate = serializedObject.FindProperty("_activate");
+            _onEnd = serializedObject.FindProperty("_onEnd");
         }
 
         public override void OnInspectorGUI()
@@ -52,6 +54,9 @@ namespace DDOIT.Tools.Editor
             DrawActivateToggle(mode);
 
             DrawWarnings(mode);
+
+            EditorGUILayout.Space(4);
+            EditorGUILayout.PropertyField(_onEnd, new GUIContent("완료 이벤트"));
 
             serializedObject.ApplyModifiedProperties();
         }

@@ -15,8 +15,8 @@ namespace DDOIT.Tools
     /// </summary>
     public class Step : MonoBehaviour
     {
-        // TODO: 전체 세팅 SO에서 제어
-        private const float DEFAULT_STEP_WAIT = 0.5f;
+        private static float DefaultStepWait =>
+            DDOITSettings.Instance != null ? DDOITSettings.Instance.defaultStepWait : 0.5f;
 
         #region Serialized Fields
 
@@ -95,7 +95,7 @@ namespace DDOIT.Tools
             if (_conditionGroups.Count == 0)
             {
                 if (ScenarioManager.DebugMode)
-                    Debug.Log($"[Step] '{gameObject.name}' 조건 없음 → {DEFAULT_STEP_WAIT}초 대기 후 자동 진행");
+                    Debug.Log($"[Step] '{gameObject.name}' 조건 없음 → {DefaultStepWait}초 대기 후 자동 진행");
                 _defaultWaitCoroutine = StartCoroutine(DefaultWait());
             }
         }
@@ -169,7 +169,7 @@ namespace DDOIT.Tools
 
         private IEnumerator DefaultWait()
         {
-            yield return new WaitForSeconds(DEFAULT_STEP_WAIT);
+            yield return new WaitForSeconds(DefaultStepWait);
             _defaultWaitCoroutine = null;
             _completedGroupIndex = 0;
             EndTrigger();

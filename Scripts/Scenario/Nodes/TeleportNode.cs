@@ -13,10 +13,6 @@ namespace DDOIT.Tools
         #region Serialized Fields
 
         [SerializeField] private Transform _destination;
-
-        // TODO: 전체 세팅 SO에서 teleport duration을 가져오도록 변경
-        [SerializeField] private float _fadeDuration = 1f;
-
         [SerializeField] private UnityEvent _onEnd;
 
         #endregion
@@ -56,7 +52,9 @@ namespace DDOIT.Tools
 
         private IEnumerator TeleportSequence()
         {
-            float halfDuration = _fadeDuration * 0.5f;
+            float fadeDuration = DDOITSettings.Instance != null
+                ? DDOITSettings.Instance.teleportFadeDuration : 1f;
+            float halfDuration = fadeDuration * 0.5f;
 
             // 1. Fade Out
             if (ScreenFadeManager.HasInstance)

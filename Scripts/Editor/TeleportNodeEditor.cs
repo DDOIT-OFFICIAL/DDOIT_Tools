@@ -7,13 +7,11 @@ namespace DDOIT.Tools.Editor
     public class TeleportNodeEditor : UnityEditor.Editor
     {
         private SerializedProperty _destination;
-        private SerializedProperty _fadeDuration;
         private SerializedProperty _onEnd;
 
         private void OnEnable()
         {
             _destination = serializedObject.FindProperty("_destination");
-            _fadeDuration = serializedObject.FindProperty("_fadeDuration");
             _onEnd = serializedObject.FindProperty("_onEnd");
         }
 
@@ -24,10 +22,13 @@ namespace DDOIT.Tools.Editor
             EditorGUILayout.LabelField("텔레포트 설정", EditorStyles.boldLabel);
             EditorGUILayout.PropertyField(_destination, new GUIContent("목적지"));
 
-            // TODO: 전체 세팅 SO 연동 시 제거
+            // 페이드 시간은 DDOITSettings에서 관리
+            var settings = DDOITSettings.Instance;
             EditorGUI.BeginDisabledGroup(true);
-            EditorGUILayout.PropertyField(_fadeDuration, new GUIContent("페이드 시간 (초)"));
+            EditorGUILayout.FloatField("페이드 시간 (초)",
+                settings != null ? settings.teleportFadeDuration : 1f);
             EditorGUI.EndDisabledGroup();
+            EditorGUILayout.HelpBox("Settings 탭에서 변경 가능", MessageType.None);
 
             if (_destination.objectReferenceValue == null)
             {

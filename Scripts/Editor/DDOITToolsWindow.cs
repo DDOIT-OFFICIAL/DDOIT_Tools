@@ -16,7 +16,7 @@ namespace DDOIT.Tools.Editor
 
         private const string PANEL_PREFAB_PATH = "Assets/DDOIT_Tools/Prefabs/UIPanel.prefab";
 
-        private static readonly string[] TAB_NAMES = { "Scene Setup", "UI Theme" };
+        private static readonly string[] TAB_NAMES = { "Scene Setup", "UI Theme", "Settings" };
 
         #endregion
 
@@ -27,6 +27,9 @@ namespace DDOIT.Tools.Editor
         // Global Settings
         private UIGlobalSettings _globalSettings;
         private UnityEditor.Editor _globalSettingsEditor;
+
+        // DDOIT Settings
+        private DDOITSettings _ddoitSettings;
 
         // Theme
         private UITheme[] _themes;
@@ -56,6 +59,7 @@ namespace DDOIT.Tools.Editor
         {
             RefreshGlobalSettings();
             RefreshThemeList();
+            RefreshDDOITSettings();
         }
 
         private void OnDisable()
@@ -87,6 +91,9 @@ namespace DDOIT.Tools.Editor
                     break;
                 case 1:
                     DrawUIThemeTab();
+                    break;
+                case 2:
+                    DrawSettingsTab();
                     break;
             }
 
@@ -340,6 +347,85 @@ namespace DDOIT.Tools.Editor
             Undo.RegisterCreatedObjectUndo(go, $"Create {childName}");
             go.transform.SetParent(parent.transform);
             return go;
+        }
+
+        #endregion
+
+        #region Settings Tab
+
+        private void DrawSettingsTab()
+        {
+            EditorGUILayout.LabelField("전역 설정", EditorStyles.boldLabel);
+            EditorGUILayout.Space(4);
+
+            if (_ddoitSettings == null)
+            {
+                EditorGUILayout.HelpBox(
+                    "DDOITSettings 에셋을 찾을 수 없습니다.\n" +
+                    "아래 버튼으로 생성하세요.",
+                    MessageType.Warning);
+
+                if (GUILayout.Button("DDOITSettings 생성", GUILayout.Height(28)))
+                    CreateDDOITSettings();
+
+                return;
+            }
+
+            var so = new SerializedObject(_ddoitSettings);
+            so.Update();
+
+            // ── 시나리오 ──
+            EditorGUILayout.LabelField("시나리오", EditorStyles.boldLabel);
+            EditorGUILayout.PropertyField(so.FindProperty("defaultStepWait"),
+                new GUIContent("Step 기본 대기 시간 (초)", "조건 그룹이 없는 Step의 자동 진행 대기 시간"));
+            EditorGUILayout.PropertyField(so.FindProperty("teleportFadeDuration"),
+                new GUIContent("텔레포트 페이드 시간 (초)", "TeleportNode의 페이드 전환 총 시간"));
+
+            so.ApplyModifiedProperties();
+
+            EditorGUILayout.Space(8);
+
+            // 에셋 위치
+            EditorGUILayout.BeginHorizontal();
+            if (GUILayout.Button("에셋 선택", GUILayout.Width(80)))
+                EditorGUIUtility.PingObject(_ddoitSettings);
+            EditorGUILayout.EndHorizontal();
+        }
+
+        private void CreateDDOITSettings()
+        {
+            // Assets/DDOIT_Tools/Data에 생성
+            string folder = "Assets/DDOIT_Tools/Data";
+            if (!AssetDatabase.IsValidFolder(folder))
+            {
+                if (!AssetDatabase.IsValidFolder("Assets/DDOIT_Tools"))
+                    AssetDatabase.CreateFolder("Assets", "DDOIT_Tools");
+                AssetDatabase.CreateFolder("Assets/DDOIT_Tools", "Data");
+            }
+
+            string path = $"{folder}/DDOITSettings.asset";
+            if (AssetDatabase.LoadAssetAtPath<DDOITSettings>(path) != null)
+            {
+                _ddoitSettings = AssetDatabase.LoadAssetAtPath<DDOITSettings>(path);
+                return;
+            }
+
+            var asset = CreateInstance<DDOITSettings>();
+            AssetDatabase.CreateAsset(asset, path);
+            AssetDatabase.SaveAssets();
+            _ddoitSettings = asset;
+            EditorGUIUtility.PingObject(asset);
+            Debug.Log($"[DDOITToolsWindow] DDOITSettings 생성: {path}");
+        }
+
+        private void RefreshDDOITSettings()
+        {
+            var guids = AssetDatabase.FindAssets("t:DDOITSettings");
+            if (guids.Length > 0)
+            {
+                var path = AssetDatabase.GUIDToAssetPath(guids[0]);
+                _ddoitSettings = AssetDatabase.LoadAssetAtPath<DDOITSettings>(path);
+            }
         }
 
         #endregion
