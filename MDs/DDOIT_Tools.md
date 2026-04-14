@@ -51,6 +51,7 @@ Assets/
 │       │   └── Movement/           ← Movement SDK 래퍼
 │       ├── UI/                     ← 공통 UI 컴포넌트
 │       ├── Data/                   ← ScriptableObject, 설정 데이터
+│       ├── Settings/                ← 전역 설정 (DDOITSettings)
 │       └── Utilities/              ← 범용 헬퍼
 ├── {프로젝트명}/                    ← 개별 프로젝트 고유 코드
 │   ├── Managers/
@@ -271,18 +272,21 @@ Debug.Log("[SafetyTraining.ScenarioManager] 시나리오 로드: FireEvacuation"
 ```
 ScenarioManager          ← 진입점. 시퀀스 시작/종료
 └── Scenario             ← Step 컨테이너. 다음 Scenario로 분기 가능
-    └── Step             ← Node 컨테이너. 조건 충족 시 자동 완료
-        ├── SoundNode           ← 사운드 재생
-        ├── TransformNode       ← 오브젝트 이동/회전
-        ├── UINode              ← UI 패널 표시 (버튼 이벤트)
-        ├── TriggerConditionNode ← 트리거 감지 (조건)
-        └── TimerConditionNode   ← 시간 경과 (조건)
+    └── Step             ← Node 컨테이너. 조건 그룹(AND+OR) 충족 시 종료 + 분기
+        ├── SoundNode              ← 사운드 재생
+        ├── TransformNode          ← 오브젝트 이동/회전/스케일 (Duration/Speed/Instant)
+        ├── TeleportNode           ← 플레이어 텔레포트 (페이드 포함)
+        ├── ToggleNode             ← GameObject/Component/Particle/Script On/Off
+        ├── AnimatorNode           ← Animator 파라미터 설정 (Trigger/Bool/Int/Float)
+        ├── UINode                 ← UI 패널 표시 (버튼 이벤트)
+        ├── TriggerConditionNode   ← 트리거 감지 (Enter/Exit/Stay 조건)
+        └── TimerConditionNode     ← 시간 경과 (조건)
 ```
 
 - **ScenarioManager**: `StartSequence()`로 Entry Scenario를 시작. 모든 Scenario를 초기화.
 - **Scenario**: 하위 Step을 순차 실행. `_nextScenario`로 다음 시나리오 연결. 모든 Step 완료 시 `EndTrigger()`.
-- **Step**: 하위 Node를 활성화하고 `Init()` 호출. `_isStepCondition`이 켜진 모든 Node가 충족되면 `EndTrigger()`. 조건 노드가 없으면 **대기** (외부에서 `EndTrigger()` 호출 필요).
-- **ScenarioNode**: 모든 노드의 추상 베이스 클래스.
+- **Step**: 하위 Node를 활성화하고 `Init()` 호출. **조건 그룹 시스템**으로 분기 가능 (§4.1.7). 조건 그룹이 0개이면 `DDOITSettings.defaultStepWait` 대기 후 자동 진행.
+- **ScenarioNode**: 모든 노드의 추상 베이스 클래스. 각 노드는 `ConditionGroup`(int) 프로퍼티로 그룹 소속을 가짐 (0 = 미소속).
 
 #### 4.1.2 실행 흐름
 
@@ -290,13 +294,15 @@ ScenarioManager          ← 진입점. 시퀀스 시작/종료
 ScenarioManager.StartSequence()
   → Scenario.StartTrigger()
     → Step.StartTrigger()
+      → _onStart UnityEvent 발동
       → node.Init() → OnInit()          ← 각 노드 초기화
-      → (조건 노드 충족 대기)
-      → 모든 조건 충족
+      → (조건 그룹별 AND 대기, 그룹 간 OR)
+      → 한 그룹 완료 → 그룹 index 기록
       → node.Release() → OnRelease()    ← 각 노드 정리
       → _onRelease UnityEvent 발동
     → Step.EndTrigger()
       → _onEnd UnityEvent 발동
+      → 완료 그룹의 _groupTargetStep/Scenario로 분기 (없으면 다음 Step)
       → gameObject.SetActive(false)     ← OnDisable() 발동 (안전장치)
     → 다음 Step 시작 ...
   → Scenario.EndTrigger()
@@ -317,13 +323,18 @@ ScenarioManager.StartSequence()
 
 #### 4.1.4 기본 제공 노드
 
-| 노드 | 용도 | 조건 노드 가능 |
+| 노드 | 용도 | 조건 그룹 소속 가능 |
 |---|---|---|
 | **SoundNode** | SoundDatabase의 사운드 재생 | O (재생 완료 시 충족) |
-| **TransformNode** | 오브젝트 이동/회전 (Duration/Speed 모드) | O (이동+회전 완료 시 충족) |
+| **TransformNode** | 오브젝트 이동/회전/스케일 (Duration/Speed/Instant 모드, 항목 독립 제어) | O (활성화된 모든 항목 완료 시 충족) |
+| **TeleportNode** | 플레이어 텔레포트 (Fade→Teleport→FadeClear) | — (즉시 완료, `_onEnd` 이벤트) |
+| **ToggleNode** | GameObject / Component / ParticleSystem / IToggleable 스크립트 On/Off | — (즉시 완료, `_onEnd` 이벤트) |
+| **AnimatorNode** | Animator의 Trigger/Bool/Int/Float 파라미터 설정 | — (즉시 완료, `_onEnd` 이벤트) |
 | **UINode** | UIManager를 통한 UI 패널 표시 | O (버튼 클릭 시 충족, B1/B2 타입만) |
-| **TriggerConditionNode** | 특정 태그 객체의 트리거 진입 감지 | O (전용 조건 노드) |
+| **TriggerConditionNode** | 특정 태그 객체의 트리거 감지 (Enter/Exit/Stay) | O (전용 조건 노드) |
 | **TimerConditionNode** | 지정 시간 경과 | O (전용 조건 노드) |
+
+> **IToggleable 인터페이스**: `Go()` / `Stop()` 두 메서드를 구현하면 ToggleNode의 Script 모드에서 해당 스크립트를 On/Off할 수 있다.
 
 #### 4.1.5 커스텀 노드 만들기
 
@@ -367,14 +378,48 @@ namespace DDOIT.Tools
 
 | 에디터 | 기능 |
 |---|---|
-| **ScenarioManagerEditor** | 흐름 미리보기 (Scenario 체인 시각화), 시나리오 목록, 런타임 상태 표시 |
-| **ScenarioEditor** | Step 목록, 자동 넘버링, 조건 노드 수/진행 표시 |
-| **StepEditor** | 노드 목록, 조건 충족 상태 (✓/○), 노드 추가 버튼 |
-| **TransformNodeEditor** | 이동/회전 설정 조건부 UI, 모드별 필드 표시 |
-| **TriggerConditionNodeEditor** | 외부 Collider 설정, Collider 타입 버튼 (Box/Sphere/Capsule) |
+| **ScenarioManagerEditor** | 흐름 미리보기 + **Scenario 분기 시각화**, 시나리오 목록, 런타임 상태 표시 |
+| **ScenarioEditor** | Step 목록 + **분기 트리 시각화**, 자동 넘버링, 조건 노드 수/진행 표시 |
+| **StepEditor** | 노드 목록, **메모 편집**, 조건 충족 상태 (✓/○), 노드 추가 버튼 (8종) |
+| **TransformNodeEditor** | Translate/Rotate/Scale 독립 토글, 모드별(Duration/Speed/Instant) 필드 표시 |
+| **TeleportNodeEditor** | 목적지 Transform 설정, `_onEnd` 이벤트 |
+| **ToggleNodeEditor** | 모드별(GameObject/Component/Particle/Script) 대상 필드, Activate 토글 |
+| **AnimatorNodeEditor** | 파라미터 타입별 입력 필드(Trigger/Bool/Int/Float) |
+| **TriggerConditionNodeEditor** | 외부 Collider 설정, Collider 타입 버튼 (Box/Sphere/Capsule), 감지 모드(Enter/Exit/Stay) |
 | **UINodeEditor** | UIType별 조건부 필드, 버튼 이벤트 섹션, 빈 필드 자동 숨김 안내 |
 | **SoundNodeEditor** | 사운드 이름 드롭다운, 오디오 미리듣기 (Play/Stop), 미선택 경고 |
 | **TimerConditionNodeEditor** | 대기 시간 설정, 0 이하 경고 |
+| **ConditionGroupDrawer** | ScenarioNode의 `_conditionGroup` 필드를 그룹 번호 버튼 UI로 표시 |
+
+#### 4.1.7 조건 그룹 시스템 (Step 분기)
+
+Step은 **조건 그룹**을 통해 여러 완료 경로와 각 경로별 분기를 지원한다.
+
+**구조**:
+- 각 ScenarioNode는 `ConditionGroup` 값을 가짐 (0 = 그룹 미소속)
+- Step의 `_conditionGroupCount`로 그룹 개수 설정 (기본 0)
+- 같은 그룹 내 모든 노드가 충족(AND) → 그룹 완료
+- 그룹 중 하나라도 완료(OR) → Step 종료
+
+**분기 대상**:
+- `_defaultTargetStep` / `_defaultTargetScenario`: 조건 그룹이 없거나 그룹 미소속 진행 시 기본 분기
+- `_groupTargetSteps[]` / `_groupTargetScenarios[]`: 그룹 인덱스별 분기 (개별 설정)
+- 그룹 완료 시 해당 Step/Scenario로 이동. 미설정이면 Scenario의 다음 Step으로.
+
+**예시**:
+```
+Step_RoomA (_conditionGroupCount = 2)
+├── [그룹 1] TriggerConditionNode (포털 A 통과) → _groupTargetSteps[0] = Step_Forest
+└── [그룹 2] TriggerConditionNode (포털 B 통과) → _groupTargetSteps[1] = Step_Cave
+```
+
+조건 그룹이 0개면 `DDOITSettings.defaultStepWait`(기본 0.5초) 대기 후 자동 진행.
+
+#### 4.1.8 Step 메모 및 분기 시각화
+
+- **Step 메모**: 각 Step에 `_memo` 문자열(멀티라인). StepEditor에서 편집 가능. 시나리오 설계 의도 기록용.
+- **Scenario 편집기**: Step들이 트리 형태로 시각화되어 `_groupTargetStep`에 따른 분기 흐름이 그려짐.
+- **ScenarioManager 편집기**: Scenario 간 `_nextScenario` / `_groupTargetScenario` 분기가 네트워크 그래프로 표시됨.
 
 ---
 
@@ -639,6 +684,36 @@ Assets/DDOIT_Tools/Fonts/
 
 ---
 
+### 4.11 DDOIT Tools Window (CEW)
+
+**용도**: 에디터 작업을 가속하는 통합 윈도우.
+
+**메뉴 경로**: `DDOIT Tools / Tools Window`
+
+#### 4.11.1 탭 구성
+
+| 탭 | 기능 |
+|---|---|
+| **Scene Setup** | Init Scene 자동 생성 (Stage / InitTr / GameManager / ScenarioManager + Scenario_01) |
+| **UI Theme** | `UIGlobalSettings`/`UITheme` 에셋 편집 + UIPanel에 일괄 적용 |
+| **Settings** | `DDOITSettings` SO 편집 (defaultStepWait, teleportFadeDuration 등) |
+
+#### 4.11.2 DDOITSettings
+
+전역 런타임 설정 ScriptableObject. `Resources` 또는 `AssetDatabase`에서 자동 탐색 후 `DDOITSettings.Instance`로 접근.
+
+```csharp
+public class DDOITSettings : ScriptableObject
+{
+    public float defaultStepWait = 0.5f;      // 조건 그룹 없는 Step의 기본 대기 시간
+    public float teleportFadeDuration = 1f;   // TeleportNode 페이드 총 소요 시간
+}
+```
+
+에셋 경로: `Assets/DDOIT_Tools/DDOITSettings.asset` (Settings 탭에서 자동 생성)
+
+---
+
 ## 5. 새 프로젝트 시작 가이드
 
 ### 5.1 방법 A: unitypackage 임포트
@@ -737,5 +812,6 @@ MAJOR.MINOR.PATCH
 
 ---
 
-**문서 버전**: 0.3.0
-**최종 업데이트**: 2026-03-29
+**문서 버전**: 0.4.0
+**DDOIT_Tools 패키지 버전**: v0.13.0
+**최종 업데이트**: 2026-04-13
