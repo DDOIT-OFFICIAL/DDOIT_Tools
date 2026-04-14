@@ -19,30 +19,30 @@ MonoBehaviour:
     clip: {fileID: 8300000, guid: b3e5d9d40d1ae34438a4dd24739ea7a1, type: 3}
     defaultVolume: 1
     loop: 0
-    soundType: 0
+    soundType: 2
   - soundName: UI_SFX_Open2
     clip: {fileID: 8300000, guid: e09ad30cd94834b4bb22482bf5f45c22, type: 3}
-    defaultVolume: 1
+    defaultVolume: 0.838
     loop: 0
-    soundType: 0
+    soundType: 2
   - soundName: UI_SFX_Open3
     clip: {fileID: 8300000, guid: b8221a6ad3805934da36a58591d32acd, type: 3}
     defaultVolume: 1
     loop: 0
-    soundType: 0
+    soundType: 2
   - soundName: UI_SFX_Poke1
     clip: {fileID: 8300000, guid: 0449f74fed01d8745afa38952e6ed81b, type: 3}
     defaultVolume: 1
     loop: 0
-    soundType: 0
+    soundType: 2
   - soundName: UI_SFX_Poke2
     clip: {fileID: 8300000, guid: dfe03439bb99a7649aa7ad7fb4df2adc, type: 3}
     defaultVolume: 1
     loop: 0
-    soundType: 0
+    soundType: 2
   - soundName: UI_SFX_Warn
     clip: {fileID: 8300000, guid: 065650463c401c645badcd964e3bdde9, type: 3}
     defaultVolume: 1
     loop: 0
-    soundType: 0
+    soundType: 2
   _sfxSounds: []
