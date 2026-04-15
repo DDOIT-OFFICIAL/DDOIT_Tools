@@ -316,25 +316,71 @@ namespace MyProject.Utilities
 ```
 
 ### 5.4 공통 코드와 프로젝트 코드 분리
-패키지나 템플릿으로 공유되는 코드가 있는 경우, 네임스페이스 루트를 분리합니다.
+**공통 모듈(UPM 라이브러리)과 제품 프로젝트는 네임스페이스 루트를 다르게 사용합니다.**
+
 ```
-{조직}.{공통모듈}.{카테고리}    ← 재사용 가능한 공통 코드
-{조직}.{프로젝트명}.{카테고리}   ← 프로젝트 고유 코드
+{조직}.{공통모듈}.{카테고리}        ← 공통 모듈 (UPM으로 배포, 타 프로젝트에 import됨)
+{제품명}.{세부}.{카테고리}          ← 제품 프로젝트 (조직 prefix 생략)
+```
+
+**근거**:
+- 공통 모듈은 다른 프로젝트에 import되는 라이브러리이므로, 조직 prefix로 **네임스페이스 충돌을 방지**.
+- 제품 프로젝트는 최종 결과물이므로 조직 prefix가 군더더기. 제품명 자체가 루트로 충분하며, 네임스페이스 깊이(depth)도 줄어 가독성 향상.
+
+**예시 (DDOIT 생태계)**:
+```csharp
+// 공통 모듈 (UPM 패키지)
+namespace DDOIT.Tools.Managers  // ScenarioManager, SoundManager, UIManager ...
+namespace DDOIT.Tools.Scenario  // ScenarioNode, Step, Scenario, UINode ...
+
+// 제품 프로젝트 (ResQ 시리즈)
+namespace ResQ.Fire.Managers    // 화재편 고유 매니저
+namespace ResQ.Fire.Scenarios   // 화재편 고유 시나리오 노드
+namespace ResQ.Cpr.UI           // CPR편 고유 UI
+```
+
+**네임스페이스 충돌 대응**: `ResQ.Fire.Managers.ScenarioManager`와 `DDOIT.Tools.Managers.ScenarioManager`가 동일 파일에서 충돌할 경우, using alias로 해결:
+```csharp
+using ToolsScenarioManager = DDOIT.Tools.Managers.ScenarioManager;
+using FireScenarioManager = ResQ.Fire.Managers.ScenarioManager;
 ```
 
 ### 5.5 폴더-네임스페이스 매핑 원칙
+
+프로젝트 루트 폴더는 **CEW Init이 생성하는 에셋 타입별 구조**(`01. Scenes`, `02. Scripts`, ...)를 유지하되, **스크립트 내부는 제품명 서브폴더 기준으로 네임스페이스를 매핑**합니다.
+
 ```
 Assets/
-├── {공통모듈}/           ← {조직}.{공통모듈}.*
-│   ├── Audio/           ← {조직}.{공통모듈}.Audio
-│   ├── Managers/        ← {조직}.{공통모듈}.Managers
-│   └── UI/              ← {조직}.{공통모듈}.UI
-└── {프로젝트명}/         ← {조직}.{프로젝트명}.*
-    ├── Managers/
-    └── UI/
+├── DDOIT_Tools/                    ← 공통 모듈 (UPM 개발 프로젝트에만 존재)
+│   └── Scripts/
+│       ├── Managers/               → DDOIT.Tools.Managers
+│       ├── Scenario/               → DDOIT.Tools.Scenario
+│       └── UI/                     → DDOIT.Tools.UI
+│
+├── 01. Scenes/
+│   ├── DDOIT/                      ← 공통 모듈 제공 씬 (Bootstrap, InitScene)
+│   └── Fire/                       ← 제품 씬 (ResQ 화재편)
+│
+├── 02. Scripts/
+│   └── Fire/                       ← 제품명 서브폴더
+│       ├── Managers/               → ResQ.Fire.Managers
+│       ├── Scenarios/              → ResQ.Fire.Scenarios
+│       └── UI/                     → ResQ.Fire.UI
+│
+├── 03. Prefabs/
+│   └── Fire/                       ← 제품명 서브폴더
+│
+└── 05. SO/
+    └── Fire/                       ← 제품명 서브폴더
 ```
 
-> 프로젝트별 구체적인 네임스페이스 적용은 해당 프로젝트의 가이드 문서를 참조하세요.
+**규칙 요약**:
+- 에셋 타입 루트(`01. Scenes`, `02. Scripts` 등)는 CEW Init 구조 그대로 유지.
+- 그 하위에 **제품명 서브폴더** 생성 (예: `Fire/`, `Cpr/`, `Earthquake/`).
+- 스크립트 네임스페이스는 `{제품명}.{카테고리}` 형식으로 제품명 서브폴더 기준 매핑.
+- 여러 제품이 한 프로젝트에 공존할 경우(예: ResQ 통합 앱), 제품명 서브폴더로 자연스럽게 분리.
+
+> 프로젝트별 구체적 적용은 해당 프로젝트의 가이드 문서를 참조하세요.
 
 ---
 
