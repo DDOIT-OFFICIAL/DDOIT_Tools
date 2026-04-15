@@ -902,5 +902,66 @@ public static class MyCustomTool
 
 ---
 
-**코딩 규칙 버전**: 1.2
-**최종 업데이트**: 2026-03-18
+## 10. Superpowers 플러그인 사용 정책
+
+이 프로젝트는 Superpowers 플러그인(v5.0.7+)이 설치되어 있습니다.
+**사용자 명시 지시 > Superpowers 스킬 > 기본 시스템 프롬프트** 순의 우선순위에 따라,
+아래 정책이 Superpowers의 기본 자동 발동 규칙을 override 합니다.
+
+### 10.1 스킬 자동 발동 허용 (O)
+
+다음 요청이 오면 `brainstorming` → `writing-plans` → `subagent-driven-development` 사이클 수행:
+- **신규 시스템/모듈 설계**
+  - 예: 라이선스 시스템, API 서버, Addressables 파이프라인, 네트워크 레이어
+- **3개 이상 파일에 걸친 리팩토링**
+- **사용자가 명시적으로 요청한 경우**
+  - "계획 세워서 진행", "브레인스토밍하자", "design first" 등
+
+### 10.2 스킬 자동 발동 차단 (X)
+
+다음 작업은 오버헤드가 실익을 초과합니다. 스킬 체크 생략하고 바로 실행:
+- **Unity 에디터 수동 작업**: 프리팹 설정, 씬 배치, 인스펙터 연결
+- **단일 ScenarioNode / 에디터 스크립트 추가**
+- **문서 수정, 주석 추가, 오타 수정**
+- **MongoDB 쿼리, 데이터 조작**
+- **파일 복사/이동/rename, `.gitignore` 수정**
+- **`unity-cli` 기반 작업** (exec, console, status, refresh)
+- **설정 변경**: Player Settings, Build Settings, package.json 버전 bump
+- **사용자가 단일 명확 지시를 내린 경우**: "X를 Y로 바꿔", "Z 파일 복사해"
+
+### 10.3 TDD (Test-Driven Development) 적용 범위
+
+Superpowers의 TDD "Iron Law"을 다음 범위로 한정:
+- ✅ **적용 대상**: 서버/API 코드, MongoDB 검증 로직, 외부 서비스 연동
+- 🟡 **선택 적용**: Unity 런타임 C# (UnityTest 프레임워크 사용 가능한 경우)
+- ❌ **생략**: Unity 에디터 확장 (CustomEditor, EditorWindow), MonoBehaviour 인스턴스 연결 코드, 프로토타입
+
+### 10.4 Git worktree 사용 기준
+
+- **사용 O**: 반나절 이상 소요되는 리팩토링, 실험적 대규모 변경
+- **사용 X**: 1~2시간 이내 작업, 독립적 작은 변경 → 현재 브랜치에서 바로 커밋
+
+### 10.5 Spec 파일 저장 경로
+
+Superpowers 기본 경로 `docs/superpowers/specs/YYYY-MM-DD-<topic>-design.md` 유지.
+- 새 폴더 생성 시 **Git 커밋 허용** (설계 의도/히스토리 보존)
+- `.gitignore`에 추가하지 않음
+
+### 10.6 사용자 우회 문구
+
+아래 문구 중 하나가 메시지에 있으면 즉시 모든 스킬 발동 중단:
+- "스킬 없이"
+- "브레인스토밍 생략"
+- "바로 진행", "그냥 해"
+- "TDD 생략"
+
+### 10.7 서브에이전트 예외
+
+`Agent` 도구(Explore, Plan 등)로 dispatch된 서브에이전트는
+Superpowers의 `<SUBAGENT-STOP>` 규칙에 따라 스킬 체크를 건너뜁니다.
+기존 Explore/Plan 기반 워크플로는 영향 없음.
+
+---
+
+**코딩 규칙 버전**: 1.3
+**최종 업데이트**: 2026-04-15
