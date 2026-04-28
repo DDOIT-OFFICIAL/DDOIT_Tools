@@ -6,7 +6,7 @@
 - Unity 버전: 6000.3.7f1
 - Meta XR All-In-One SDK 버전: 201.0.0 (Core/Interaction/Platform/Haptics/MRUK 동일, Audio/Voice는 v85.0.0 유지)
 - Meta XR Movement SDK 버전: 83.0.0 (GitHub, v85+ 미출시)
-- XR Management: 4.5.4 / OpenXR: 1.16.1
+- XR Management: 4.5.4 / OpenXR: 1.17.0
 - 네트워킹: Photon Fusion 2.0.9 (예정)
 
 ## 참고 문서
