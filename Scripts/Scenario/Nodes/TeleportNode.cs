@@ -2,7 +2,10 @@ using System.Collections;
 using UnityEngine;
 using UnityEngine.Events;
 
-namespace DDOIT.Tools
+using DDOIT.Tools.Settings;
+using DDOIT.Tools.Managers;
+using DDOIT.Tools.Player;
+namespace DDOIT.Tools.Scenario.Nodes
 {
     /// <summary>
     /// 플레이어를 지정 위치로 텔레포트하는 노드.

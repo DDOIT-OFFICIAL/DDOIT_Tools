@@ -1,7 +1,7 @@
 using UnityEngine;
 using UnityEngine.Events;
 
-namespace DDOIT.Tools
+namespace DDOIT.Tools.Scenario.Nodes
 {
     /// <summary>
     /// 대상의 활성/비활성 상태를 토글하는 노드.

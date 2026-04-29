@@ -3,7 +3,8 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
-namespace DDOIT.Tools
+using DDOIT.Tools.Utilities;
+namespace DDOIT.Tools.Player
 {
     /// <summary>
     /// CharacterController 기반 자동 이동 시스템.

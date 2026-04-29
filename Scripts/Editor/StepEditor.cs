@@ -3,6 +3,9 @@ using System.Linq;
 using UnityEditor;
 using UnityEngine;
 
+using DDOIT.Tools.Scenario;
+using ScenarioCls = DDOIT.Tools.Scenario.Scenario;
+using DDOIT.Tools.Scenario.Nodes;
 namespace DDOIT.Tools.Editor
 {
     [CustomEditor(typeof(Step))]
@@ -20,7 +23,7 @@ namespace DDOIT.Tools.Editor
 
         // 드롭다운 캐시
         private Step[] _siblingSteps;
-        private Scenario[] _allScenarios;
+        private ScenarioCls[] _allScenarios;
         private string[] _targetNames;
         private int _stepOffset;
         private int _scenarioOffset;
@@ -147,7 +150,7 @@ namespace DDOIT.Tools.Editor
             // 현재 선택 인덱스 찾기
             int currentIndex = 0;
             var currentStep = stepProp.objectReferenceValue as Step;
-            var currentScenario = scenarioProp.objectReferenceValue as Scenario;
+            var currentScenario = scenarioProp.objectReferenceValue as ScenarioCls;
 
             if (currentStep != null)
             {
@@ -215,7 +218,7 @@ namespace DDOIT.Tools.Editor
         private void RefreshTargetCache()
         {
             var step = (Step)target;
-            var scenario = step.GetComponentInParent<Scenario>();
+            var scenario = step.GetComponentInParent<ScenarioCls>();
 
             // 형제 Step
             if (scenario != null)
@@ -226,11 +229,11 @@ namespace DDOIT.Tools.Editor
             // 모든 Scenario (ScenarioManager 하위)
             var scenarioManager = step.GetComponentInParent<ScenarioManager>();
             if (scenarioManager != null)
-                _allScenarios = scenarioManager.GetComponentsInChildren<Scenario>(true);
+                _allScenarios = scenarioManager.GetComponentsInChildren<ScenarioCls>(true);
             else if (scenario != null)
                 _allScenarios = new[] { scenario };
             else
-                _allScenarios = new Scenario[0];
+                _allScenarios = new ScenarioCls[0];
 
             // 드롭다운 이름 배열 구성
             // [다음 스텝] [── Step ──] [Step_01] ... [── Scenario ──] [Scenario_01] ...

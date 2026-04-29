@@ -1,6 +1,8 @@
 using UnityEditor;
 using UnityEngine;
 
+using DDOIT.Tools.Scenario.Nodes;
+using DDOIT.Tools.Scenario;
 namespace DDOIT.Tools.Editor
 {
     [CustomEditor(typeof(ToggleNode))]

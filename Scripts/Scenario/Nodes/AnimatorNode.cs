@@ -1,7 +1,7 @@
 using UnityEngine;
 using UnityEngine.Events;
 
-namespace DDOIT.Tools
+namespace DDOIT.Tools.Scenario.Nodes
 {
     /// <summary>
     /// Animator 파라미터를 설정하는 노드.

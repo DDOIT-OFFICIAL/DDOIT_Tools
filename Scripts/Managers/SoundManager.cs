@@ -5,7 +5,9 @@ using UnityEngine.AddressableAssets;
 using UnityEngine.Audio;
 using UnityEngine.ResourceManagement.AsyncOperations;
 
-namespace DDOIT.Tools
+using DDOIT.Tools.Data;
+using DDOIT.Tools.Utilities;
+namespace DDOIT.Tools.Managers
 {
     /// <summary>
     /// 사운드 타입 열거형.

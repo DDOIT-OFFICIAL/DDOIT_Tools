@@ -1,4 +1,4 @@
-namespace DDOIT.Tools
+namespace DDOIT.Tools.Scenario
 {
     /// <summary>
     /// ToggleNode의 Script 모드에서 호출되는 인터페이스.

@@ -1,6 +1,8 @@
 using UnityEditor;
 using UnityEngine;
 
+using DDOIT.Tools.Scenario.Nodes;
+using DDOIT.Tools.Settings;
 namespace DDOIT.Tools.Editor
 {
     [CustomEditor(typeof(TeleportNode))]

@@ -1,7 +1,7 @@
 using UnityEngine;
 using UnityEngine.Video;
 
-namespace DDOIT.Tools
+namespace DDOIT.Tools.UI
 {
     /// <summary>
     /// UI 패널에 표시할 콘텐츠 데이터.

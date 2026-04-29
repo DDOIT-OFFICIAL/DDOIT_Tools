@@ -2,7 +2,7 @@ using System.Collections;
 using UnityEngine;
 using UnityEngine.Events;
 
-namespace DDOIT.Tools
+namespace DDOIT.Tools.Scenario.Nodes
 {
     /// <summary>
     /// 특정 태그를 가진 객체의 트리거 이벤트를 감지하는 조건 노드.

@@ -1,6 +1,7 @@
 using UnityEngine;
 
-namespace DDOIT.Tools
+using DDOIT.Tools.Scenario.Nodes;
+namespace DDOIT.Tools.Scenario
 {
     /// <summary>
     /// 외부 객체의 트리거 이벤트를 TriggerConditionNode로 전달하는 경량 헬퍼.

@@ -4,6 +4,11 @@ using UnityEditor;
 using UnityEngine;
 using UnityEngine.UI;
 
+using DDOIT.Tools.UI;
+using DDOIT.Tools.Settings;
+using DDOIT.Tools.Managers;
+using DDOIT.Tools.Scenario;
+using ScenarioCls = DDOIT.Tools.Scenario.Scenario;
 namespace DDOIT.Tools.Editor
 {
     /// <summary>
@@ -291,7 +296,7 @@ namespace DDOIT.Tools.Editor
             var scenarioManagerObj = FindOrCreate("ScenarioManager", typeof(ScenarioManager));
 
             // 5. Scenario_01 (ScenarioManager 하위)
-            var scenario = FindOrCreateChild(scenarioManagerObj, "Scenario_01", typeof(Scenario));
+            var scenario = FindOrCreateChild(scenarioManagerObj, "Scenario_01", typeof(ScenarioCls));
 
             // GameManager._spawnPoint ← InitTr 자동 연결
             var gm = gameManagerObj.GetComponent<GameManager>();
@@ -314,7 +319,7 @@ namespace DDOIT.Tools.Editor
                 var entryProp = so.FindProperty("_entryScenario");
                 if (entryProp != null && entryProp.objectReferenceValue == null)
                 {
-                    entryProp.objectReferenceValue = scenario.GetComponent<Scenario>();
+                    entryProp.objectReferenceValue = scenario.GetComponent<ScenarioCls>();
                     so.ApplyModifiedProperties();
                 }
             }

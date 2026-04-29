@@ -2,6 +2,8 @@ using System.Linq;
 using UnityEditor;
 using UnityEngine;
 
+using DDOIT.Tools.Scenario.Nodes;
+using DDOIT.Tools.UI;
 namespace DDOIT.Tools.Editor
 {
     [CustomEditor(typeof(UINode))]

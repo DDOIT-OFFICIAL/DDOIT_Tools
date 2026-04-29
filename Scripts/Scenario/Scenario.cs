@@ -1,7 +1,7 @@
 using UnityEngine;
 using UnityEngine.Events;
 
-namespace DDOIT.Tools
+namespace DDOIT.Tools.Scenario
 {
     /// <summary>
     /// Step들을 실행하는 시나리오 단위.

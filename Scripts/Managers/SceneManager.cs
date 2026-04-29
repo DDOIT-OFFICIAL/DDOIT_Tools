@@ -4,10 +4,11 @@ using UnityEngine.AddressableAssets;
 using UnityEngine.Events;
 using UnityEngine.ResourceManagement.AsyncOperations;
 using UnityEngine.ResourceManagement.ResourceProviders;
+using DDOIT.Tools.Utilities;
 using USceneManager = UnityEngine.SceneManagement.SceneManager;
 using LoadSceneMode = UnityEngine.SceneManagement.LoadSceneMode;
 
-namespace DDOIT.Tools
+namespace DDOIT.Tools.Managers
 {
     /// <summary>
     /// 씬 전환을 전담하는 매니저.

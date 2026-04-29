@@ -3,6 +3,7 @@ using UnityEditor;
 using UnityEditor.Animations;
 using UnityEngine;
 
+using DDOIT.Tools.Scenario.Nodes;
 namespace DDOIT.Tools.Editor
 {
     [CustomEditor(typeof(AnimatorNode))]

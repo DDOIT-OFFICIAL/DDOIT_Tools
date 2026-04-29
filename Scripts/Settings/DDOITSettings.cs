@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace DDOIT.Tools
+namespace DDOIT.Tools.Settings
 {
     /// <summary>
     /// DDOIT Tools 전역 설정 ScriptableObject.

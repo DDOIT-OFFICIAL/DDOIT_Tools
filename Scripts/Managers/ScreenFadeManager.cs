@@ -1,7 +1,8 @@
 using System.Collections;
 using UnityEngine;
 
-namespace DDOIT.Tools
+using DDOIT.Tools.Utilities;
+namespace DDOIT.Tools.Managers
 {
     /// <summary>
     /// VR 카메라 앞 Quad 기반 화면 페이드/탈채도 매니저.

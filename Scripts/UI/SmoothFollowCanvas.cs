@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace DDOIT.Tools
+namespace DDOIT.Tools.UI
 {
     /// <summary>
     /// 카메라 전방 일정 거리의 가상 지점을 부드럽게 추적하는 Canvas용 컴포넌트.

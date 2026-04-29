@@ -1,7 +1,8 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-namespace DDOIT.Tools
+using DDOIT.Tools.Managers;
+namespace DDOIT.Tools.Data
 {
     /// <summary>
     /// 사운드 데이터를 저장하는 ScriptableObject.

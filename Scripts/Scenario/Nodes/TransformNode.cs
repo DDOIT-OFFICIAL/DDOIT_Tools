@@ -2,7 +2,7 @@ using System.Collections;
 using UnityEngine;
 using UnityEngine.Events;
 
-namespace DDOIT.Tools
+namespace DDOIT.Tools.Scenario.Nodes
 {
     /// <summary>
     /// Transform의 이동/회전/스케일을 독립적으로 제어하는 노드.

@@ -1,6 +1,6 @@
 {
   "name": "DDOIT.Tools.Runtime",
-  "rootNamespace": "DDOIT.Tools",
+  "rootNamespace": "",
   "references": [
     "Unity.TextMeshPro",
     "Unity.Addressables",

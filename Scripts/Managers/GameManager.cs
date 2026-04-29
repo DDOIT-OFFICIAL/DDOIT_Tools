@@ -3,7 +3,11 @@ using UnityEngine;
 using UnityEngine.AddressableAssets;
 using UnityEngine.ResourceManagement.AsyncOperations;
 
-namespace DDOIT.Tools
+using DDOIT.Tools.Data;
+using DDOIT.Tools.Scenario;
+using DDOIT.Tools.Utilities;
+using DDOIT.Tools.Player;
+namespace DDOIT.Tools.Managers
 {
     /// <summary>
     /// 각 체험씬에 배치되는 매니저.

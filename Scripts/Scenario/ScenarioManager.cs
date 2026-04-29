@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace DDOIT.Tools
+namespace DDOIT.Tools.Scenario
 {
     /// <summary>
     /// 모든 Scenario를 초기화하고 EntryScenario를 시작하는 최상위 관리자.

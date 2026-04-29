@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace DDOIT.Tools
+namespace DDOIT.Tools.Utilities
 {
     /// <summary>
     /// 씬 전환시 파괴되는 제네릭 싱글톤 베이스 클래스

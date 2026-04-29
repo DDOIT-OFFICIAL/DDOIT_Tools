@@ -3,6 +3,7 @@ using System.Linq;
 using UnityEditor;
 using UnityEngine;
 
+using DDOIT.Tools.Data;
 namespace DDOIT.Tools.Editor
 {
     [CustomPropertyDrawer(typeof(SoundNameAttribute))]

@@ -3,7 +3,8 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Events;
 
-namespace DDOIT.Tools
+using DDOIT.Tools.Settings;
+namespace DDOIT.Tools.Scenario
 {
     /// <summary>
     /// 하위 Node들을 관할하는 단계.

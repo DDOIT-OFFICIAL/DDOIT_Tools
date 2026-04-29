@@ -4,7 +4,9 @@ using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.Video;
 
-namespace DDOIT.Tools
+using DDOIT.Tools.Scenario.Nodes;
+using DDOIT.Tools.Player;
+namespace DDOIT.Tools.UI
 {
     /// <summary>
     /// 풀링되는 UI 패널 단위. 독립 Canvas(World Space)를 가지며,

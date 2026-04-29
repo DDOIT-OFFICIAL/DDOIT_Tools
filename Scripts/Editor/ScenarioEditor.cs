@@ -2,9 +2,11 @@ using System.Text.RegularExpressions;
 using UnityEditor;
 using UnityEngine;
 
+using DDOIT.Tools.Scenario;
+using ScenarioCls = DDOIT.Tools.Scenario.Scenario;
 namespace DDOIT.Tools.Editor
 {
-    [CustomEditor(typeof(Scenario))]
+    [CustomEditor(typeof(ScenarioCls))]
     public class ScenarioEditor : UnityEditor.Editor
     {
         private SerializedProperty _nextScenario;
@@ -29,7 +31,7 @@ namespace DDOIT.Tools.Editor
 
             serializedObject.ApplyModifiedProperties();
 
-            var scenario = (Scenario)target;
+            var scenario = (ScenarioCls)target;
             var steps = scenario.GetComponentsInChildren<Step>(true);
 
             if (steps.Length > 0)
@@ -167,7 +169,7 @@ namespace DDOIT.Tools.Editor
             {
                 // 조건 없음 → 기본 타겟
                 var defaultStep = so.FindProperty("_defaultTargetStep").objectReferenceValue as Step;
-                var defaultScenario = so.FindProperty("_defaultTargetScenario").objectReferenceValue as Scenario;
+                var defaultScenario = so.FindProperty("_defaultTargetScenario").objectReferenceValue as ScenarioCls;
 
                 if (defaultStep != null || defaultScenario != null)
                 {
@@ -186,8 +188,8 @@ namespace DDOIT.Tools.Editor
                 {
                     Step targetStep = g < groupSteps.arraySize
                         ? groupSteps.GetArrayElementAtIndex(g).objectReferenceValue as Step : null;
-                    Scenario targetScenario = g < groupScenarios.arraySize
-                        ? groupScenarios.GetArrayElementAtIndex(g).objectReferenceValue as Scenario : null;
+                    ScenarioCls targetScenario = g < groupScenarios.arraySize
+                        ? groupScenarios.GetArrayElementAtIndex(g).objectReferenceValue as ScenarioCls : null;
 
                     if (targetStep == null && targetScenario == null) continue;
 

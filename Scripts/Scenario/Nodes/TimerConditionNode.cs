@@ -2,7 +2,7 @@ using System.Collections;
 using UnityEngine;
 using UnityEngine.Events;
 
-namespace DDOIT.Tools
+namespace DDOIT.Tools.Scenario.Nodes
 {
     /// <summary>
     /// 지정 시간 경과 후 조건을 충족하는 노드.

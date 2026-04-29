@@ -2,7 +2,9 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
-namespace DDOIT.Tools
+using DDOIT.Tools.UI;
+using DDOIT.Tools.Utilities;
+namespace DDOIT.Tools.Managers
 {
     /// <summary>
     /// UI 패널을 관리하는 싱글톤 매니저.

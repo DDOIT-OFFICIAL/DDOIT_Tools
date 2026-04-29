@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace DDOIT.Tools
+namespace DDOIT.Tools.Scenario
 {
     /// <summary>
     /// 단일 기능을 수행하는 노드의 추상 베이스 클래스.

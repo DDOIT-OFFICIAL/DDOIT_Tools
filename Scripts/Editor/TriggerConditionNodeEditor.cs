@@ -1,6 +1,7 @@
 using UnityEditor;
 using UnityEngine;
 
+using DDOIT.Tools.Scenario.Nodes;
 namespace DDOIT.Tools.Editor
 {
     [CustomEditor(typeof(TriggerConditionNode))]

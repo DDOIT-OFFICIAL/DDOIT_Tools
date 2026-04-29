@@ -2,7 +2,9 @@ using System.Collections;
 using UnityEngine;
 using UnityEngine.Events;
 
-namespace DDOIT.Tools
+using DDOIT.Tools.Data;
+using DDOIT.Tools.Managers;
+namespace DDOIT.Tools.Scenario.Nodes
 {
     /// <summary>
     /// SoundManager를 통해 오디오를 재생하는 노드.

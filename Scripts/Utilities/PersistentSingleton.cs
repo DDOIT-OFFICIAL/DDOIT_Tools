@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace DDOIT.Tools
+namespace DDOIT.Tools.Utilities
 {
     /// <summary>
     /// DontDestroyOnLoad로 씬 전환시에도 유지되는 영구 싱글톤 베이스 클래스

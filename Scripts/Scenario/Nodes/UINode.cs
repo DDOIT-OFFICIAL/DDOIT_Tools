@@ -1,7 +1,9 @@
 using UnityEngine;
 using UnityEngine.Events;
 
-namespace DDOIT.Tools
+using DDOIT.Tools.UI;
+using DDOIT.Tools.Managers;
+namespace DDOIT.Tools.Scenario.Nodes
 {
     /// <summary>
     /// UIManager를 통해 UI 패널을 표시하는 노드.

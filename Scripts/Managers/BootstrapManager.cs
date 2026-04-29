@@ -2,7 +2,7 @@ using System.Collections;
 using UnityEngine;
 using UnityEngine.AddressableAssets;
 
-namespace DDOIT.Tools
+namespace DDOIT.Tools.Managers
 {
     /// <summary>
     /// DDOIT 씬에 배치. 매니저 초기화 순서를 관리하고 첫 콘텐츠 씬 로드를 SceneManager에 위임한다.

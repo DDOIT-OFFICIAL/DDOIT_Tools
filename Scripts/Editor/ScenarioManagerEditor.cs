@@ -3,6 +3,8 @@ using System.Text.RegularExpressions;
 using UnityEditor;
 using UnityEngine;
 
+using DDOIT.Tools.Scenario;
+using ScenarioCls = DDOIT.Tools.Scenario.Scenario;
 namespace DDOIT.Tools.Editor
 {
     [CustomEditor(typeof(ScenarioManager))]
@@ -35,12 +37,12 @@ namespace DDOIT.Tools.Editor
                 EditorGUILayout.HelpBox("Entry Scenario가 지정되지 않았습니다.", MessageType.Warning);
             }
 
-            var scenarios = manager.GetComponentsInChildren<Scenario>(true);
+            var scenarios = manager.GetComponentsInChildren<ScenarioCls>(true);
 
             if (scenarios.Length > 0)
             {
                 EditorGUILayout.Space();
-                DrawFlowPreview(_entryScenario.objectReferenceValue as Scenario, scenarios);
+                DrawFlowPreview(_entryScenario.objectReferenceValue as ScenarioCls, scenarios);
 
                 EditorGUILayout.Space();
                 DrawScenarioList(scenarios);
@@ -58,7 +60,7 @@ namespace DDOIT.Tools.Editor
             {
                 int nextNum = GetNextNumber(manager.transform, "Scenario");
                 var go = new GameObject($"Scenario_{nextNum:D2}");
-                go.AddComponent<Scenario>();
+                go.AddComponent<ScenarioCls>();
                 go.transform.SetParent(manager.transform);
                 Undo.RegisterCreatedObjectUndo(go, "Add Scenario");
             }
@@ -82,7 +84,7 @@ namespace DDOIT.Tools.Editor
             return maxNumber + 1;
         }
 
-        private void DrawFlowPreview(Scenario entry, Scenario[] allScenarios)
+        private void DrawFlowPreview(ScenarioCls entry, ScenarioCls[] allScenarios)
         {
             EditorGUILayout.LabelField("흐름 미리보기", EditorStyles.boldLabel);
 
@@ -93,7 +95,7 @@ namespace DDOIT.Tools.Editor
             }
 
             // 메인 체이닝 플로우
-            var visited = new HashSet<Scenario>();
+            var visited = new HashSet<ScenarioCls>();
             var flow = new System.Text.StringBuilder();
             var current = entry;
 
@@ -106,7 +108,7 @@ namespace DDOIT.Tools.Editor
                 using (var so = new SerializedObject(current))
                 {
                     var nextProp = so.FindProperty("_nextScenario");
-                    current = nextProp.objectReferenceValue as Scenario;
+                    current = nextProp.objectReferenceValue as ScenarioCls;
                 }
             }
 
@@ -135,7 +137,7 @@ namespace DDOIT.Tools.Editor
             }
         }
 
-        private static Dictionary<string, List<string>> CollectStepBranchScenarios(Scenario[] scenarios)
+        private static Dictionary<string, List<string>> CollectStepBranchScenarios(ScenarioCls[] scenarios)
         {
             var result = new Dictionary<string, List<string>>();
 
@@ -148,7 +150,7 @@ namespace DDOIT.Tools.Editor
                     int groupCount = so.FindProperty("_conditionGroupCount").intValue;
 
                     // 기본 타겟
-                    var defaultScenario = so.FindProperty("_defaultTargetScenario").objectReferenceValue as Scenario;
+                    var defaultScenario = so.FindProperty("_defaultTargetScenario").objectReferenceValue as ScenarioCls;
                     if (defaultScenario != null)
                         AddBranch(result, $"{scenario.gameObject.name}/{step.gameObject.name}", defaultScenario.gameObject.name);
 
@@ -156,7 +158,7 @@ namespace DDOIT.Tools.Editor
                     var groupScenarios = so.FindProperty("_groupTargetScenarios");
                     for (int g = 0; g < groupCount && g < groupScenarios.arraySize; g++)
                     {
-                        var targetScenario = groupScenarios.GetArrayElementAtIndex(g).objectReferenceValue as Scenario;
+                        var targetScenario = groupScenarios.GetArrayElementAtIndex(g).objectReferenceValue as ScenarioCls;
                         if (targetScenario != null)
                             AddBranch(result, $"{scenario.gameObject.name}/{step.gameObject.name}", targetScenario.gameObject.name);
                     }
@@ -174,7 +176,7 @@ namespace DDOIT.Tools.Editor
                 dict[from].Add(to);
         }
 
-        private void DrawScenarioList(Scenario[] scenarios)
+        private void DrawScenarioList(ScenarioCls[] scenarios)
         {
             EditorGUILayout.LabelField($"시나리오 목록 ({scenarios.Length}개)", EditorStyles.boldLabel);
 
@@ -184,7 +186,7 @@ namespace DDOIT.Tools.Editor
             {
                 using var so = new SerializedObject(scenario);
                 var nextProp = so.FindProperty("_nextScenario");
-                var nextScenario = nextProp.objectReferenceValue as Scenario;
+                var nextScenario = nextProp.objectReferenceValue as ScenarioCls;
                 string nextName = nextScenario != null ? nextScenario.gameObject.name : "(없음)";
 
                 EditorGUILayout.BeginHorizontal();
@@ -219,11 +221,11 @@ namespace DDOIT.Tools.Editor
             EditorGUILayout.EndVertical();
         }
 
-        private void DrawRuntimeStatus(Scenario[] scenarios)
+        private void DrawRuntimeStatus(ScenarioCls[] scenarios)
         {
             EditorGUILayout.LabelField("런타임 상태", EditorStyles.boldLabel);
 
-            Scenario activeScenario = null;
+            ScenarioCls activeScenario = null;
             foreach (var s in scenarios)
             {
                 if (s.IsActive) { activeScenario = s; break; }

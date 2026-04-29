@@ -1,7 +1,7 @@
 using TMPro;
 using UnityEngine;
 
-namespace DDOIT.Tools
+namespace DDOIT.Tools.UI
 {
     /// <summary>
     /// UI 전역 설정. 모든 Theme에 공통 적용되는 레이아웃/폰트 설정.

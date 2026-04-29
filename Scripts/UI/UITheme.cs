@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace DDOIT.Tools
+namespace DDOIT.Tools.UI
 {
     /// <summary>
     /// UI 테마 (지역 설정). 테마별로 다른 색상을 정의한다.
