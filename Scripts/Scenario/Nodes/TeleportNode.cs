@@ -64,8 +64,8 @@ namespace DDOIT.Tools.Scenario.Nodes
                 yield return ScreenFadeManager.Instance.FadeToBlack(halfDuration);
 
             // 2. Teleport
-            if (PlayerController.HasInstance)
-                PlayerController.Instance.Teleport(_destination.position, _destination.rotation);
+            if (PlayerRig.HasInstance)
+                PlayerRig.Instance.Teleport(_destination.position, _destination.rotation);
 
             // 3. Fade In
             if (ScreenFadeManager.HasInstance)

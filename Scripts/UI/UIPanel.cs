@@ -132,8 +132,8 @@ namespace DDOIT.Tools.UI
                 }
 
                 Transform playerT = null;
-                if (lookAtMode != UILookAtMode.None && PlayerController.HasInstance)
-                    playerT = PlayerController.Instance.transform;
+                if (lookAtMode != UILookAtMode.None && PlayerRig.HasInstance)
+                    playerT = PlayerRig.Instance.HeadTransform;
 
                 if (playerT != null && lookAtMode == UILookAtMode.LookOnce)
                 {
@@ -156,8 +156,8 @@ namespace DDOIT.Tools.UI
                     var eyeAnchor = FindCenterEyeAnchor();
                     if (eyeAnchor != null)
                         _smoothFollow.SetTarget(eyeAnchor);
-                    else if (PlayerController.HasInstance)
-                        _smoothFollow.SetTarget(PlayerController.Instance.transform);
+                    else if (PlayerRig.HasInstance)
+                        _smoothFollow.SetTarget(PlayerRig.Instance.HeadTransform);
 
                     _smoothFollow.enabled = true;
                 }

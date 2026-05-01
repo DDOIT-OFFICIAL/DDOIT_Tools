@@ -60,9 +60,9 @@ namespace DDOIT.Tools.Managers
 
         private void InitializePlayerPosition()
         {
-            if (_spawnPoint == null || !PlayerController.HasInstance) return;
+            if (_spawnPoint == null || !PlayerRig.HasInstance) return;
 
-            PlayerController.Instance.Teleport(_spawnPoint.position, _spawnPoint.rotation);
+            PlayerRig.Instance.Teleport(_spawnPoint.position, _spawnPoint.rotation);
         }
 
         private void InitializeSoundDatabase()
