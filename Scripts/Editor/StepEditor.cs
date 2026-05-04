@@ -437,6 +437,8 @@ namespace DDOIT.Tools.Editor
                 CreateNodeChild<AnimatorNode>(step.transform, "AnimatorNode");
             if (GUILayout.Button("+ TeleportNode"))
                 CreateNodeChild<TeleportNode>(step.transform, "TeleportNode");
+            if (GUILayout.Button("+ WalkingStickNode"))
+                CreateNodeChild<WalkingStickNode>(step.transform, "WalkingStickNode");
         }
 
         private void CreateNodeChild<T>(Transform parent, string name) where T : Component
