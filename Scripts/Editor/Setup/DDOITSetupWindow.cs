@@ -25,8 +25,8 @@ namespace DDOIT.Tools.Setup
 
         private static readonly DependencyInfo[] REQUIRED_DEPENDENCIES =
         {
-            new DependencyInfo("Meta XR All-in-One SDK", "com.meta.xr.sdk.all", "83.0.4",
-                "Unity Asset Store에서 먼저 내 에셋에 추가해야 합니다."),
+            new DependencyInfo("Meta XR All-in-One SDK", "com.meta.xr.sdk.all", "201.0.0",
+                "Unity Asset Store에서 먼저 내 에셋에 추가해야 합니다. (Audio/Voice 모듈만 v85.0.0 유지)"),
             new DependencyInfo("Lottie Player", "com.gilzoide.lottie-player",
                 "https://github.com/gilzoide/unity-lottie-player.git", null),
         };
