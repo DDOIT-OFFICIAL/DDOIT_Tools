@@ -417,36 +417,35 @@ namespace DDOIT.Tools.Editor
 
         #region Add Nodes
 
+        private static System.Type[] _cachedNodeTypes;
+
+        private static System.Type[] GetScenarioNodeTypes()
+        {
+            if (_cachedNodeTypes != null) return _cachedNodeTypes;
+            _cachedNodeTypes = TypeCache.GetTypesDerivedFrom<ScenarioNode>()
+                .Where(t => !t.IsAbstract && !t.IsGenericType)
+                .OrderBy(t => t.Name)
+                .ToArray();
+            return _cachedNodeTypes;
+        }
+
         private void DrawAddNodeButtons(Step step)
         {
             EditorGUILayout.LabelField("노드 추가", EditorStyles.boldLabel);
 
-            if (GUILayout.Button("+ SoundNode"))
-                CreateNodeChild<SoundNode>(step.transform, "SoundNode");
-            if (GUILayout.Button("+ TransformNode"))
-                CreateNodeChild<TransformNode>(step.transform, "TransformNode");
-            if (GUILayout.Button("+ TriggerCondition"))
-                CreateNodeChild<TriggerConditionNode>(step.transform, "TriggerConditionNode");
-            if (GUILayout.Button("+ TimerCondition"))
-                CreateNodeChild<TimerConditionNode>(step.transform, "TimerConditionNode");
-            if (GUILayout.Button("+ UINode"))
-                CreateNodeChild<UINode>(step.transform, "UINode");
-            if (GUILayout.Button("+ ToggleNode"))
-                CreateNodeChild<ToggleNode>(step.transform, "ToggleNode");
-            if (GUILayout.Button("+ AnimatorNode"))
-                CreateNodeChild<AnimatorNode>(step.transform, "AnimatorNode");
-            if (GUILayout.Button("+ TeleportNode"))
-                CreateNodeChild<TeleportNode>(step.transform, "TeleportNode");
-            if (GUILayout.Button("+ WalkingStickNode"))
-                CreateNodeChild<WalkingStickNode>(step.transform, "WalkingStickNode");
+            foreach (var type in GetScenarioNodeTypes())
+            {
+                if (GUILayout.Button($"+ {type.Name}"))
+                    CreateNodeChild(step.transform, type);
+            }
         }
 
-        private void CreateNodeChild<T>(Transform parent, string name) where T : Component
+        private void CreateNodeChild(Transform parent, System.Type componentType)
         {
-            var go = new GameObject(name);
-            go.AddComponent<T>();
+            var go = new GameObject(componentType.Name);
+            go.AddComponent(componentType);
             go.transform.SetParent(parent);
-            Undo.RegisterCreatedObjectUndo(go, $"Add {name}");
+            Undo.RegisterCreatedObjectUndo(go, $"Add {componentType.Name}");
         }
 
         #endregion
