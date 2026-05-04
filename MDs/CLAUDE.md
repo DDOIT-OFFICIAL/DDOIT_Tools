@@ -23,6 +23,11 @@
 
 ## 메모
 
+### 릴리스 노트
+- **v0.16.0** (2026-05-04): `WalkingStickNode` 시나리오 노드 + `WalkingStickNodeEditor` 추가. StepEditor 노드 추가 버튼 9종.
+- **v0.15.0~v0.15.2** (2026-04-30): `PlayerController`(461 LoC) → `PlayerRig`(얇은 wrapper) 재구축. ISDK `FirstPersonLocomotor` 풀스택 + WalkingStick locomotion 포팅(`DDOIT.Tools.Locomotion`). 디버깅 lessons는 `DDOIT_Tools.md` 4.5 / `Meta_XR_SDK_Unity_Guide.md` WalkingStick 섹션 참조.
+- **v0.14.0** (2026-04-15): namespace migration (`DDOIT.Tools.X` 카테고리 분리).
+
 ---
 
 # Unity 코딩 규칙
