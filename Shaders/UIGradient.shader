@@ -58,6 +58,7 @@ Shader "DDOIT/UI Gradient"
                 float4 vertex : POSITION;
                 float2 uv : TEXCOORD0;
                 float4 color : COLOR;
+                UNITY_VERTEX_INPUT_INSTANCE_ID
             };
 
             struct v2f
@@ -66,6 +67,7 @@ Shader "DDOIT/UI Gradient"
                 float2 uv : TEXCOORD0;
                 float4 worldPosition : TEXCOORD1;
                 float4 color : COLOR;
+                UNITY_VERTEX_OUTPUT_STEREO
             };
 
             sampler2D _MainTex;
@@ -76,6 +78,8 @@ Shader "DDOIT/UI Gradient"
             v2f vert(appdata v)
             {
                 v2f o;
+                UNITY_SETUP_INSTANCE_ID(v);
+                UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(o);
                 o.worldPosition = v.vertex;
                 o.vertex = UnityObjectToClipPos(v.vertex);
                 o.uv = v.uv;
@@ -85,6 +89,7 @@ Shader "DDOIT/UI Gradient"
 
             fixed4 frag(v2f i) : SV_Target
             {
+                UNITY_SETUP_STEREO_EYE_INDEX_POST_VERTEX(i);
                 fixed4 gradient = lerp(_ColorBottom, _ColorTop, i.uv.y);
                 fixed4 texColor = tex2D(_MainTex, i.uv);
                 fixed4 col = gradient * texColor * i.color;
