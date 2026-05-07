@@ -34,6 +34,10 @@ namespace DDOIT.Tools.UI
         [SerializeField] private Button _buttonB;
         [SerializeField] private TMP_Text _buttonLabelA;
         [SerializeField] private TMP_Text _buttonLabelB;
+        [SerializeField] private Image _buttonABackground;
+        [SerializeField] private Image _buttonAEdge;
+        [SerializeField] private Image _buttonBBackground;
+        [SerializeField] private Image _buttonBEdge;
 
         [Header("디자인 요소")]
         [SerializeField] private Image _backgroundImage;
@@ -171,7 +175,7 @@ namespace DDOIT.Tools.UI
         {
             if (theme == null) return;
 
-            // 배경 그라디언트 (머티리얼 인스턴스)
+            // 배경 그라디언트 (머티리얼 인스턴스 — 패널/버튼 공유)
             if (_backgroundImage != null && _backgroundImage.material != null)
             {
                 if (_bgMaterialInstance == null)
@@ -180,14 +184,21 @@ namespace DDOIT.Tools.UI
                 _bgMaterialInstance.SetColor("_ColorTop", theme.backgroundColorTop);
                 _bgMaterialInstance.SetColor("_ColorBottom", theme.backgroundColorBottom);
                 _backgroundImage.material = _bgMaterialInstance;
+
+                // 버튼 background도 같은 그라디언트 머티리얼 공유
+                if (_buttonABackground != null) _buttonABackground.material = _bgMaterialInstance;
+                if (_buttonBBackground != null) _buttonBBackground.material = _bgMaterialInstance;
             }
 
             if (_edgeImage != null)
                 _edgeImage.color = theme.edgeColor;
 
-            // Logo는 Edge 색상을 따라감
+            // Logo, Button Edge는 Edge 색상을 따라감
             if (_logoImage != null)
                 _logoImage.color = theme.edgeColor;
+
+            if (_buttonAEdge != null) _buttonAEdge.color = theme.edgeColor;
+            if (_buttonBEdge != null) _buttonBEdge.color = theme.edgeColor;
 
             // 텍스트 색상
             if (_titleText != null)
@@ -198,6 +209,9 @@ namespace DDOIT.Tools.UI
 
             if (_contextSubText != null)
                 _contextSubText.color = theme.textColor;
+
+            if (_buttonLabelA != null) _buttonLabelA.color = theme.textColor;
+            if (_buttonLabelB != null) _buttonLabelB.color = theme.textColor;
 
             // Splitter, TitleIcon은 텍스트 색상을 따라감
             if (_titleContextSplitter != null)
