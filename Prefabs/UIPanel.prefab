@@ -344,7 +344,7 @@ MonoBehaviour:
   _transferOnSecondSelection: 0
   _addNewPointsToFront: 0
   _forwardElement: {fileID: 0}
-  _canvas: {fileID: 0}
+  _canvas: {fileID: 8683705136650318791}
 --- !u!1 &1929633451360032631
 GameObject:
   m_ObjectHideFlags: 0
