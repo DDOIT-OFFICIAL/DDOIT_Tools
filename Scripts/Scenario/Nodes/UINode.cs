@@ -47,6 +47,12 @@ namespace DDOIT.Tools.Scenario.Nodes
         /// <summary>선택된 버튼 인덱스 (0=A, 1=B, -1=미선택).</summary>
         public int SelectedButtonIndex => _selectedButtonIndex;
 
+        /// <summary>버튼 A 클릭 이벤트. Step.MarkConditionGroupN을 등록하여 분기 가능.</summary>
+        public UnityEvent OnButtonA => _onButtonA;
+
+        /// <summary>버튼 B 클릭 이벤트. Step.MarkConditionGroupN을 등록하여 분기 가능.</summary>
+        public UnityEvent OnButtonB => _onButtonB;
+
         #endregion
 
         #region ScenarioNode

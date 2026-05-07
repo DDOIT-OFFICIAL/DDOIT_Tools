@@ -86,13 +86,15 @@ namespace DDOIT.Tools.Editor
 
             // 그룹 수 +/-
             EditorGUILayout.BeginHorizontal();
-            EditorGUILayout.LabelField($"그룹 수: {_conditionGroupCount.intValue}", GUILayout.Width(80));
+            EditorGUILayout.LabelField($"그룹 수: {_conditionGroupCount.intValue} / {Step.MAX_CONDITION_GROUPS}", GUILayout.Width(110));
 
+            EditorGUI.BeginDisabledGroup(_conditionGroupCount.intValue >= Step.MAX_CONDITION_GROUPS);
             if (GUILayout.Button("+", GUILayout.Width(24)))
             {
                 _conditionGroupCount.intValue++;
                 SyncArraySizes();
             }
+            EditorGUI.EndDisabledGroup();
 
             EditorGUI.BeginDisabledGroup(_conditionGroupCount.intValue <= 0);
             if (GUILayout.Button("-", GUILayout.Width(24)))
@@ -280,6 +282,16 @@ namespace DDOIT.Tools.Editor
                 }
             }
 
+            // 외부 marker callsite 수집 (Scene scan)
+            var externalMarkers = ((Step)target).CollectExternalMarkerCallsites();
+            var externalByGroup = new Dictionary<int, List<(DDOIT.Tools.Scenario.Nodes.UINode node, int buttonIndex, int group)>>();
+            foreach (var ext in externalMarkers)
+            {
+                if (!externalByGroup.ContainsKey(ext.group))
+                    externalByGroup[ext.group] = new List<(DDOIT.Tools.Scenario.Nodes.UINode, int, int)>();
+                externalByGroup[ext.group].Add(ext);
+            }
+
             EditorGUILayout.LabelField($"노드 목록 ({nodes.Length}개)", EditorStyles.boldLabel);
 
             for (int g = 1; g <= groupCount; g++)
@@ -290,8 +302,12 @@ namespace DDOIT.Tools.Editor
 
                 var prevBg = GUI.backgroundColor;
                 GUI.backgroundColor = groupColor;
-                int count = grouped.ContainsKey(g) ? grouped[g].Count : 0;
-                EditorGUILayout.LabelField($"조건 그룹 {g} ({count}개)", EditorStyles.boldLabel);
+                int nodeCount = grouped.ContainsKey(g) ? grouped[g].Count : 0;
+                int extCount = externalByGroup.ContainsKey(g) ? externalByGroup[g].Count : 0;
+                string title = extCount > 0
+                    ? $"조건 그룹 {g} ({nodeCount}개 + 외부 {extCount}개)"
+                    : $"조건 그룹 {g} ({nodeCount}개)";
+                EditorGUILayout.LabelField(title, EditorStyles.boldLabel);
                 GUI.backgroundColor = prevBg;
 
                 if (grouped.ContainsKey(g))
@@ -299,9 +315,16 @@ namespace DDOIT.Tools.Editor
                     foreach (var node in grouped[g])
                         DrawNodeRow(node, groupColor);
                 }
-                else
+
+                if (externalByGroup.ContainsKey(g))
                 {
-                    EditorGUILayout.LabelField("  (노드 없음)", EditorStyles.miniLabel);
+                    foreach (var ext in externalByGroup[g])
+                        DrawExternalMarkerRow(ext.node, ext.buttonIndex, groupColor);
+                }
+
+                if (!grouped.ContainsKey(g) && !externalByGroup.ContainsKey(g))
+                {
+                    EditorGUILayout.LabelField("  (노드/외부 marker 없음)", EditorStyles.miniLabel);
                 }
 
                 EditorGUILayout.EndVertical();
@@ -325,6 +348,30 @@ namespace DDOIT.Tools.Editor
                         MessageType.Warning);
                 }
             }
+        }
+
+        private static void DrawExternalMarkerRow(DDOIT.Tools.Scenario.Nodes.UINode node, int buttonIndex, Color groupColor)
+        {
+            EditorGUILayout.BeginHorizontal();
+
+            var prevColor = GUI.contentColor;
+            GUI.contentColor = groupColor;
+            EditorGUILayout.LabelField("◆", GUILayout.Width(14));
+            GUI.contentColor = prevColor;
+
+            string buttonLabel = buttonIndex == 0 ? "버튼 A" : "버튼 B";
+            if (GUILayout.Button($"{node.gameObject.name} ▸ {buttonLabel}", EditorStyles.label))
+            {
+                Selection.activeGameObject = node.gameObject;
+                EditorGUIUtility.PingObject(node.gameObject);
+            }
+
+            var prevContentColor = GUI.contentColor;
+            GUI.contentColor = new Color(0.9f, 0.7f, 0.3f);
+            EditorGUILayout.LabelField("UINode (외부)", EditorStyles.miniLabel, GUILayout.Width(130));
+            GUI.contentColor = prevContentColor;
+
+            EditorGUILayout.EndHorizontal();
         }
 
         private static void DrawNodeRow(ScenarioNode node, Color groupColor)

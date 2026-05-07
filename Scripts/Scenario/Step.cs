@@ -51,6 +51,12 @@ namespace DDOIT.Tools.Scenario
         private int _completedGroupIndex;
         private Coroutine _defaultWaitCoroutine;
 
+        // 외부 marker (UINode 등의 UnityEvent에서 MarkConditionGroupN 호출)
+        private HashSet<int> _expectedExternalMarkers = new HashSet<int>();
+        private HashSet<int> _receivedExternalMarkers = new HashSet<int>();
+
+        public const int MAX_CONDITION_GROUPS = 7;
+
         #endregion
 
         #region Public Methods
@@ -77,12 +83,17 @@ namespace DDOIT.Tools.Scenario
                 _conditionGroups[group].Add(node);
             }
 
+            // 외부 marker expected 수집 (UINode 등의 UnityEvent → MarkConditionGroupN)
+            _expectedExternalMarkers.Clear();
+            _receivedExternalMarkers.Clear();
+            DetectExternalMarkers();
+
             if (ScenarioManager.DebugMode)
             {
                 int totalConditions = 0;
                 foreach (var g in _conditionGroups.Values)
                     totalConditions += g.Count;
-                Debug.Log($"[Step] '{gameObject.name}' 시작 (Node {_nodes.Length}개, 조건 그룹 {_conditionGroups.Count}개, 조건 노드 {totalConditions}개)");
+                Debug.Log($"[Step] '{gameObject.name}' 시작 (Node {_nodes.Length}개, 조건 그룹 {_conditionGroups.Count}개, 조건 노드 {totalConditions}개, 외부 marker {_expectedExternalMarkers.Count}개)");
             }
 
             _onStart?.Invoke();
@@ -93,8 +104,8 @@ namespace DDOIT.Tools.Scenario
                 node.Init();
             }
 
-            // 조건 노드가 없으면 기본 대기 후 자동 진행
-            if (_conditionGroups.Count == 0)
+            // 조건 노드도 외부 marker도 없으면 기본 대기 후 자동 진행
+            if (_conditionGroups.Count == 0 && _expectedExternalMarkers.Count == 0)
             {
                 if (ScenarioManager.DebugMode)
                     Debug.Log($"[Step] '{gameObject.name}' 조건 없음 → {DefaultStepWait}초 대기 후 자동 진행");
@@ -104,31 +115,133 @@ namespace DDOIT.Tools.Scenario
 
         /// <summary>
         /// 노드가 조건 충족을 보고할 때 호출된다.
-        /// 아무 그룹이든 전원 충족되면 Step을 종료한다.
+        /// 아무 그룹이든 전원 충족되면(노드+외부 marker AND) Step을 종료한다.
         /// </summary>
         public void OnNodeConditionMet()
         {
             if (!IsActive) return;
+            CheckGroupCompletion();
+        }
 
-            foreach (var kvp in _conditionGroups)
+        // ── 외부 marker 충족 메서드 (UnityEvent 등에서 호출) ──
+        public void MarkConditionGroup1() => MarkConditionGroupMet(1);
+        public void MarkConditionGroup2() => MarkConditionGroupMet(2);
+        public void MarkConditionGroup3() => MarkConditionGroupMet(3);
+        public void MarkConditionGroup4() => MarkConditionGroupMet(4);
+        public void MarkConditionGroup5() => MarkConditionGroupMet(5);
+        public void MarkConditionGroup6() => MarkConditionGroupMet(6);
+        public void MarkConditionGroup7() => MarkConditionGroupMet(7);
+
+        private void MarkConditionGroupMet(int group)
+        {
+            if (!IsActive) return;
+            if (group <= 0 || group > _conditionGroupCount) return;
+
+            _receivedExternalMarkers.Add(group);
+
+            if (ScenarioManager.DebugMode)
+                Debug.Log($"[Step] '{gameObject.name}' 외부 marker 그룹 {group} 충족 보고");
+
+            CheckGroupCompletion();
+        }
+
+        private void CheckGroupCompletion()
+        {
+            for (int g = 1; g <= _conditionGroupCount; g++)
             {
-                bool groupComplete = true;
-                foreach (var node in kvp.Value)
+                bool hasNodes = _conditionGroups.ContainsKey(g);
+                bool hasExternal = _expectedExternalMarkers.Contains(g);
+
+                // 그룹이 비어있으면(노드 0 + 외부 marker 0) 자동 완료 방지를 위해 skip
+                if (!hasNodes && !hasExternal) continue;
+
+                // 노드 검사
+                bool nodesComplete = true;
+                if (hasNodes)
                 {
-                    if (!node.IsConditionMet)
+                    foreach (var node in _conditionGroups[g])
                     {
-                        groupComplete = false;
-                        break;
+                        if (!node.IsConditionMet) { nodesComplete = false; break; }
                     }
                 }
 
-                if (groupComplete)
+                // 외부 marker 검사
+                bool externalComplete = !hasExternal || _receivedExternalMarkers.Contains(g);
+
+                if (nodesComplete && externalComplete)
                 {
                     if (ScenarioManager.DebugMode)
-                        Debug.Log($"[Step] '{gameObject.name}' 조건 그룹 {kvp.Key} 완료 → 종료");
-                    _completedGroupIndex = kvp.Key;
+                        Debug.Log($"[Step] '{gameObject.name}' 조건 그룹 {g} 완료 → 종료");
+                    _completedGroupIndex = g;
                     EndTrigger();
                     return;
+                }
+            }
+        }
+
+        private void DetectExternalMarkers()
+        {
+            // Scene 내 모든 UINode를 scan하여, 자기에게 MarkConditionGroupN 호출하는 callsite를 detect
+            var allUINodes = UnityEngine.Object.FindObjectsByType<DDOIT.Tools.Scenario.Nodes.UINode>(
+                FindObjectsInactive.Include, FindObjectsSortMode.None);
+
+            foreach (var ui in allUINodes)
+            {
+                ScanUnityEventForExternalMarkers(ui.OnButtonA);
+                ScanUnityEventForExternalMarkers(ui.OnButtonB);
+            }
+        }
+
+        private void ScanUnityEventForExternalMarkers(UnityEvent ev)
+        {
+            if (ev == null) return;
+            int count = ev.GetPersistentEventCount();
+            for (int i = 0; i < count; i++)
+            {
+                if (ev.GetPersistentTarget(i) != this) continue;
+                string methodName = ev.GetPersistentMethodName(i);
+                for (int g = 1; g <= MAX_CONDITION_GROUPS; g++)
+                {
+                    if (methodName == $"MarkConditionGroup{g}")
+                    {
+                        _expectedExternalMarkers.Add(g);
+                        break;
+                    }
+                }
+            }
+        }
+
+        /// <summary>Step Editor에서 외부 marker 가시화용. 자기에게 호출하는 (UINode, 버튼 인덱스, 그룹) 목록 반환.</summary>
+        public List<(DDOIT.Tools.Scenario.Nodes.UINode node, int buttonIndex, int group)> CollectExternalMarkerCallsites()
+        {
+            var result = new List<(DDOIT.Tools.Scenario.Nodes.UINode, int, int)>();
+            var allUINodes = UnityEngine.Object.FindObjectsByType<DDOIT.Tools.Scenario.Nodes.UINode>(
+                FindObjectsInactive.Include, FindObjectsSortMode.None);
+
+            foreach (var ui in allUINodes)
+            {
+                CollectFrom(ui.OnButtonA, ui, 0, result);
+                CollectFrom(ui.OnButtonB, ui, 1, result);
+            }
+            return result;
+        }
+
+        private void CollectFrom(UnityEvent ev, DDOIT.Tools.Scenario.Nodes.UINode node, int buttonIndex,
+            List<(DDOIT.Tools.Scenario.Nodes.UINode, int, int)> result)
+        {
+            if (ev == null) return;
+            int count = ev.GetPersistentEventCount();
+            for (int i = 0; i < count; i++)
+            {
+                if (ev.GetPersistentTarget(i) != this) continue;
+                string methodName = ev.GetPersistentMethodName(i);
+                for (int g = 1; g <= MAX_CONDITION_GROUPS; g++)
+                {
+                    if (methodName == $"MarkConditionGroup{g}")
+                    {
+                        result.Add((node, buttonIndex, g));
+                        break;
+                    }
                 }
             }
         }

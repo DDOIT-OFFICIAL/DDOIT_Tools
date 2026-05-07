@@ -399,7 +399,7 @@ Step은 **조건 그룹**을 통해 여러 완료 경로와 각 경로별 분기
 
 **구조**:
 - 각 ScenarioNode는 `ConditionGroup` 값을 가짐 (0 = 그룹 미소속)
-- Step의 `_conditionGroupCount`로 그룹 개수 설정 (기본 0)
+- Step의 `_conditionGroupCount`로 그룹 개수 설정 (기본 0, **최대 7**)
 - 같은 그룹 내 모든 노드가 충족(AND) → 그룹 완료
 - 그룹 중 하나라도 완료(OR) → Step 종료
 
@@ -416,6 +416,25 @@ Step_RoomA (_conditionGroupCount = 2)
 ```
 
 조건 그룹이 0개면 `DDOITSettings.defaultStepWait`(기본 0.5초) 대기 후 자동 진행.
+
+**외부 marker (UINode 버튼 분기, v0.18.0+)**:
+
+Step에 매개변수 없는 그룹 충족 메서드 7개(`MarkConditionGroup1` ~ `MarkConditionGroup7`)가 노출된다. UINode의 `_onButtonA` / `_onButtonB` UnityEvent 슬롯에서 Step을 target으로 끌어다 놓고 해당 메서드를 선택하면, 버튼 클릭 시 그룹 충족 marker가 Step에 보고된다.
+
+- 그룹 내 노드 + 외부 marker는 **AND**로 검사 (모두 충족 시 그룹 완료)
+- 그룹에 노드가 없고 외부 marker만 있으면 외부 marker 단독으로 충족
+- StepEditor가 자동 가시화: 그룹 row에 `◆ UINode 'X' ▸ 버튼 A`처럼 표시 (Scene scan 기반)
+
+**예시 (UI 분기 시나리오)**:
+```
+Step_Question (_conditionGroupCount = 2)
+├── [그룹 1] UINode (질문 패널) ─┐
+│                                ├── _onButtonA → Step.MarkConditionGroup1()
+│                                └── _onButtonB → Step.MarkConditionGroup2()
+├── _groupTargetSteps[0] = Step_AnswerA
+└── _groupTargetSteps[1] = Step_AnswerB
+```
+UINode 자체의 `_conditionGroup`은 그대로 두면 "어느 버튼이든 충족하는 공통 그룹"으로 동작.
 
 #### 4.1.8 Step 메모 및 분기 시각화
 
