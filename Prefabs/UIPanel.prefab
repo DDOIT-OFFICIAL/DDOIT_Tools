@@ -160,6 +160,7 @@ GameObject:
   - component: {fileID: 92770775267928490}
   - component: {fileID: 7274012466311615754}
   - component: {fileID: 4031857923340016262}
+  - component: {fileID: 7262786704702509399}
   m_Layer: 3
   m_Name: UIPanel
   m_TagString: Untagged
@@ -328,6 +329,22 @@ MonoBehaviour:
   _distance: 0.5
   _positionSpeed: 5
   _rotationSpeed: 3
+--- !u!114 &7262786704702509399
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1887171023470924724}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3ffe41fe81087fa41a2062cc69b99615, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Oculus.Interaction::Oculus.Interaction.PointableCanvas
+  _transferOnSecondSelection: 0
+  _addNewPointsToFront: 0
+  _forwardElement: {fileID: 0}
+  _canvas: {fileID: 0}
 --- !u!1 &1929633451360032631
 GameObject:
   m_ObjectHideFlags: 0
@@ -893,7 +910,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Image
   m_Material: {fileID: 0}
   m_Color: {r: 0.27058825, g: 0.60784316, b: 0.7411765, a: 1}
-  m_RaycastTarget: 0
+  m_RaycastTarget: 1
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
   m_Maskable: 1
   m_OnCullStateChanged:
@@ -2574,7 +2591,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Image
   m_Material: {fileID: 0}
   m_Color: {r: 0.27058825, g: 0.60784316, b: 0.7411765, a: 1}
-  m_RaycastTarget: 0
+  m_RaycastTarget: 1
   m_RaycastPadding: {x: 0, y: 0, z: 0, w: 0}
   m_Maskable: 1
   m_OnCullStateChanged:
