@@ -175,7 +175,7 @@ namespace DDOIT.Tools.UI
         {
             if (theme == null) return;
 
-            // 배경 그라디언트 (머티리얼 인스턴스 — 패널/버튼 공유)
+            // 배경 그라디언트 (머티리얼 인스턴스 — 패널 전용)
             if (_backgroundImage != null && _backgroundImage.material != null)
             {
                 if (_bgMaterialInstance == null)
@@ -184,11 +184,11 @@ namespace DDOIT.Tools.UI
                 _bgMaterialInstance.SetColor("_ColorTop", theme.backgroundColorTop);
                 _bgMaterialInstance.SetColor("_ColorBottom", theme.backgroundColorBottom);
                 _backgroundImage.material = _bgMaterialInstance;
-
-                // 버튼 background도 같은 그라디언트 머티리얼 공유
-                if (_buttonABackground != null) _buttonABackground.material = _bgMaterialInstance;
-                if (_buttonBBackground != null) _buttonBBackground.material = _bgMaterialInstance;
             }
+
+            // 버튼 background는 단색 — gradient의 top 색상 사용
+            if (_buttonABackground != null) _buttonABackground.color = theme.backgroundColorTop;
+            if (_buttonBBackground != null) _buttonBBackground.color = theme.backgroundColorTop;
 
             if (_edgeImage != null)
                 _edgeImage.color = theme.edgeColor;
