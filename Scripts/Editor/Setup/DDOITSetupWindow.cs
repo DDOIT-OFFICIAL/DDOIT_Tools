@@ -244,6 +244,9 @@ namespace DDOIT.Tools.Setup
                 "  - DDOIT_RPAsset → Graphics Default Pipeline\n" +
                 "  - DDOIT_Renderer → Renderer Data\n" +
                 "  - DDOIT_VolumeProfile → Default Volume Profile\n\n" +
+                "[ Quality ]\n" +
+                "  - 활성 Quality → Mobile (idx 0)\n" +
+                "  - Android Platform Default → Mobile\n\n" +
                 "[ Player Settings ]\n" +
                 "  - Linear / Vulkan + OpenGLES3 / IL2CPP / ARM64\n" +
                 "  - Managed Stripping: Medium / Min API: 32\n\n" +
@@ -358,6 +361,13 @@ namespace DDOIT.Tools.Setup
                     Debug.Log("[DDOITSetupWindow] URP Global Default Volume Profile → DDOIT_VolumeProfile");
                 }
             }
+
+            // ── 2.5 Quality (Quest VR은 Mobile quality 권장) ──
+            //   QualitySettings.SetQualityLevel으로 즉시 active 변경 + Android default도 Mobile로
+            QualitySettings.SetQualityLevel(0, true);
+            ApplyAndroidDefaultQuality(0);
+            appliedCount++;
+            Debug.Log("[DDOITSetupWindow] Quality Level → Mobile (Android default Mobile)");
 
             // ── 3. Player Settings ──
             PlayerSettings.colorSpace = ColorSpace.Linear;
@@ -625,6 +635,51 @@ namespace DDOIT.Tools.Setup
         /// <summary>
         /// ProjectSettings YAML 파일의 특정 키를 찾아 줄 전체를 교체한다.
         /// </summary>
+        /// <summary>
+        /// ProjectSettings/QualitySettings.asset의 m_PerPlatformDefaultQuality.Android 값을 변경한다.
+        /// 변경된 값은 Editor 재시작/Build Target 전환 시에도 유지된다.
+        /// </summary>
+        private static void ApplyAndroidDefaultQuality(int level)
+        {
+            string fullPath = Path.Combine(Application.dataPath, "..", "ProjectSettings", "QualitySettings.asset");
+            if (!File.Exists(fullPath))
+            {
+                Debug.LogWarning("[DDOITSetupWindow] QualitySettings.asset 파일 없음");
+                return;
+            }
+
+            var lines = File.ReadAllLines(fullPath);
+            bool inDefaultQuality = false;
+            for (int i = 0; i < lines.Length; i++)
+            {
+                string trimmed = lines[i].TrimStart();
+                if (trimmed.StartsWith("m_PerPlatformDefaultQuality:"))
+                {
+                    inDefaultQuality = true;
+                    continue;
+                }
+
+                if (inDefaultQuality)
+                {
+                    if (trimmed.StartsWith("Android:"))
+                    {
+                        string indent = lines[i].Substring(0, lines[i].Length - trimmed.Length);
+                        lines[i] = indent + "Android: " + level;
+                        break;
+                    }
+                    // 같은 들여쓰기 수준 끝 = section 종료
+                    if (lines[i].Length > 0 && !char.IsWhiteSpace(lines[i][0]) ||
+                        (lines[i].StartsWith("  ") && !lines[i].StartsWith("    ")))
+                    {
+                        // 이미 다른 최상위 키로 넘어감
+                        break;
+                    }
+                }
+            }
+
+            File.WriteAllLines(fullPath, lines);
+        }
+
         private static void ModifyProjectSettingsFile(string relativePath, string keyPrefix, string newLine)
         {
             string fullPath = Path.Combine(Application.dataPath, "..", relativePath);
