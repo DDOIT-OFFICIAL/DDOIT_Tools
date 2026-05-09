@@ -135,6 +135,9 @@ namespace DDOIT.Tools.Managers
             {
                 _currentSceneHandle = handle;
                 _isCurrentSceneAddressable = true;
+
+                // 콘텐츠 씬을 active로 set → 그 씬의 RenderSettings(skybox/ambient/fog) 적용
+                USceneManager.SetActiveScene(handle.Result.Scene);
             }
             else
             {
@@ -173,6 +176,11 @@ namespace DDOIT.Tools.Managers
 
             // 씬 로드 완료까지 대기
             yield return null;
+
+            // 콘텐츠 씬을 active로 set → 그 씬의 RenderSettings(skybox/ambient/fog) 적용
+            var loadedScene = USceneManager.GetSceneByPath(scenePath);
+            if (loadedScene.IsValid() && loadedScene.isLoaded)
+                USceneManager.SetActiveScene(loadedScene);
 
             _isCurrentSceneAddressable = false;
             IsLoading = false;
