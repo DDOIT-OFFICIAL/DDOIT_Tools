@@ -141,10 +141,10 @@ namespace DDOIT.Tools.UI
 
                 if (playerT != null && lookAtMode == UILookAtMode.LookOnce)
                 {
-                    // 1회 즉시 회전
+                    // 1회 즉시 회전 — Canvas 앞면(-Z 반대)이 Player를 향하게 forward를 -dir로
                     Vector3 dir = playerT.position - transform.position;
                     if (dir.sqrMagnitude > 0.001f)
-                        transform.rotation = Quaternion.LookRotation(dir);
+                        transform.rotation = Quaternion.LookRotation(-dir);
                 }
 
                 _lookAtPlayer = lookAtMode == UILookAtMode.LookAlways;
@@ -236,7 +236,8 @@ namespace DDOIT.Tools.UI
             Vector3 direction = _playerTransform.position - transform.position;
             if (direction.sqrMagnitude < 0.001f) return;
 
-            Quaternion targetRot = Quaternion.LookRotation(direction);
+            // Canvas 앞면이 Player를 향하게 forward를 -direction으로
+            Quaternion targetRot = Quaternion.LookRotation(-direction);
             transform.rotation = Quaternion.Slerp(
                 transform.rotation, targetRot, LOOK_AT_SPEED * Time.unscaledDeltaTime);
         }
