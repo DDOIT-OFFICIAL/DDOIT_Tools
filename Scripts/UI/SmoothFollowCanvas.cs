@@ -5,7 +5,11 @@ namespace DDOIT.Tools.UI
     /// <summary>
     /// 카메라 전방 일정 거리의 가상 지점을 부드럽게 추적하는 Canvas용 컴포넌트.
     /// CenterEyeAnchor에 직접 붙이지 않고, 독립된 GameObject에 부착한다.
+    /// OVROverlayCanvas(default order=0)가 같은 frame Update에서 layer를 submit하므로,
+    /// 이 컴포넌트는 ExecutionOrder -100으로 먼저 실행 + Update phase에서 transform 갱신해
+    /// 같은 frame 안에 OVR layer가 새 pose를 사용하도록 보장 (1-frame stale 잔상 방지).
     /// </summary>
+    [DefaultExecutionOrder(-100)]
     public class SmoothFollowCanvas : MonoBehaviour
     {
         #region Serialized Fields
@@ -41,7 +45,7 @@ namespace DDOIT.Tools.UI
 
         #region Unity Lifecycle
 
-        private void LateUpdate()
+        private void Update()
         {
             if (_target == null) return;
 

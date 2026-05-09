@@ -12,7 +12,11 @@ namespace DDOIT.Tools.UI
     /// 풀링되는 UI 패널 단위. 독립 Canvas(World Space)를 가지며,
     /// DesignPanel(비주얼 컨테이너)과 모든 데이터 요소를 내장한다.
     /// 활성화 플래그에 따라 필요한 요소만 활성화하고 데이터를 바인딩한다.
+    /// OVROverlayCanvas(default order=0)와 같은 frame에서 일관된 pose를 보장하기 위해
+    /// ExecutionOrder -100 + Update phase에서 LookAt Slerp 처리
+    /// (1-frame stale로 인한 간헐적 잔상 방지).
     /// </summary>
+    [DefaultExecutionOrder(-100)]
     public class UIPanel : MonoBehaviour
     {
         #region Serialized Fields
@@ -229,7 +233,7 @@ namespace DDOIT.Tools.UI
 
         #region Unity Lifecycle
 
-        private void LateUpdate()
+        private void Update()
         {
             if (!_lookAtPlayer || _playerTransform == null) return;
 
