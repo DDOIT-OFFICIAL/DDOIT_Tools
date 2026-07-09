@@ -22,7 +22,12 @@ namespace DDOIT.Tools.Setup
             "01. Scenes", "02. Scripts", "03. Prefabs", "04. Models",
             "05. SO", "06. Textures", "07. Shaders", "08. Materials",
             "09. Sprites", "10. Audios", "11. Animations", "12. Particles",
-            "13. Fonts", "14. Timelines", "15. Videos"
+            "13. Fonts", "14. Timelines", "15. Videos", "999. Resources"
+        };
+
+        private static readonly string[] PROJECT_SUBFOLDERS =
+        {
+            "999. Resources/AssetStore"
         };
 
         private static readonly DependencyInfo[] REQUIRED_DEPENDENCIES =
@@ -279,6 +284,8 @@ namespace DDOIT.Tools.Setup
             EditorGUILayout.LabelField("생성될 폴더 구조:", EditorStyles.boldLabel);
             EditorGUI.indentLevel++;
             foreach (var folder in PROJECT_FOLDERS)
+                EditorGUILayout.LabelField(folder);
+            foreach (var folder in PROJECT_SUBFOLDERS)
                 EditorGUILayout.LabelField(folder);
             EditorGUI.indentLevel--;
 
@@ -624,11 +631,10 @@ namespace DDOIT.Tools.Setup
         {
             // 1. 폴더 템플릿 생성
             foreach (var folder in PROJECT_FOLDERS)
-            {
-                string path = Path.Combine("Assets", folder);
-                if (!AssetDatabase.IsValidFolder(path))
-                    AssetDatabase.CreateFolder("Assets", folder);
-            }
+                EnsureAssetFolder($"Assets/{folder}");
+
+            foreach (var folder in PROJECT_SUBFOLDERS)
+                EnsureAssetFolder($"Assets/{folder}");
 
             // 2. DDOIT 씬 폴더 생성
             string sceneDdoitPath = "Assets/01. Scenes/DDOIT";
@@ -686,7 +692,21 @@ namespace DDOIT.Tools.Setup
             CopyAgentDocsToProjectRoot();
 
             AssetDatabase.Refresh();
-            Debug.Log($"[DDOITSetupWindow] 프로젝트 초기화 완료 (폴더 {PROJECT_FOLDERS.Length}개, 씬 {copiedCount}개 복사)");
+            int folderCount = PROJECT_FOLDERS.Length + PROJECT_SUBFOLDERS.Length;
+            Debug.Log($"[DDOITSetupWindow] 프로젝트 초기화 완료 (폴더 {folderCount}개, 씬 {copiedCount}개 복사)");
+        }
+
+        private static void EnsureAssetFolder(string assetPath)
+        {
+            if (AssetDatabase.IsValidFolder(assetPath))
+                return;
+
+            string parentPath = Path.GetDirectoryName(assetPath)?.Replace("\\", "/");
+            if (string.IsNullOrEmpty(parentPath))
+                return;
+
+            EnsureAssetFolder(parentPath);
+            AssetDatabase.CreateFolder(parentPath, Path.GetFileName(assetPath));
         }
 
         /// <summary>
