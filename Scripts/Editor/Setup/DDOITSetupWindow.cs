@@ -1,6 +1,9 @@
+using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text;
 using UnityEditor;
 using UnityEditor.PackageManager;
 using UnityEditor.PackageManager.Requests;
@@ -61,6 +64,26 @@ namespace DDOIT.Tools.Setup
             "DDOIT_VolumeProfile.asset",
         };
 
+        private const string OPTIMIZE_DEST_FOLDER = "Assets/Settings/DDOIT";
+        private const int MOBILE_QUALITY_INDEX = 0;
+        private const float QUEST_FIXED_TIMESTEP = 0.01389f;
+        private const int QUEST_DSP_BUFFER_SIZE = 256;
+        private const string ANDROID_BUILD_COMPRESSION = "Lz4";
+
+        private static readonly string[] OPTIMIZE_AFFECTED_PATHS =
+        {
+            "Assets/Settings/DDOIT/DDOIT_RPAsset.asset",
+            "Assets/Settings/DDOIT/DDOIT_Renderer.asset",
+            "Assets/Settings/DDOIT/DDOIT_VolumeProfile.asset",
+            "Assets/Settings/UniversalRenderPipelineGlobalSettings.asset",
+            "ProjectSettings/GraphicsSettings.asset",
+            "ProjectSettings/QualitySettings.asset",
+            "ProjectSettings/ProjectSettings.asset",
+            "ProjectSettings/TimeManager.asset",
+            "ProjectSettings/AudioManager.asset",
+            "ProjectSettings/TagManager.asset",
+        };
+
         #endregion
 
         #region Types
@@ -114,6 +137,15 @@ namespace DDOIT.Tools.Setup
             }
         }
 
+        private sealed class OptimizePreflightResult
+        {
+            public readonly List<string> changes = new List<string>();
+            public readonly List<string> warnings = new List<string>();
+            public readonly List<string> errors = new List<string>();
+
+            public bool CanApply => errors.Count == 0;
+        }
+
         #endregion
 
         #region Private Fields
@@ -123,6 +155,8 @@ namespace DDOIT.Tools.Setup
         private static AddRequest ActiveAddRequest;
         private static DependencyInfo ActiveDependency;
         private static bool IsInstallingDependencies;
+        private static bool ApplyTimingOptimization = true;
+        private static bool ApplyAudioOptimization = true;
 
         #endregion
 
@@ -326,16 +360,40 @@ namespace DDOIT.Tools.Setup
 
             EditorGUILayout.Space(8);
 
+            EditorGUILayout.LabelField("선택 적용 항목:", EditorStyles.boldLabel);
+            EditorGUI.indentLevel++;
+            ApplyTimingOptimization = EditorGUILayout.ToggleLeft(
+                "Fixed Timestep 72Hz 적용 (0.01389)",
+                ApplyTimingOptimization);
+            ApplyAudioOptimization = EditorGUILayout.ToggleLeft(
+                "Audio DSP Buffer 256 적용 (Best Latency)",
+                ApplyAudioOptimization);
+            EditorGUI.indentLevel--;
+
+            EditorGUILayout.Space(4);
+            EditorGUILayout.HelpBox(
+                "Optimize 실행 전 현재 설정, 변경 예정 항목, OpenXR validation warning을 다시 확인합니다.",
+                MessageType.None);
+
             if (GUILayout.Button("Optimize Project", GUILayout.Height(32)))
                 ExecuteOptimizeProject();
         }
 
         private static void ExecuteOptimizeProject()
         {
+            var preflight = BuildOptimizePreflight();
+            if (!preflight.CanApply)
+            {
+                EditorUtility.DisplayDialog(
+                    "프로젝트 최적화 중단",
+                    BuildOptimizePreflightMessage(preflight),
+                    "확인");
+                return;
+            }
+
             if (!EditorUtility.DisplayDialog(
-                "프로젝트 최적화",
-                "Quest VR 최적화 설정을 적용합니다.\n" +
-                "기존 Graphics/Quality 설정이 변경됩니다.\n\n" +
+                "프로젝트 최적화 Preflight",
+                BuildOptimizePreflightMessage(preflight) + "\n\n" +
                 "계속하시겠습니까?",
                 "적용", "취소"))
                 return;
@@ -351,33 +409,21 @@ namespace DDOIT.Tools.Setup
             }
 
             // 목적지 폴더 확보
-            string dstFolder = "Assets/Settings/DDOIT";
-            if (!AssetDatabase.IsValidFolder("Assets/Settings"))
-                AssetDatabase.CreateFolder("Assets", "Settings");
-            if (!AssetDatabase.IsValidFolder(dstFolder))
-                AssetDatabase.CreateFolder("Assets/Settings", "DDOIT");
+            string dstFolder = OPTIMIZE_DEST_FOLDER;
+            EnsureAssetFolder(dstFolder);
 
             foreach (var assetName in OPTIMIZE_ASSETS)
             {
                 string src = $"{srcDataPath}/{assetName}";
                 string dst = $"{dstFolder}/{assetName}";
 
-                if (!File.Exists(Path.GetFullPath(src)))
+                if (!AssetExists(src))
                 {
                     Debug.LogWarning($"[DDOITSetupWindow] 원본 에셋 없음: {src}");
                     continue;
                 }
 
-                if (File.Exists(Path.GetFullPath(dst)))
-                {
-                    if (!AssetDatabase.DeleteAsset(dst))
-                    {
-                        Debug.LogError($"[DDOITSetupWindow] 기존 에셋 삭제 실패: {dst}");
-                        continue;
-                    }
-                }
-
-                if (!AssetDatabase.CopyAsset(src, dst))
+                if (!CopyOrReplaceAssetPreservingGuid(src, dst))
                 {
                     Debug.LogError($"[DDOITSetupWindow] 에셋 복사 실패: {src} → {dst}");
                 }
@@ -418,11 +464,13 @@ namespace DDOIT.Tools.Setup
                     }
                 }
 
-                // Graphics Settings에 Default RP 설정
-                UnityEngine.Rendering.GraphicsSettings.defaultRenderPipeline = rpAsset as UnityEngine.Rendering.RenderPipelineAsset;
+                var renderPipelineAsset = rpAsset as UnityEngine.Rendering.RenderPipelineAsset;
 
-                // Quality Settings에도 적용
-                QualitySettings.renderPipeline = rpAsset as UnityEngine.Rendering.RenderPipelineAsset;
+                // Quality 0(Mobile)을 먼저 활성화한 뒤, 해당 quality와 Graphics Settings에 RP를 명확히 적용한다.
+                QualitySettings.SetQualityLevel(MOBILE_QUALITY_INDEX, true);
+                SetQualityRenderPipeline(MOBILE_QUALITY_INDEX, renderPipelineAsset);
+                QualitySettings.renderPipeline = renderPipelineAsset;
+                UnityEngine.Rendering.GraphicsSettings.defaultRenderPipeline = renderPipelineAsset;
 
                 appliedCount++;
                 Debug.Log("[DDOITSetupWindow] DDOIT_RPAsset → Graphics/Quality 적용 완료");
@@ -439,8 +487,8 @@ namespace DDOIT.Tools.Setup
 
             // ── 2.5 Quality (Quest VR은 Mobile quality 권장) ──
             //   QualitySettings.SetQualityLevel으로 즉시 active 변경 + Android default도 Mobile로
-            QualitySettings.SetQualityLevel(0, true);
-            ApplyAndroidDefaultQuality(0);
+            QualitySettings.SetQualityLevel(MOBILE_QUALITY_INDEX, true);
+            ApplyAndroidDefaultQuality(MOBILE_QUALITY_INDEX);
             appliedCount++;
             Debug.Log("[DDOITSetupWindow] Quality Level → Mobile (Android default Mobile)");
 
@@ -460,25 +508,29 @@ namespace DDOIT.Tools.Setup
             appliedCount++;
             Debug.Log("[DDOITSetupWindow] Player Settings 적용 완료");
 
-            // ── 4. Physics (ProjectSettings 파일 직접 수정) ──
-            ModifyProjectSettingsFile(
-                "ProjectSettings/TimeManager.asset",
-                "Fixed Timestep: ",
-                "Fixed Timestep: 0.01389");
-            Time.fixedDeltaTime = 0.01389f;
-            appliedCount++;
-            Debug.Log("[DDOITSetupWindow] Fixed Timestep → 0.01389 (72Hz)");
+            // ── 4. Physics ──
+            if (ApplyTimingOptimization)
+            {
+                Time.fixedDeltaTime = QUEST_FIXED_TIMESTEP;
+                appliedCount++;
+                Debug.Log("[DDOITSetupWindow] Fixed Timestep → 0.01389 (72Hz)");
+            }
+            else
+            {
+                Debug.Log("[DDOITSetupWindow] Fixed Timestep 적용 건너뜀");
+            }
 
-            // ── 5. Audio (ProjectSettings 파일 직접 수정) ──
-            ModifyProjectSettingsFile(
-                "ProjectSettings/AudioManager.asset",
-                "m_DSPBufferSize: ",
-                "m_DSPBufferSize: 256");
-            var audioConfig = AudioSettings.GetConfiguration();
-            audioConfig.dspBufferSize = 256;
-            AudioSettings.Reset(audioConfig);
-            appliedCount++;
-            Debug.Log("[DDOITSetupWindow] DSP Buffer Size → 256");
+            // ── 5. Audio ──
+            if (ApplyAudioOptimization)
+            {
+                ApplyAudioDspBufferSize(QUEST_DSP_BUFFER_SIZE);
+                appliedCount++;
+                Debug.Log("[DDOITSetupWindow] DSP Buffer Size → 256");
+            }
+            else
+            {
+                Debug.Log("[DDOITSetupWindow] DSP Buffer Size 적용 건너뜀");
+            }
 
             // ── 6. Build Settings ──
             EditorUserBuildSettings.androidBuildSubtarget = MobileTextureSubtarget.ASTC;
@@ -488,7 +540,7 @@ namespace DDOIT.Tools.Setup
             EditorUserBuildSettings.SetPlatformSettings(
                 BuildPipeline.GetBuildTargetName(BuildTarget.Android),
                 "BuildCompression",
-                "Lz4");
+                ANDROID_BUILD_COMPRESSION);
             appliedCount++;
             Debug.Log("[DDOITSetupWindow] Compression Method → LZ4");
 
@@ -521,6 +573,483 @@ namespace DDOIT.Tools.Setup
                 "확인");
 
             Debug.Log($"[DDOITSetupWindow] 프로젝트 최적화 완료 ({appliedCount}개 항목)");
+        }
+
+        private static OptimizePreflightResult BuildOptimizePreflight()
+        {
+            var result = new OptimizePreflightResult();
+
+            string srcDataPath = FindPackageDataPath();
+            if (srcDataPath == null)
+            {
+                result.errors.Add("DDOIT_Tools Data 폴더를 찾을 수 없습니다.");
+            }
+            else
+            {
+                foreach (var assetName in OPTIMIZE_ASSETS)
+                {
+                    string src = $"{srcDataPath}/{assetName}";
+                    string dst = $"{OPTIMIZE_DEST_FOLDER}/{assetName}";
+                    if (!AssetExists(src))
+                    {
+                        result.errors.Add($"원본 최적화 에셋 없음: {src}");
+                        continue;
+                    }
+
+                    if (File.Exists(Path.GetFullPath(dst)))
+                    {
+                        result.changes.Add($"{dst}: 기존 GUID를 보존하고 에셋 내용 갱신");
+                    }
+                    else
+                    {
+                        result.changes.Add($"{dst}: 새 에셋 복사 생성");
+                    }
+                }
+            }
+
+            AddChangeIfDifferent(
+                result,
+                "Graphics Default RP",
+                GetAssetName(UnityEngine.Rendering.GraphicsSettings.defaultRenderPipeline),
+                "DDOIT_RPAsset");
+            AddChangeIfDifferent(
+                result,
+                "Active Quality",
+                $"{QualitySettings.GetQualityLevel()} ({QualitySettings.names[QualitySettings.GetQualityLevel()]})",
+                $"{MOBILE_QUALITY_INDEX} ({QualitySettings.names[MOBILE_QUALITY_INDEX]})");
+            AddChangeIfDifferent(
+                result,
+                "Quality Mobile RP",
+                GetQualityRenderPipelineName(MOBILE_QUALITY_INDEX),
+                "DDOIT_RPAsset");
+
+            int? androidDefaultQuality = GetAndroidDefaultQuality();
+            AddChangeIfDifferent(
+                result,
+                "Android Default Quality",
+                androidDefaultQuality.HasValue ? androidDefaultQuality.Value.ToString() : "없음",
+                MOBILE_QUALITY_INDEX.ToString());
+
+            AddChangeIfDifferent(result, "Color Space", PlayerSettings.colorSpace.ToString(), ColorSpace.Linear.ToString());
+            AddChangeIfDifferent(
+                result,
+                "Android Graphics APIs",
+                string.Join(", ", PlayerSettings.GetGraphicsAPIs(BuildTarget.Android).Select(api => api.ToString())),
+                "Vulkan, OpenGLES3");
+            AddChangeIfDifferent(
+                result,
+                "Android Scripting Backend",
+                PlayerSettings.GetScriptingBackend(UnityEditor.Build.NamedBuildTarget.Android).ToString(),
+                ScriptingImplementation.IL2CPP.ToString());
+            AddChangeIfDifferent(
+                result,
+                "Android Target Architectures",
+                PlayerSettings.Android.targetArchitectures.ToString(),
+                AndroidArchitecture.ARM64.ToString());
+            AddChangeIfDifferent(
+                result,
+                "Managed Stripping Level",
+                PlayerSettings.GetManagedStrippingLevel(UnityEditor.Build.NamedBuildTarget.Android).ToString(),
+                ManagedStrippingLevel.Medium.ToString());
+            AddChangeIfDifferent(
+                result,
+                "Android Min SDK",
+                PlayerSettings.Android.minSdkVersion.ToString(),
+                AndroidSdkVersions.AndroidApiLevel32.ToString());
+
+            if (ApplyTimingOptimization)
+            {
+                AddChangeIfDifferent(
+                    result,
+                    "Fixed Timestep",
+                    Time.fixedDeltaTime.ToString("0.#####"),
+                    QUEST_FIXED_TIMESTEP.ToString("0.#####"));
+            }
+            else
+            {
+                result.warnings.Add("Fixed Timestep 적용이 선택 해제되어 현재 값을 유지합니다.");
+            }
+
+            var audioConfig = AudioSettings.GetConfiguration();
+            if (ApplyAudioOptimization)
+            {
+                AddChangeIfDifferent(
+                    result,
+                    "DSP Buffer Size",
+                    audioConfig.dspBufferSize.ToString(),
+                    QUEST_DSP_BUFFER_SIZE.ToString());
+            }
+            else
+            {
+                result.warnings.Add("DSP Buffer Size 적용이 선택 해제되어 현재 값을 유지합니다.");
+            }
+
+            AddChangeIfDifferent(
+                result,
+                "Texture Compression",
+                EditorUserBuildSettings.androidBuildSubtarget.ToString(),
+                MobileTextureSubtarget.ASTC.ToString());
+            AddChangeIfDifferent(
+                result,
+                "Build Compression",
+                GetAndroidBuildCompression(),
+                ANDROID_BUILD_COMPRESSION);
+
+            AddLayerPreflight(result, 3, "Overlay UI");
+            AddLayerPreflight(result, 31, "OVROverlayCanvas Rendering");
+            AppendOpenXRPreflight(result);
+
+            if (result.changes.Count == 0)
+                result.changes.Add("현재 선택된 최적화 항목은 이미 목표값과 일치합니다.");
+
+            return result;
+        }
+
+        private static string BuildOptimizePreflightMessage(OptimizePreflightResult result)
+        {
+            var sb = new StringBuilder();
+            sb.AppendLine("Quest VR 최적화 적용 전 확인 결과입니다.");
+            sb.AppendLine("기존 DDOIT 설정 에셋은 삭제하지 않고 GUID를 보존한 채 내용만 갱신합니다.");
+
+            AppendMessageSection(sb, "변경 예정", result.changes, "없음", 14);
+            AppendMessageSection(sb, "주의 / 수동 확인", result.warnings, "없음", 10);
+            AppendMessageSection(sb, "오류", result.errors, "없음", 10);
+            AppendMessageSection(sb, "영향 파일", OPTIMIZE_AFFECTED_PATHS, "없음", 12);
+
+            return sb.ToString().TrimEnd();
+        }
+
+        private static void AppendMessageSection(
+            StringBuilder sb,
+            string title,
+            IList<string> items,
+            string emptyText,
+            int maxItems)
+        {
+            sb.AppendLine();
+            sb.AppendLine($"[{title}]");
+            if (items == null || items.Count == 0)
+            {
+                sb.AppendLine($"- {emptyText}");
+                return;
+            }
+
+            int count = Mathf.Min(items.Count, maxItems);
+            for (int i = 0; i < count; i++)
+                sb.AppendLine($"- {items[i]}");
+
+            if (items.Count > count)
+                sb.AppendLine($"- ... 외 {items.Count - count}개");
+        }
+
+        private static void AddChangeIfDifferent(
+            OptimizePreflightResult result,
+            string label,
+            string current,
+            string target)
+        {
+            current = string.IsNullOrEmpty(current) ? "없음" : current;
+            target = string.IsNullOrEmpty(target) ? "없음" : target;
+            if (current != target)
+                result.changes.Add($"{label}: {current} → {target}");
+        }
+
+        private static string GetAssetName(UnityEngine.Object asset)
+        {
+            return asset == null ? "없음" : asset.name;
+        }
+
+        private static string GetQualityRenderPipelineName(int qualityIndex)
+        {
+            var asset = GetProjectSettingsMainAsset("ProjectSettings/QualitySettings.asset");
+            if (asset == null)
+                return "확인 실패";
+
+            var so = new SerializedObject(asset);
+            var prop = so.FindProperty($"m_QualitySettings.Array.data[{qualityIndex}].customRenderPipeline");
+            if (prop == null || prop.objectReferenceValue == null)
+                return "없음";
+
+            return prop.objectReferenceValue.name;
+        }
+
+        private static int? GetAndroidDefaultQuality()
+        {
+            var asset = GetProjectSettingsMainAsset("ProjectSettings/QualitySettings.asset");
+            if (asset == null)
+                return null;
+
+            var so = new SerializedObject(asset);
+            var defaultQuality = so.FindProperty("m_PerPlatformDefaultQuality");
+            if (defaultQuality == null || !defaultQuality.isArray)
+                return null;
+
+            for (int i = 0; i < defaultQuality.arraySize; i++)
+            {
+                var item = defaultQuality.GetArrayElementAtIndex(i);
+                var platform = item.FindPropertyRelative("first");
+                var quality = item.FindPropertyRelative("second");
+                if (platform != null && quality != null && platform.stringValue == "Android")
+                    return quality.intValue;
+            }
+
+            return null;
+        }
+
+        private static string GetAndroidBuildCompression()
+        {
+            string value = EditorUserBuildSettings.GetPlatformSettings(
+                BuildPipeline.GetBuildTargetName(BuildTarget.Android),
+                "BuildCompression");
+            return string.IsNullOrEmpty(value) ? "없음" : value;
+        }
+
+        private static void AddLayerPreflight(OptimizePreflightResult result, int index, string layerName)
+        {
+            string current = GetLayerName(index);
+            if (current == null)
+            {
+                result.errors.Add($"Layer {index} 정보를 읽을 수 없습니다.");
+            }
+            else if (string.IsNullOrEmpty(current))
+            {
+                result.changes.Add($"Layer {index}: {layerName} 등록");
+            }
+            else if (current != layerName)
+            {
+                result.warnings.Add($"Layer {index}가 이미 '{current}'로 사용 중이라 '{layerName}' 자동 등록은 건너뜁니다.");
+            }
+        }
+
+        private static string GetLayerName(int index)
+        {
+            var tagManagerAsset = AssetDatabase.LoadAllAssetsAtPath("ProjectSettings/TagManager.asset");
+            if (tagManagerAsset == null || tagManagerAsset.Length == 0)
+                return null;
+
+            var so = new SerializedObject(tagManagerAsset[0]);
+            var layersProp = so.FindProperty("layers");
+            if (layersProp == null || index >= layersProp.arraySize)
+                return null;
+
+            return layersProp.GetArrayElementAtIndex(index).stringValue;
+        }
+
+        private static void AppendOpenXRPreflight(OptimizePreflightResult result)
+        {
+            AppendOpenXRValidationIssues(result, BuildTargetGroup.Android);
+            AppendOpenXRValidationIssues(result, BuildTargetGroup.Standalone);
+            AppendOpenXRPredictedTimeWarning(result, BuildTargetGroup.Android);
+            AppendOpenXRPredictedTimeWarning(result, BuildTargetGroup.Standalone);
+        }
+
+        private static void AppendOpenXRValidationIssues(OptimizePreflightResult result, BuildTargetGroup group)
+        {
+            Type validationType = FindType("UnityEditor.XR.OpenXR.OpenXRProjectValidation");
+            Type ruleType = FindType("UnityEngine.XR.OpenXR.Features.OpenXRFeature+ValidationRule");
+            if (validationType == null || ruleType == null)
+                return;
+
+            var method = validationType.GetMethod(
+                "GetCurrentValidationIssues",
+                System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static);
+            if (method == null)
+                return;
+
+            object issues = Activator.CreateInstance(typeof(List<>).MakeGenericType(ruleType));
+            method.Invoke(null, new[] { issues, group });
+
+            foreach (object issue in (IEnumerable)issues)
+            {
+                string message = GetReflectedString(issue, "message");
+                bool isError = GetReflectedBool(issue, "error");
+                string text = $"OpenXR {group}: {message}";
+                if (isError)
+                    result.errors.Add(text);
+                else
+                    result.warnings.Add(text);
+            }
+        }
+
+        private static void AppendOpenXRPredictedTimeWarning(OptimizePreflightResult result, BuildTargetGroup group)
+        {
+            string openXrVersion = GetResolvedPackageVersion("com.unity.xr.openxr");
+            if (string.IsNullOrEmpty(openXrVersion) || !IsVersionAtLeast(openXrVersion, "1.17.0"))
+                return;
+
+            Type settingsType = FindType("UnityEngine.XR.OpenXR.OpenXRSettings");
+            if (settingsType == null)
+                return;
+
+            var method = settingsType.GetMethod(
+                "GetSettingsForBuildTargetGroup",
+                System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static);
+            if (method == null)
+                return;
+
+            var settings = method.Invoke(null, new object[] { group }) as ScriptableObject;
+            if (settings == null)
+                return;
+
+            var so = new SerializedObject(settings);
+            var prop = so.FindProperty("m_useOpenXRPredictedTime");
+            if (prop != null && !prop.boolValue)
+            {
+                result.warnings.Add(
+                    $"OpenXR {group}: Use OpenXR Predicted Time이 꺼져 있습니다. OpenXR 1.17.0+ 기본값은 켜짐이며, Optimize는 이 값을 자동 변경하지 않습니다.");
+            }
+        }
+
+        private static Type FindType(string fullName)
+        {
+            foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
+            {
+                var type = assembly.GetType(fullName);
+                if (type != null)
+                    return type;
+            }
+
+            return null;
+        }
+
+        private static string GetReflectedString(object instance, string name)
+        {
+            object value = GetReflectedValue(instance, name);
+            return value == null ? string.Empty : value.ToString();
+        }
+
+        private static bool GetReflectedBool(object instance, string name)
+        {
+            object value = GetReflectedValue(instance, name);
+            return value is bool boolValue && boolValue;
+        }
+
+        private static object GetReflectedValue(object instance, string name)
+        {
+            if (instance == null)
+                return null;
+
+            var flags = System.Reflection.BindingFlags.Public
+                | System.Reflection.BindingFlags.NonPublic
+                | System.Reflection.BindingFlags.Instance;
+
+            var type = instance.GetType();
+            var field = type.GetField(name, flags);
+            if (field != null)
+                return field.GetValue(instance);
+
+            var property = type.GetProperty(name, flags);
+            return property != null ? property.GetValue(instance) : null;
+        }
+
+        private static bool AssetExists(string assetPath)
+        {
+            return AssetDatabase.LoadAssetAtPath<UnityEngine.Object>(assetPath) != null
+                || File.Exists(Path.GetFullPath(assetPath));
+        }
+
+        private static bool CopyOrReplaceAssetPreservingGuid(string src, string dst)
+        {
+            string parent = Path.GetDirectoryName(dst)?.Replace("\\", "/");
+            if (!string.IsNullOrEmpty(parent))
+                EnsureAssetFolder(parent);
+
+            string dstFullPath = Path.GetFullPath(dst);
+
+            try
+            {
+                if (!AssetExists(src))
+                    return false;
+
+                if (!File.Exists(dstFullPath))
+                    return AssetDatabase.CopyAsset(src, dst);
+
+                string tempFolder = $"{OPTIMIZE_DEST_FOLDER}/__DDOITOptimizeTemp_{Guid.NewGuid():N}";
+                string tempPath = $"{tempFolder}/{Path.GetFileName(src)}";
+
+                try
+                {
+                    EnsureAssetFolder(tempFolder);
+                    if (!AssetDatabase.CopyAsset(src, tempPath))
+                        return false;
+
+                    FileUtil.ReplaceFile(Path.GetFullPath(tempPath), dstFullPath);
+                    AssetDatabase.ImportAsset(dst, ImportAssetOptions.ForceUpdate);
+                    return true;
+                }
+                finally
+                {
+                    if (AssetDatabase.IsValidFolder(tempFolder))
+                        AssetDatabase.DeleteAsset(tempFolder);
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.LogError($"[DDOITSetupWindow] 에셋 갱신 실패: {src} → {dst}\n{ex}");
+                return false;
+            }
+        }
+
+        private static bool SetQualityRenderPipeline(
+            int qualityIndex,
+            UnityEngine.Rendering.RenderPipelineAsset renderPipelineAsset)
+        {
+            var asset = GetProjectSettingsMainAsset("ProjectSettings/QualitySettings.asset");
+            if (asset == null)
+            {
+                Debug.LogWarning("[DDOITSetupWindow] QualitySettings.asset을 로드할 수 없습니다.");
+                return false;
+            }
+
+            var so = new SerializedObject(asset);
+            var prop = so.FindProperty($"m_QualitySettings.Array.data[{qualityIndex}].customRenderPipeline");
+            if (prop == null)
+            {
+                Debug.LogWarning($"[DDOITSetupWindow] Quality index {qualityIndex}의 Render Pipeline 필드를 찾을 수 없습니다.");
+                return false;
+            }
+
+            prop.objectReferenceValue = renderPipelineAsset;
+            so.ApplyModifiedProperties();
+            EditorUtility.SetDirty(asset);
+            return true;
+        }
+
+        private static void ApplyAudioDspBufferSize(int dspBufferSize)
+        {
+            var audioConfig = AudioSettings.GetConfiguration();
+            audioConfig.dspBufferSize = dspBufferSize;
+            AudioSettings.Reset(audioConfig);
+            SetProjectSettingsInt("ProjectSettings/AudioManager.asset", "m_DSPBufferSize", dspBufferSize);
+        }
+
+        private static bool SetProjectSettingsInt(string assetPath, string propertyName, int value)
+        {
+            var asset = GetProjectSettingsMainAsset(assetPath);
+            if (asset == null)
+            {
+                Debug.LogWarning($"[DDOITSetupWindow] ProjectSettings 에셋 로드 실패: {assetPath}");
+                return false;
+            }
+
+            var so = new SerializedObject(asset);
+            var prop = so.FindProperty(propertyName);
+            if (prop == null || prop.propertyType != SerializedPropertyType.Integer)
+            {
+                Debug.LogWarning($"[DDOITSetupWindow] ProjectSettings 프로퍼티 없음: {assetPath}/{propertyName}");
+                return false;
+            }
+
+            prop.intValue = value;
+            so.ApplyModifiedProperties();
+            EditorUtility.SetDirty(asset);
+            return true;
+        }
+
+        private static UnityEngine.Object GetProjectSettingsMainAsset(string assetPath)
+        {
+            var assets = AssetDatabase.LoadAllAssetsAtPath(assetPath);
+            return assets != null && assets.Length > 0 ? assets[0] : null;
         }
 
         private static string FindPackageDataPath()
@@ -800,75 +1329,54 @@ namespace DDOIT.Tools.Setup
             AssetDatabase.SaveAssets();
         }
 
-        /// <summary>
-        /// ProjectSettings YAML 파일의 특정 키를 찾아 줄 전체를 교체한다.
-        /// </summary>
-        /// <summary>
-        /// ProjectSettings/QualitySettings.asset의 m_PerPlatformDefaultQuality.Android 값을 변경한다.
-        /// 변경된 값은 Editor 재시작/Build Target 전환 시에도 유지된다.
-        /// </summary>
-        private static void ApplyAndroidDefaultQuality(int level)
+        private static bool ApplyAndroidDefaultQuality(int level)
         {
-            string fullPath = Path.Combine(Application.dataPath, "..", "ProjectSettings", "QualitySettings.asset");
-            if (!File.Exists(fullPath))
+            var asset = GetProjectSettingsMainAsset("ProjectSettings/QualitySettings.asset");
+            if (asset == null)
             {
-                Debug.LogWarning("[DDOITSetupWindow] QualitySettings.asset 파일 없음");
-                return;
+                Debug.LogWarning("[DDOITSetupWindow] QualitySettings.asset을 로드할 수 없습니다.");
+                return false;
             }
 
-            var lines = File.ReadAllLines(fullPath);
-            bool inDefaultQuality = false;
-            for (int i = 0; i < lines.Length; i++)
+            var so = new SerializedObject(asset);
+            var defaultQuality = so.FindProperty("m_PerPlatformDefaultQuality");
+            if (defaultQuality == null || !defaultQuality.isArray)
             {
-                string trimmed = lines[i].TrimStart();
-                if (trimmed.StartsWith("m_PerPlatformDefaultQuality:"))
-                {
-                    inDefaultQuality = true;
-                    continue;
-                }
+                Debug.LogWarning("[DDOITSetupWindow] Android default quality 필드를 찾을 수 없습니다.");
+                return false;
+            }
 
-                if (inDefaultQuality)
+            for (int i = 0; i < defaultQuality.arraySize; i++)
+            {
+                var item = defaultQuality.GetArrayElementAtIndex(i);
+                var platform = item.FindPropertyRelative("first");
+                var quality = item.FindPropertyRelative("second");
+                if (platform != null && quality != null && platform.stringValue == "Android")
                 {
-                    if (trimmed.StartsWith("Android:"))
-                    {
-                        string indent = lines[i].Substring(0, lines[i].Length - trimmed.Length);
-                        lines[i] = indent + "Android: " + level;
-                        break;
-                    }
-                    // 같은 들여쓰기 수준 끝 = section 종료
-                    if (lines[i].Length > 0 && !char.IsWhiteSpace(lines[i][0]) ||
-                        (lines[i].StartsWith("  ") && !lines[i].StartsWith("    ")))
-                    {
-                        // 이미 다른 최상위 키로 넘어감
-                        break;
-                    }
+                    quality.intValue = level;
+                    so.ApplyModifiedProperties();
+                    EditorUtility.SetDirty(asset);
+                    return true;
                 }
             }
 
-            File.WriteAllLines(fullPath, lines);
-        }
+            int newIndex = defaultQuality.arraySize;
+            defaultQuality.InsertArrayElementAtIndex(newIndex);
 
-        private static void ModifyProjectSettingsFile(string relativePath, string keyPrefix, string newLine)
-        {
-            string fullPath = Path.Combine(Application.dataPath, "..", relativePath);
-            if (!File.Exists(fullPath))
+            var newItem = defaultQuality.GetArrayElementAtIndex(newIndex);
+            var newPlatform = newItem.FindPropertyRelative("first");
+            var newQuality = newItem.FindPropertyRelative("second");
+            if (newPlatform == null || newQuality == null)
             {
-                Debug.LogWarning($"[DDOITSetupWindow] 파일 없음: {relativePath}");
-                return;
+                Debug.LogWarning("[DDOITSetupWindow] Android default quality 항목을 생성할 수 없습니다.");
+                return false;
             }
 
-            var lines = File.ReadAllLines(fullPath);
-            for (int i = 0; i < lines.Length; i++)
-            {
-                if (lines[i].TrimStart().StartsWith(keyPrefix))
-                {
-                    string indent = lines[i].Substring(0, lines[i].Length - lines[i].TrimStart().Length);
-                    lines[i] = indent + newLine;
-                    break;
-                }
-            }
-
-            File.WriteAllLines(fullPath, lines);
+            newPlatform.stringValue = "Android";
+            newQuality.intValue = level;
+            so.ApplyModifiedProperties();
+            EditorUtility.SetDirty(asset);
+            return true;
         }
 
         /// <summary>
