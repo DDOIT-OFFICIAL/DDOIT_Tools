@@ -25,7 +25,7 @@ namespace DDOIT.Tools.Setup
 
         private static readonly DependencyInfo[] REQUIRED_DEPENDENCIES =
         {
-            new DependencyInfo("Meta XR All-in-One SDK", "com.meta.xr.sdk.all", "201.0.0",
+            new DependencyInfo("Meta XR All-in-One SDK", "com.meta.xr.sdk.all", "203.0.0",
                 "Unity Asset Store에서 먼저 내 에셋에 추가해야 합니다. (Audio/Voice 모듈만 v85.0.0 유지)"),
             new DependencyInfo("Lottie Player", "com.gilzoide.lottie-player",
                 "https://github.com/gilzoide/unity-lottie-player.git", null),
@@ -544,38 +544,48 @@ namespace DDOIT.Tools.Setup
                 copiedCount++;
             }
 
-            // 4. CLAUDE.md 배포
-            CopyClaudeMdToProjectRoot();
+            // 4. AI Agent 문서 배포
+            CopyAgentDocsToProjectRoot();
 
             AssetDatabase.Refresh();
             Debug.Log($"[DDOITSetupWindow] 프로젝트 초기화 완료 (폴더 {PROJECT_FOLDERS.Length}개, 씬 {copiedCount}개 복사)");
         }
 
         /// <summary>
-        /// 패키지 내 CLAUDE.md를 프로젝트 루트에 복사한다. 이미 있으면 건너뛴다.
+        /// 패키지 내 AI Agent 문서를 프로젝트 루트에 복사한다. 이미 있으면 건너뛴다.
         /// </summary>
-        private static void CopyClaudeMdToProjectRoot()
+        private static void CopyAgentDocsToProjectRoot()
+        {
+            CopyAgentDocToProjectRoot("AGENTS.md");
+            CopyAgentDocToProjectRoot("CLAUDE.md");
+        }
+
+        /// <summary>
+        /// 지정한 AI Agent 문서를 개발자 모드 또는 UPM 모드 경로에서 찾아 프로젝트 루트로 복사한다.
+        /// </summary>
+        /// <param name="fileName">복사할 문서 파일명.</param>
+        private static void CopyAgentDocToProjectRoot(string fileName)
         {
             string projectRoot = Path.GetDirectoryName(Application.dataPath);
-            string destPath = Path.Combine(projectRoot, "CLAUDE.md");
+            string destPath = Path.Combine(projectRoot, fileName);
 
             if (File.Exists(destPath)) return;
 
             // 개발자 모드
-            string devPath = Path.Combine(Application.dataPath, "DDOIT_Tools", "MDs", "CLAUDE.md");
+            string devPath = Path.Combine(Application.dataPath, "DDOIT_Tools", "MDs", fileName);
             if (File.Exists(devPath))
             {
                 File.Copy(devPath, destPath);
-                Debug.Log("[DDOITSetupWindow] CLAUDE.md → 프로젝트 루트에 배포 완료");
+                Debug.Log($"[DDOITSetupWindow] {fileName} → 프로젝트 루트에 배포 완료");
                 return;
             }
 
             // UPM 모드
-            string upmPath = Path.GetFullPath("Packages/com.ddoit.tools/MDs/CLAUDE.md");
+            string upmPath = Path.GetFullPath(Path.Combine("Packages", "com.ddoit.tools", "MDs", fileName));
             if (File.Exists(upmPath))
             {
                 File.Copy(upmPath, destPath);
-                Debug.Log("[DDOITSetupWindow] CLAUDE.md → 프로젝트 루트에 배포 완료");
+                Debug.Log($"[DDOITSetupWindow] {fileName} → 프로젝트 루트에 배포 완료");
             }
         }
 
