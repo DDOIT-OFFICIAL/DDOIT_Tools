@@ -55,6 +55,7 @@ namespace DDOIT.Tools.Setup
 
         private const string SHOWN_KEY = "DDOIT_SetupWindow_Shown";
         private const string META_XR_AVAILABLE_DEFINE = "DDOIT_META_XR_AVAILABLE";
+        private const string OPENXR_LOADER_TYPE_NAME = "UnityEngine.XR.OpenXR.OpenXRLoader";
 
         private const string DDOIT_DATA_FOLDER = "Assets/DDOIT_Tools/Data";
         private const string PACKAGE_DATA_PATH_DEV = "Assets/DDOIT_Tools/Data";
@@ -596,6 +597,28 @@ namespace DDOIT.Tools.Setup
                     "확인");
             }
 
+            // ── 8. XR Plug-in Management OpenXR Loader 등록 ──
+            var openXrIssues = new List<string>();
+            bool androidOpenXrChanged = EnsureOpenXRLoader(BuildTargetGroup.Android, openXrIssues);
+            bool standaloneOpenXrChanged = EnsureOpenXRLoader(BuildTargetGroup.Standalone, openXrIssues);
+            if (androidOpenXrChanged || standaloneOpenXrChanged)
+            {
+                appliedCount++;
+                Debug.Log("[DDOITSetupWindow] XR Plug-in Management OpenXR loader 등록 완료");
+            }
+
+            if (openXrIssues.Count > 0)
+            {
+                string issueText = string.Join("\n", openXrIssues);
+                Debug.LogWarning($"[DDOITSetupWindow] OpenXR loader 자동 등록 확인 필요:\n{issueText}");
+                EditorUtility.DisplayDialog(
+                    "OpenXR 설정 확인",
+                    "일부 플랫폼의 OpenXR loader를 자동 등록하지 못했습니다.\n\n" +
+                    issueText + "\n\n" +
+                    "Project Settings > XR Plug-in Management에서 수동으로 확인하세요.",
+                    "확인");
+            }
+
             AssetDatabase.SaveAssets();
 
             EditorUtility.DisplayDialog(
@@ -869,10 +892,27 @@ namespace DDOIT.Tools.Setup
 
         private static void AppendOpenXRPreflight(OptimizePreflightResult result)
         {
+            AppendOpenXRLoaderPreflight(result, BuildTargetGroup.Android);
+            AppendOpenXRLoaderPreflight(result, BuildTargetGroup.Standalone);
             AppendOpenXRValidationIssues(result, BuildTargetGroup.Android);
             AppendOpenXRValidationIssues(result, BuildTargetGroup.Standalone);
             AppendOpenXRPredictedTimeWarning(result, BuildTargetGroup.Android);
             AppendOpenXRPredictedTimeWarning(result, BuildTargetGroup.Standalone);
+        }
+
+        private static void AppendOpenXRLoaderPreflight(OptimizePreflightResult result, BuildTargetGroup group)
+        {
+            string issue;
+            if (IsOpenXRLoaderEnabled(group, out issue))
+                return;
+
+            if (!string.IsNullOrEmpty(issue))
+            {
+                result.errors.Add($"XR Plug-in Management {group}: {issue}");
+                return;
+            }
+
+            result.changes.Add($"XR Plug-in Management {group}: OpenXR loader 등록");
         }
 
         private static void AppendOpenXRValidationIssues(OptimizePreflightResult result, BuildTargetGroup group)
@@ -930,6 +970,179 @@ namespace DDOIT.Tools.Setup
                 result.warnings.Add(
                     $"OpenXR {group}: Use OpenXR Predicted Time이 꺼져 있습니다. OpenXR 1.17.1+ 기본값은 켜짐이며, Optimize는 이 값을 자동 변경하지 않습니다.");
             }
+        }
+
+        private static bool EnsureOpenXRLoader(BuildTargetGroup group, List<string> issues)
+        {
+            string issue;
+            if (IsOpenXRLoaderEnabled(group, out issue))
+                return false;
+
+            if (!string.IsNullOrEmpty(issue))
+            {
+                issues.Add($"{group}: {issue}");
+                return false;
+            }
+
+            object settings = GetXRGeneralSettingsForBuildTarget(group, true, out issue);
+            if (settings == null)
+            {
+                issues.Add($"{group}: {issue}");
+                return false;
+            }
+
+            object manager = GetReflectedValue(settings, "AssignedSettings")
+                          ?? GetReflectedValue(settings, "Manager");
+            if (manager == null)
+            {
+                issues.Add($"{group}: XR Manager Settings를 찾을 수 없습니다.");
+                return false;
+            }
+
+            Type metadataStoreType = FindType("UnityEditor.XR.Management.Metadata.XRPackageMetadataStore");
+            if (metadataStoreType == null)
+            {
+                issues.Add($"{group}: XRPackageMetadataStore 타입을 찾을 수 없습니다.");
+                return false;
+            }
+
+            var assignMethod = metadataStoreType.GetMethod(
+                "AssignLoader",
+                System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static);
+            if (assignMethod == null)
+            {
+                issues.Add($"{group}: XR loader 등록 API를 찾을 수 없습니다.");
+                return false;
+            }
+
+            bool assigned = false;
+            try
+            {
+                object result = assignMethod.Invoke(null, new[] { manager, OPENXR_LOADER_TYPE_NAME, group });
+                assigned = result is bool boolValue && boolValue;
+            }
+            catch (Exception ex)
+            {
+                issues.Add($"{group}: OpenXR loader 등록 중 예외 발생 - {ex.InnerException?.Message ?? ex.Message}");
+                return false;
+            }
+
+            if (!assigned && !IsOpenXRLoaderEnabled(group, out _))
+            {
+                issues.Add($"{group}: OpenXR loader 등록에 실패했습니다.");
+                return false;
+            }
+
+            AssetDatabase.SaveAssets();
+            return true;
+        }
+
+        private static bool IsOpenXRLoaderEnabled(BuildTargetGroup group, out string issue)
+        {
+            issue = null;
+
+            if (string.IsNullOrEmpty(GetResolvedPackageVersion("com.unity.xr.management")))
+            {
+                issue = "XR Management 패키지가 설치되어 있지 않습니다.";
+                return false;
+            }
+
+            if (string.IsNullOrEmpty(GetResolvedPackageVersion("com.unity.xr.openxr")))
+            {
+                issue = "OpenXR Plugin 패키지가 설치되어 있지 않습니다.";
+                return false;
+            }
+
+            if (FindType(OPENXR_LOADER_TYPE_NAME) == null)
+            {
+                issue = "OpenXR loader 타입을 찾을 수 없습니다.";
+                return false;
+            }
+
+            object settings = GetXRGeneralSettingsForBuildTarget(group, false, out issue);
+            if (settings == null)
+            {
+                issue = null;
+                return false;
+            }
+
+            object manager = GetReflectedValue(settings, "AssignedSettings")
+                          ?? GetReflectedValue(settings, "Manager");
+            if (manager == null)
+                return false;
+
+            object loaders = GetReflectedValue(manager, "activeLoaders")
+                          ?? GetReflectedValue(manager, "loaders");
+            if (loaders is IEnumerable enumerable)
+            {
+                foreach (object loader in enumerable)
+                {
+                    if (loader != null && loader.GetType().FullName == OPENXR_LOADER_TYPE_NAME)
+                        return true;
+                }
+            }
+
+            return false;
+        }
+
+        private static object GetXRGeneralSettingsForBuildTarget(
+            BuildTargetGroup group,
+            bool create,
+            out string issue)
+        {
+            issue = null;
+
+            Type settingsPerBuildTargetType = FindType("UnityEditor.XR.Management.XRGeneralSettingsPerBuildTarget");
+            if (settingsPerBuildTargetType == null)
+            {
+                issue = "XRGeneralSettingsPerBuildTarget 타입을 찾을 수 없습니다.";
+                return null;
+            }
+
+            if (create)
+            {
+                var getOrCreateMethod = settingsPerBuildTargetType.GetMethod(
+                    "GetOrCreate",
+                    System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+                if (getOrCreateMethod == null)
+                {
+                    issue = "XR General Settings 생성 API를 찾을 수 없습니다.";
+                    return null;
+                }
+
+                object perBuildTargetSettings = getOrCreateMethod.Invoke(null, null);
+                if (perBuildTargetSettings == null)
+                {
+                    issue = "XR General Settings asset을 생성할 수 없습니다.";
+                    return null;
+                }
+
+                var hasManagerMethod = settingsPerBuildTargetType.GetMethod("HasManagerSettingsForBuildTarget");
+                var createManagerMethod = settingsPerBuildTargetType.GetMethod("CreateDefaultManagerSettingsForBuildTarget");
+                if (hasManagerMethod == null || createManagerMethod == null)
+                {
+                    issue = "XR Manager Settings 생성 API를 찾을 수 없습니다.";
+                    return null;
+                }
+
+                bool hasManager = hasManagerMethod.Invoke(perBuildTargetSettings, new object[] { group }) is bool value && value;
+                if (!hasManager)
+                {
+                    createManagerMethod.Invoke(perBuildTargetSettings, new object[] { group });
+                    AssetDatabase.SaveAssets();
+                }
+            }
+
+            var settingsForBuildTargetMethod = settingsPerBuildTargetType.GetMethod(
+                "XRGeneralSettingsForBuildTarget",
+                System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static);
+            if (settingsForBuildTargetMethod == null)
+            {
+                issue = "XR General Settings 조회 API를 찾을 수 없습니다.";
+                return null;
+            }
+
+            return settingsForBuildTargetMethod.Invoke(null, new object[] { group });
         }
 
         private static Type FindType(string fullName)

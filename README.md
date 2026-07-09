@@ -10,7 +10,7 @@ DDOIT Tools는 Meta Quest 기반 VR 교육프로그램을 빠르게 구성하기
 | 항목 | 값 |
 |---|---|
 | Package | `com.ddoit.tools` |
-| Latest tag | `v0.18.20` |
+| Latest tag | `v0.18.21` |
 | Unity | `6000.0+` |
 | Verified Unity | `6000.3.7f1` |
 | Target | Android / Meta Quest |
@@ -21,7 +21,7 @@ DDOIT Tools는 Meta Quest 기반 VR 교육프로그램을 빠르게 구성하기
 Unity Package Manager에서 Git URL로 설치합니다.
 
 ```text
-https://github.com/DDOIT-OFFICIAL/DDOIT_Tools.git#v0.18.20
+https://github.com/DDOIT-OFFICIAL/DDOIT_Tools.git#v0.18.21
 ```
 
 `Packages/manifest.json`에 직접 추가할 수도 있습니다.
@@ -29,7 +29,7 @@ https://github.com/DDOIT-OFFICIAL/DDOIT_Tools.git#v0.18.20
 ```json
 {
   "dependencies": {
-    "com.ddoit.tools": "https://github.com/DDOIT-OFFICIAL/DDOIT_Tools.git#v0.18.20"
+    "com.ddoit.tools": "https://github.com/DDOIT-OFFICIAL/DDOIT_Tools.git#v0.18.21"
   }
 }
 ```
@@ -102,7 +102,9 @@ Quest VR 기준 프로젝트 설정을 preflight 확인 후 적용합니다.
 - Texture Compression: ASTC
 - Build Compression: LZ4
 - Overlay UI / OVROverlayCanvas Rendering 레이어 등록
+- XR Plug-in Management Android/Standalone OpenXR loader 자동 등록
 
+Android/Standalone OpenXR loader가 꺼져 있으면 자동 등록합니다.
 OpenXR validation warning과 `Use OpenXR Predicted Time` 상태는 자동 변경하지 않고 preflight 경고로 표시합니다.
 
 ## Main Modules
