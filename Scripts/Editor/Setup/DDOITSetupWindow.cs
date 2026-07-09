@@ -2,6 +2,8 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using UnityEditor;
+using UnityEditor.PackageManager;
+using UnityEditor.PackageManager.Requests;
 using UnityEngine;
 
 namespace DDOIT.Tools.Setup
@@ -27,6 +29,9 @@ namespace DDOIT.Tools.Setup
         {
             new DependencyInfo("Meta XR All-in-One SDK", "com.meta.xr.sdk.all", "203.0.0",
                 "Unity Asset Store에서 먼저 내 에셋에 추가해야 합니다. (Audio/Voice 모듈만 v85.0.0 유지)"),
+            new DependencyInfo("Input System", "com.unity.inputsystem", "1.18.0", null),
+            new DependencyInfo("TextMeshPro", "com.unity.textmeshpro", "4.0.0", null),
+            new DependencyInfo("Addressables", "com.unity.addressables", "2.8.1", null),
             new DependencyInfo("Lottie Player", "com.gilzoide.lottie-player",
                 "https://github.com/gilzoide/unity-lottie-player.git", null),
         };
@@ -71,11 +76,34 @@ namespace DDOIT.Tools.Setup
             }
         }
 
+        private enum DependencyState
+        {
+            Missing,
+            VersionMismatch,
+            Installed
+        }
+
+        private struct DependencyStatus
+        {
+            public DependencyState state;
+            public string installedVersion;
+
+            public DependencyStatus(DependencyState state, string installedVersion)
+            {
+                this.state = state;
+                this.installedVersion = installedVersion;
+            }
+        }
+
         #endregion
 
         #region Private Fields
 
         private Vector2 _scrollPosition;
+        private static readonly Queue<DependencyInfo> PendingDependencyInstalls = new Queue<DependencyInfo>();
+        private static AddRequest ActiveAddRequest;
+        private static DependencyInfo ActiveDependency;
+        private static bool IsInstallingDependencies;
 
         #endregion
 
@@ -101,7 +129,7 @@ namespace DDOIT.Tools.Setup
             SessionState.SetBool(SHOWN_KEY, true);
 
             // 필수 의존성이 하나라도 없으면 자동 팝업
-            bool allInstalled = REQUIRED_DEPENDENCIES.All(d => IsPackageInstalled(d.packageId));
+            bool allInstalled = REQUIRED_DEPENDENCIES.All(d => !RequiresInstallOrUpdate(d));
             if (!allInstalled)
                 ShowWindow();
         }
@@ -159,13 +187,19 @@ namespace DDOIT.Tools.Setup
 
             EditorGUILayout.Space(4);
 
-            bool hasAnyMissing = REQUIRED_DEPENDENCIES.Any(d => !IsPackageInstalled(d.packageId))
-                              || OPTIONAL_DEPENDENCIES.Any(d => !IsPackageInstalled(d.packageId));
+            bool hasAnyMissing = REQUIRED_DEPENDENCIES.Any(RequiresInstallOrUpdate)
+                              || OPTIONAL_DEPENDENCIES.Any(RequiresInstallOrUpdate);
 
-            EditorGUI.BeginDisabledGroup(!hasAnyMissing);
+            EditorGUI.BeginDisabledGroup(!hasAnyMissing || IsInstallingDependencies);
             if (GUILayout.Button("미설치 패키지 모두 설치", GUILayout.Height(28)))
                 InstallMissingDependencies();
             EditorGUI.EndDisabledGroup();
+
+            if (IsInstallingDependencies)
+            {
+                EditorGUILayout.Space(2);
+                EditorGUILayout.HelpBox($"패키지 설치 진행 중: {ActiveDependency.displayName}", MessageType.Info);
+            }
 
             if (!hasAnyMissing)
             {
@@ -179,21 +213,32 @@ namespace DDOIT.Tools.Setup
             EditorGUILayout.LabelField($"[ {label} ]", EditorStyles.miniLabel);
             foreach (var dep in dependencies)
             {
-                bool installed = IsPackageInstalled(dep.packageId);
+                var status = GetDependencyStatus(dep);
 
                 EditorGUILayout.BeginHorizontal();
 
                 var statusStyle = new GUIStyle(EditorStyles.label);
-                statusStyle.normal.textColor = installed
+                statusStyle.normal.textColor = status.state == DependencyState.Installed
                     ? new Color(0.2f, 0.8f, 0.2f)
-                    : new Color(0.8f, 0.2f, 0.2f);
-                EditorGUILayout.LabelField(installed ? "v" : "X", statusStyle, GUILayout.Width(16));
+                    : status.state == DependencyState.VersionMismatch
+                        ? new Color(0.95f, 0.65f, 0.1f)
+                        : new Color(0.8f, 0.2f, 0.2f);
+                EditorGUILayout.LabelField(GetDependencyStatusLabel(status.state), statusStyle, GUILayout.Width(36));
 
                 EditorGUILayout.LabelField(dep.displayName);
 
                 EditorGUILayout.EndHorizontal();
 
-                if (!installed && !string.IsNullOrEmpty(dep.note))
+                if (status.state == DependencyState.VersionMismatch)
+                {
+                    EditorGUI.indentLevel++;
+                    EditorGUILayout.HelpBox(
+                        $"설치 버전: {status.installedVersion}\n요구 버전: {dep.versionOrUrl}",
+                        MessageType.Warning);
+                    EditorGUI.indentLevel--;
+                }
+
+                if (status.state != DependencyState.Installed && !string.IsNullOrEmpty(dep.note))
                 {
                     EditorGUI.indentLevel++;
                     EditorGUILayout.HelpBox(dep.note, MessageType.None);
@@ -303,9 +348,18 @@ namespace DDOIT.Tools.Setup
                 }
 
                 if (File.Exists(Path.GetFullPath(dst)))
-                    AssetDatabase.DeleteAsset(dst);
+                {
+                    if (!AssetDatabase.DeleteAsset(dst))
+                    {
+                        Debug.LogError($"[DDOITSetupWindow] 기존 에셋 삭제 실패: {dst}");
+                        continue;
+                    }
+                }
 
-                AssetDatabase.CopyAsset(src, dst);
+                if (!AssetDatabase.CopyAsset(src, dst))
+                {
+                    Debug.LogError($"[DDOITSetupWindow] 에셋 복사 실패: {src} → {dst}");
+                }
             }
 
             AssetDatabase.Refresh();
@@ -410,11 +464,32 @@ namespace DDOIT.Tools.Setup
             appliedCount++;
             Debug.Log("[DDOITSetupWindow] Texture Compression → ASTC");
 
-            // ── 7. OVR Overlay 레이어 등록 ──
-            RegisterLayer(3, "Overlay UI");
-            RegisterLayer(31, "OVROverlayCanvas Rendering");
+            EditorUserBuildSettings.SetPlatformSettings(
+                BuildPipeline.GetBuildTargetName(BuildTarget.Android),
+                "BuildCompression",
+                "Lz4");
             appliedCount++;
-            Debug.Log("[DDOITSetupWindow] OVR Overlay 레이어 등록 완료");
+            Debug.Log("[DDOITSetupWindow] Compression Method → LZ4");
+
+            // ── 7. OVR Overlay 레이어 등록 ──
+            var layerIssues = new List<string>();
+            bool overlayLayerOk = RegisterLayer(3, "Overlay UI", layerIssues);
+            bool overlayCanvasLayerOk = RegisterLayer(31, "OVROverlayCanvas Rendering", layerIssues);
+            if (overlayLayerOk && overlayCanvasLayerOk)
+            {
+                appliedCount++;
+                Debug.Log("[DDOITSetupWindow] OVR Overlay 레이어 등록 완료");
+            }
+            else
+            {
+                string issueText = string.Join("\n", layerIssues);
+                Debug.LogWarning($"[DDOITSetupWindow] OVR Overlay 레이어 등록 충돌:\n{issueText}");
+                EditorUtility.DisplayDialog(
+                    "레이어 충돌",
+                    "일부 레이어가 이미 다른 이름으로 사용 중이라 자동 등록하지 않았습니다.\n\n" +
+                    issueText,
+                    "확인");
+            }
 
             AssetDatabase.SaveAssets();
 
@@ -444,54 +519,91 @@ namespace DDOIT.Tools.Setup
 
         private static void InstallMissingDependencies()
         {
-            string manifestPath = Path.Combine(Application.dataPath, "..", "Packages", "manifest.json");
-            if (!File.Exists(manifestPath))
+            if (IsInstallingDependencies)
             {
-                Debug.LogError("[DDOITSetupWindow] manifest.json을 찾을 수 없습니다.");
+                Debug.LogWarning("[DDOITSetupWindow] 패키지 설치가 이미 진행 중입니다.");
                 return;
             }
-
-            string content = File.ReadAllText(manifestPath);
-            bool modified = false;
 
             var allDeps = new List<DependencyInfo>(REQUIRED_DEPENDENCIES);
             allDeps.AddRange(OPTIONAL_DEPENDENCIES);
 
-            foreach (var dep in allDeps)
+            var targets = allDeps.Where(RequiresInstallOrUpdate).ToList();
+            if (targets.Count == 0)
             {
-                if (content.Contains($"\"{dep.packageId}\"")) continue;
-
-                string insertAfter = "\"dependencies\": {";
-                int idx = content.IndexOf(insertAfter);
-                if (idx < 0) continue;
-
-                int insertPos = idx + insertAfter.Length;
-                string entry = $"\n    \"{dep.packageId}\": \"{dep.versionOrUrl}\",";
-                content = content.Insert(insertPos, entry);
-                modified = true;
-
-                Debug.Log($"[DDOITSetupWindow] 추가: {dep.displayName} ({dep.packageId})");
+                Debug.Log("[DDOITSetupWindow] 모든 패키지가 이미 설치되어 있습니다.");
+                return;
             }
 
-            if (modified)
+            PendingDependencyInstalls.Clear();
+            foreach (var dep in targets)
+                PendingDependencyInstalls.Enqueue(dep);
+
+            IsInstallingDependencies = true;
+            EditorApplication.update += ProcessDependencyInstallQueue;
+            StartNextDependencyInstall();
+        }
+
+        private static void ProcessDependencyInstallQueue()
+        {
+            if (ActiveAddRequest == null || !ActiveAddRequest.IsCompleted)
+                return;
+
+            if (ActiveAddRequest.Status == StatusCode.Success)
             {
-                File.WriteAllText(manifestPath, content);
-                Debug.Log("[DDOITSetupWindow] manifest.json 수정 완료. Unity가 패키지를 다운로드합니다.");
-
-                EditorUtility.DisplayDialog(
-                    "패키지 설치",
-                    "manifest.json에 패키지를 추가했습니다.\n" +
-                    "Unity가 자동으로 패키지를 다운로드합니다.\n\n" +
-                    "Meta XR SDK는 Unity Asset Store에서\n" +
-                    "먼저 '내 에셋에 추가'해야 설치됩니다.",
-                    "확인");
-
-                AssetDatabase.Refresh();
+                Debug.Log($"[DDOITSetupWindow] 설치 완료: {ActiveDependency.displayName}");
             }
             else
             {
-                Debug.Log("[DDOITSetupWindow] 모든 패키지가 이미 설치되어 있습니다.");
+                string errorMessage = ActiveAddRequest.Error != null
+                    ? ActiveAddRequest.Error.message
+                    : "알 수 없는 Package Manager 오류";
+                Debug.LogError(
+                    $"[DDOITSetupWindow] 설치 실패: {ActiveDependency.displayName}\n" +
+                    errorMessage);
             }
+
+            ActiveAddRequest = null;
+            StartNextDependencyInstall();
+        }
+
+        private static void StartNextDependencyInstall()
+        {
+            if (PendingDependencyInstalls.Count == 0)
+            {
+                IsInstallingDependencies = false;
+                EditorApplication.update -= ProcessDependencyInstallQueue;
+                AssetDatabase.Refresh();
+
+                EditorUtility.DisplayDialog(
+                    "패키지 설치",
+                    "패키지 설치 요청을 모두 처리했습니다.\n\n" +
+                    "Meta XR SDK는 Unity Asset Store에서 먼저 '내 에셋에 추가'해야 설치됩니다.",
+                    "확인");
+
+                RepaintOpenSetupWindows();
+                return;
+            }
+
+            ActiveDependency = PendingDependencyInstalls.Dequeue();
+            string packageSpec = GetPackageAddSpec(ActiveDependency);
+            Debug.Log($"[DDOITSetupWindow] 설치 요청: {ActiveDependency.displayName} ({packageSpec})");
+            ActiveAddRequest = Client.Add(packageSpec);
+            RepaintOpenSetupWindows();
+        }
+
+        private static string GetPackageAddSpec(DependencyInfo dep)
+        {
+            if (IsUrl(dep.versionOrUrl))
+                return dep.versionOrUrl;
+
+            return $"{dep.packageId}@{dep.versionOrUrl}";
+        }
+
+        private static void RepaintOpenSetupWindows()
+        {
+            foreach (var window in Resources.FindObjectsOfTypeAll<DDOITSetupWindow>())
+                window.Repaint();
         }
 
         private static void ExecuteInitProject()
@@ -538,10 +650,22 @@ namespace DDOIT.Tools.Setup
                         $"{scene}이 이미 존재합니다. 덮어쓰시겠습니까?",
                         "덮어쓰기", "건너뛰기"))
                         continue;
+
+                    if (!AssetDatabase.DeleteAsset(dst))
+                    {
+                        Debug.LogError($"[DDOITSetupWindow] 기존 씬 삭제 실패: {dst}");
+                        continue;
+                    }
                 }
 
-                AssetDatabase.CopyAsset(src, dst);
-                copiedCount++;
+                if (AssetDatabase.CopyAsset(src, dst))
+                {
+                    copiedCount++;
+                }
+                else
+                {
+                    Debug.LogError($"[DDOITSetupWindow] 씬 복사 실패: {src} → {dst}");
+                }
             }
 
             // 4. AI Agent 문서 배포
@@ -716,32 +840,110 @@ namespace DDOIT.Tools.Setup
         /// <summary>
         /// TagManager에 레이어를 등록한다. 이미 등록되어 있으면 건너뛴다.
         /// </summary>
-        private static void RegisterLayer(int index, string layerName)
+        private static bool RegisterLayer(int index, string layerName, List<string> issues)
         {
             string tagManagerPath = Path.Combine(Application.dataPath, "..", "ProjectSettings", "TagManager.asset");
-            if (!File.Exists(tagManagerPath)) return;
+            if (!File.Exists(tagManagerPath))
+            {
+                issues.Add("TagManager.asset 파일을 찾을 수 없습니다.");
+                return false;
+            }
 
             var tagManagerAsset = AssetDatabase.LoadAllAssetsAtPath("ProjectSettings/TagManager.asset");
-            if (tagManagerAsset == null || tagManagerAsset.Length == 0) return;
+            if (tagManagerAsset == null || tagManagerAsset.Length == 0)
+            {
+                issues.Add("TagManager.asset을 로드할 수 없습니다.");
+                return false;
+            }
 
             var so = new SerializedObject(tagManagerAsset[0]);
             var layersProp = so.FindProperty("layers");
-            if (layersProp == null || index >= layersProp.arraySize) return;
+            if (layersProp == null || index >= layersProp.arraySize)
+            {
+                issues.Add($"Layer {index}에 접근할 수 없습니다.");
+                return false;
+            }
 
             var element = layersProp.GetArrayElementAtIndex(index);
             if (string.IsNullOrEmpty(element.stringValue))
             {
                 element.stringValue = layerName;
                 so.ApplyModifiedProperties();
+                return true;
+            }
+
+            if (element.stringValue == layerName)
+                return true;
+
+            issues.Add($"Layer {index}: 이미 '{element.stringValue}'로 사용 중입니다. 필요한 이름: '{layerName}'");
+            return false;
+        }
+
+        private static bool RequiresInstallOrUpdate(DependencyInfo dep)
+        {
+            return GetDependencyStatus(dep).state != DependencyState.Installed;
+        }
+
+        private static DependencyStatus GetDependencyStatus(DependencyInfo dep)
+        {
+            string manifestVersion = GetManifestDependencyVersion(dep.packageId);
+            string resolvedVersion = GetResolvedPackageVersion(dep.packageId);
+            string installedVersion = resolvedVersion ?? manifestVersion;
+
+            if (string.IsNullOrEmpty(installedVersion))
+                return new DependencyStatus(DependencyState.Missing, null);
+
+            if (IsUrl(dep.versionOrUrl))
+            {
+                if (manifestVersion == dep.versionOrUrl)
+                    return new DependencyStatus(DependencyState.Installed, manifestVersion);
+
+                if (manifestVersion == null && resolvedVersion != null)
+                    return new DependencyStatus(DependencyState.Installed, resolvedVersion);
+
+                return manifestVersion == dep.versionOrUrl
+                    ? new DependencyStatus(DependencyState.Installed, installedVersion)
+                    : new DependencyStatus(DependencyState.VersionMismatch, installedVersion);
+            }
+
+            return installedVersion == dep.versionOrUrl
+                ? new DependencyStatus(DependencyState.Installed, installedVersion)
+                : new DependencyStatus(DependencyState.VersionMismatch, installedVersion);
+        }
+
+        private static string GetResolvedPackageVersion(string packageId)
+        {
+            var packageInfo = UnityEditor.PackageManager.PackageInfo.FindForPackageName(packageId);
+            return packageInfo != null ? packageInfo.version : null;
+        }
+
+        private static string GetManifestDependencyVersion(string packageId)
+        {
+            string manifestPath = Path.Combine(Application.dataPath, "..", "Packages", "manifest.json");
+            if (!File.Exists(manifestPath)) return null;
+
+            string content = File.ReadAllText(manifestPath);
+            string pattern = $"\"{packageId}\"\\s*:\\s*\"([^\"]+)\"";
+            var match = System.Text.RegularExpressions.Regex.Match(content, pattern);
+            return match.Success ? match.Groups[1].Value : null;
+        }
+
+        private static string GetDependencyStatusLabel(DependencyState state)
+        {
+            switch (state)
+            {
+                case DependencyState.Installed:
+                    return "OK";
+                case DependencyState.VersionMismatch:
+                    return "UPD";
+                default:
+                    return "X";
             }
         }
 
-        private static bool IsPackageInstalled(string packageId)
+        private static bool IsUrl(string value)
         {
-            string manifestPath = Path.Combine(Application.dataPath, "..", "Packages", "manifest.json");
-            if (!File.Exists(manifestPath)) return false;
-            string content = File.ReadAllText(manifestPath);
-            return content.Contains($"\"{packageId}\"");
+            return value.StartsWith("http://") || value.StartsWith("https://") || value.StartsWith("git://");
         }
 
         private static void DrawSeparator()
