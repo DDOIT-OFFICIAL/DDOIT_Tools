@@ -1,3 +1,4 @@
+#if DDOIT_META_XR_AVAILABLE
 using UnityEngine;
 
 using Oculus.Interaction;
@@ -16,3 +17,4 @@ namespace DDOIT.Tools.Locomotion
         public bool Active => _characterController != null && _characterController.IsGrounded;
     }
 }
+#endif

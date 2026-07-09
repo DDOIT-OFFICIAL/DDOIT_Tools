@@ -1,6 +1,5 @@
 using System;
 using UnityEngine;
-using UnityEngine.InputSystem;
 
 using DDOIT.Tools.Utilities;
 namespace DDOIT.Tools.Player
@@ -117,9 +116,7 @@ namespace DDOIT.Tools.Player
         private void HandleDebugKeyboard()
         {
             if (!_enableDebugKeyboard) return;
-            if (Keyboard.current == null) return;
-
-            if (Keyboard.current.spaceKey.wasPressedThisFrame)
+            if (Input.GetKeyDown(KeyCode.Space))
             {
                 if (IsWalkingStickMode) DisableWalkingStick();
                 else                    EnableWalkingStick();

@@ -529,19 +529,21 @@ if (hasUpdate)
 - `HandTrackingHelper` — 핸드트래킹 유틸
 
 **관련 모듈**: `DDOIT.Tools.Player`, `DDOIT.Tools.Locomotion`
-- `PlayerRig` — Meta XR/Interaction SDK 기반 플레이어 리그 진입점
+- `PlayerRig` — Meta XR 리그와 DDOIT 이동 보조 기능을 연결하는 플레이어 진입점
 - `WalkingStickLocomotor` — Interaction SDK locomotion 흐름을 활용한 DDOIT 이동 보조 기능
 
 #### 4.5.2 PlayerRig (`DDOIT.Tools.Player`)
 
 ISDK `FirstPersonLocomotor` 기반 Player rig의 외부 진입점 (구 `PlayerController` 461 LoC를 v0.15.0에서 폐기하고 신규 도입).
 
+UPM 소비 프로젝트에서는 `com.ddoit.tools` 설치 직후 Meta XR SDK가 아직 없을 수 있다. 따라서 Meta/Interaction SDK 타입을 직접 참조하는 Locomotion 스크립트는 `DDOIT_META_XR_AVAILABLE` scripting define이 있을 때만 컴파일된다. `DDOIT Tools > Setup`은 Meta XR 설치 상태를 감지해 Standalone/Android define을 자동 동기화한다.
+
 **API**:
 - `Singleton<PlayerRig>` — `PlayerRig.Instance` / `HasInstance`
 - `HeadTransform` (read-only Transform) — `OVRCameraRig/TrackingSpace/CenterEyeAnchor` 노출. UI lookAt/follow 등에 사용
 - `Teleport(Vector3 position)` / `Teleport(Vector3 position, Quaternion rotation)` — `_playerOrigin` (OVRCameraRig root) 위치 이동
 - `EnableWalkingStick()` / `DisableWalkingStick()` — `_walkingStickRoot.SetActive` 토글, `IsWalkingStickMode {get; private set}` 갱신
-- `_enableDebugKeyboard` Inspector 토글 — 활성 시 스페이스바로 EnableWalkingStick/DisableWalkingStick 토글 (New Input System `Keyboard.current` 사용)
+- `_enableDebugKeyboard` Inspector 토글 — 활성 시 스페이스바로 EnableWalkingStick/DisableWalkingStick 토글
 
 **Inspector 슬롯 wiring** (DDOIT 씬에서):
 - `_headTransform` ← `OVRCameraRig/TrackingSpace/CenterEyeAnchor`
@@ -826,14 +828,20 @@ public class DDOITSettings : ScriptableObject
 
 ## 5. 새 프로젝트 시작 가이드
 
-### 5.1 방법 A: unitypackage 임포트
+### 5.1 방법 A: UPM 패키지 설치 (권장)
 ```
 1. Unity에서 새 프로젝트 생성 (Unity 6, URP)
-2. Meta XR All-In-One SDK 설치
-3. Assets > Import Package > DDOIT_Tools.unitypackage 임포트
-4. 프로젝트 고유 폴더 생성: Assets/{프로젝트명}/
-5. 네임스페이스: DDOIT.{프로젝트명}.{카테고리} 사용
+2. Package Manager > Add package from git URL
+   https://github.com/DDOIT-OFFICIAL/DDOIT_Tools.git#v0.18.20
+3. Unity 상단 메뉴에서 DDOIT Tools > Setup 실행
+4. 필수 패키지 설치/업데이트 실행
+5. Init Project 실행
+6. Quest 프로젝트라면 Optimize Project 실행
+7. 프로젝트 고유 폴더 생성: Assets/02. Scripts/{제품명}/
+8. 네임스페이스: {제품명}.{카테고리} 사용
 ```
+
+`com.ddoit.tools` 설치 직후 Meta XR SDK와 Input System이 자동으로 따라오지 않는 것이 정상이다. 이 둘은 Package Manager 하드 의존성이 아니라 Setup의 필수 설치/검증 대상으로 관리한다. TextMeshPro와 Addressables는 패키지 컴파일에 즉시 필요하므로 UPM 하드 의존성으로 유지한다.
 
 ### 5.2 방법 B: 템플릿 복제
 ```
@@ -843,7 +851,16 @@ public class DDOITSettings : ScriptableObject
 4. 기존 DDOIT_Tools/ 폴더는 수정하지 않음 (업데이트 호환성 유지)
 ```
 
-### 5.3 개별 프로젝트 코드 작성 규칙
+### 5.3 방법 C: unitypackage 임포트 (보조/레거시)
+```
+1. Unity에서 새 프로젝트 생성 (Unity 6, URP)
+2. Assets > Import Package > DDOIT_Tools.unitypackage 임포트
+3. DDOIT Tools > Setup 실행
+4. 필수 패키지 설치/업데이트 실행
+5. Init Project 및 Optimize Project 실행
+```
+
+### 5.4 개별 프로젝트 코드 작성 규칙
 - 기본 코딩 규칙은 `AGENTS.md`/`CLAUDE.md`를 따름
 - DDOIT 심화 규칙은 이 문서의 §3을 따름
 
@@ -925,5 +942,5 @@ MAJOR.MINOR.PATCH
 ---
 
 **문서 버전**: 0.4.0
-**DDOIT_Tools 패키지 버전**: v0.18.19
-**최종 업데이트**: 2026-04-13
+**DDOIT_Tools 패키지 버전**: v0.18.20
+**최종 업데이트**: 2026-07-10

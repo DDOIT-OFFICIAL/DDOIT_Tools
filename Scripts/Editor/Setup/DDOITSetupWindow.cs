@@ -54,6 +54,7 @@ namespace DDOIT.Tools.Setup
         };
 
         private const string SHOWN_KEY = "DDOIT_SetupWindow_Shown";
+        private const string META_XR_AVAILABLE_DEFINE = "DDOIT_META_XR_AVAILABLE";
 
         private const string DDOIT_DATA_FOLDER = "Assets/DDOIT_Tools/Data";
         private const string PACKAGE_DATA_PATH_DEV = "Assets/DDOIT_Tools/Data";
@@ -163,6 +164,13 @@ namespace DDOIT.Tools.Setup
         private static MessageType LastDependencyVerificationMessageType = MessageType.Info;
         private static bool ApplyTimingOptimization = true;
         private static bool ApplyAudioOptimization = true;
+        private static bool IsOptionalDefineSyncScheduled;
+
+        private static readonly UnityEditor.Build.NamedBuildTarget[] OPTIONAL_DEFINE_TARGETS =
+        {
+            UnityEditor.Build.NamedBuildTarget.Standalone,
+            UnityEditor.Build.NamedBuildTarget.Android,
+        };
 
         #endregion
 
@@ -170,12 +178,14 @@ namespace DDOIT.Tools.Setup
 
         static DDOITSetupWindow()
         {
+            ScheduleOptionalDependencyDefineSync();
             EditorApplication.delayCall += ShowOnFirstLoad;
         }
 
         [InitializeOnLoadMethod]
         private static void InitOnLoad()
         {
+            ScheduleOptionalDependencyDefineSync();
             EditorApplication.delayCall += ShowOnFirstLoad;
         }
 
@@ -1150,6 +1160,7 @@ namespace DDOIT.Tools.Setup
                 IsInstallingDependencies = false;
                 EditorApplication.update -= ProcessDependencyInstallQueue;
                 AssetDatabase.Refresh();
+                ScheduleOptionalDependencyDefineSync();
                 UpdateDependencyVerificationReport($"{ActiveInstallScopeLabel} 설치 후 검증");
 
                 EditorUtility.DisplayDialog(
@@ -1221,6 +1232,80 @@ namespace DDOIT.Tools.Setup
                 sb.AppendLine(
                     $"- {GetDependencyStatusLabel(status.state)} {dep.displayName}: {installed} / 요구 {GetDependencyRequirementText(dep)}");
             }
+        }
+
+        private static void ScheduleOptionalDependencyDefineSync()
+        {
+            if (IsOptionalDefineSyncScheduled)
+                return;
+
+            IsOptionalDefineSyncScheduled = true;
+            EditorApplication.update += ProcessOptionalDependencyDefineSync;
+        }
+
+        private static void ProcessOptionalDependencyDefineSync()
+        {
+            if (EditorApplication.isCompiling || EditorApplication.isUpdating)
+                return;
+
+            EditorApplication.update -= ProcessOptionalDependencyDefineSync;
+            SyncOptionalDependencyDefines();
+        }
+
+        private static void SyncOptionalDependencyDefines()
+        {
+            IsOptionalDefineSyncScheduled = false;
+
+            bool hasMetaXr = IsPackageInstalled("com.meta.xr.sdk.all")
+                          || IsPackageInstalled("com.meta.xr.sdk.interaction");
+
+            bool changed = false;
+            foreach (var target in OPTIONAL_DEFINE_TARGETS)
+                changed |= SetScriptingDefine(target, META_XR_AVAILABLE_DEFINE, hasMetaXr);
+
+            if (changed)
+            {
+                string state = hasMetaXr ? "enabled" : "disabled";
+                Debug.Log($"[DDOITSetupWindow] {META_XR_AVAILABLE_DEFINE} {state}");
+            }
+        }
+
+        private static bool SetScriptingDefine(
+            UnityEditor.Build.NamedBuildTarget target,
+            string define,
+            bool enabled)
+        {
+            string current = PlayerSettings.GetScriptingDefineSymbols(target);
+            var symbols = current
+                .Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries)
+                .Select(s => s.Trim())
+                .Where(s => !string.IsNullOrEmpty(s))
+                .Distinct()
+                .ToList();
+
+            bool contains = symbols.Contains(define);
+            if (enabled)
+            {
+                if (contains)
+                    return false;
+
+                symbols.Add(define);
+            }
+            else
+            {
+                if (!contains)
+                    return false;
+
+                symbols.Remove(define);
+            }
+
+            PlayerSettings.SetScriptingDefineSymbols(target, string.Join(";", symbols));
+            return true;
+        }
+
+        private static bool IsPackageInstalled(string packageId)
+        {
+            return UnityEditor.PackageManager.PackageInfo.FindForPackageName(packageId) != null;
         }
 
         private static int CountDependencyIssues(DependencyInfo[] dependencies)

@@ -394,8 +394,32 @@ namespace DDOIT.Tools.UI
         /// </summary>
         private static Transform FindCenterEyeAnchor()
         {
-            var cameraRig = FindFirstObjectByType<OVRCameraRig>();
-            return cameraRig != null ? cameraRig.centerEyeAnchor : null;
+            var cameraRigType = FindType("OVRCameraRig");
+            if (cameraRigType == null)
+                return null;
+
+            var cameraRig = FindFirstObjectByType(cameraRigType);
+            if (cameraRig == null)
+                return null;
+
+            var field = cameraRigType.GetField("centerEyeAnchor");
+            if (field != null)
+                return field.GetValue(cameraRig) as Transform;
+
+            var property = cameraRigType.GetProperty("centerEyeAnchor");
+            return property != null ? property.GetValue(cameraRig) as Transform : null;
+        }
+
+        private static Type FindType(string typeName)
+        {
+            foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
+            {
+                var type = assembly.GetType(typeName);
+                if (type != null)
+                    return type;
+            }
+
+            return null;
         }
 
         #endregion
