@@ -832,7 +832,7 @@ public class DDOITSettings : ScriptableObject
 ```
 1. Unity에서 새 프로젝트 생성 (Unity 6, URP)
 2. Package Manager > Add package from git URL
-   https://github.com/DDOIT-OFFICIAL/DDOIT_Tools.git#v0.18.21
+   https://github.com/DDOIT-OFFICIAL/DDOIT_Tools.git#v0.18.22
 3. Unity 상단 메뉴에서 DDOIT Tools > Setup 실행
 4. 필수 패키지 설치/업데이트 실행
 5. Init Project 실행
@@ -943,5 +943,5 @@ MAJOR.MINOR.PATCH
 ---
 
 **문서 버전**: 0.4.0
-**DDOIT_Tools 패키지 버전**: v0.18.21
+**DDOIT_Tools 패키지 버전**: v0.18.22
 **최종 업데이트**: 2026-07-10

@@ -56,10 +56,30 @@ namespace DDOIT.Tools.Setup
         private const string SHOWN_KEY = "DDOIT_SetupWindow_Shown";
         private const string META_XR_AVAILABLE_DEFINE = "DDOIT_META_XR_AVAILABLE";
         private const string OPENXR_LOADER_TYPE_NAME = "UnityEngine.XR.OpenXR.OpenXRLoader";
+        private const string CURRENT_OPENXR_API_VERSION_FALLBACK = "1.1.54";
+        private const string OPENXR_TARGET_API_WARNING_FRAGMENT = "targets an API version with a patch version lower than";
+        private const string OVR_DISABLE_HAND_PINCH_BUTTON_MAPPING_DEFINE = "OVR_DISABLE_HAND_PINCH_BUTTON_MAPPING";
+        private const string USE_INPUT_SYSTEM_POSE_CONTROL_DEFINE = "USE_INPUT_SYSTEM_POSE_CONTROL";
+        private const string USE_STICK_CONTROL_THUMBSTICKS_DEFINE = "USE_STICK_CONTROL_THUMBSTICKS";
 
         private const string DDOIT_DATA_FOLDER = "Assets/DDOIT_Tools/Data";
         private const string PACKAGE_DATA_PATH_DEV = "Assets/DDOIT_Tools/Data";
         private const string PACKAGE_DATA_PATH_UPM = "Packages/com.ddoit.tools/Data";
+
+        private static readonly string[] XR_VALIDATION_DEFINE_SYMBOLS =
+        {
+            OVR_DISABLE_HAND_PINCH_BUTTON_MAPPING_DEFINE,
+            USE_INPUT_SYSTEM_POSE_CONTROL_DEFINE,
+            USE_STICK_CONTROL_THUMBSTICKS_DEFINE,
+        };
+
+        private static readonly string[] COMMON_OPENXR_FEATURES =
+        {
+            "Meta.XR.MetaXRFeature",
+            "Meta.XR.MetaXRFoveationFeature",
+            "UnityEngine.XR.OpenXR.Features.Interactions.OculusTouchControllerProfile",
+            "Meta.XR.OculusTouchControllerProximityProfile",
+        };
 
         private static readonly string[] OPTIMIZE_ASSETS =
         {
@@ -619,6 +639,32 @@ namespace DDOIT.Tools.Setup
                     "확인");
             }
 
+            // -- 9. XR / Meta validation cleanup --
+            var validationIssues = new List<string>();
+            var validationWarnings = new List<string>();
+            int validationAppliedCount = ApplyXRValidationCleanup(validationIssues, validationWarnings);
+            if (validationAppliedCount > 0)
+            {
+                appliedCount += validationAppliedCount;
+                Debug.Log($"[DDOITSetupWindow] XR/Meta validation cleanup applied ({validationAppliedCount} items)");
+            }
+
+            if (validationWarnings.Count > 0)
+            {
+                Debug.LogWarning($"[DDOITSetupWindow] XR/Meta validation cleanup warnings:\n{string.Join("\n", validationWarnings)}");
+            }
+
+            if (validationIssues.Count > 0)
+            {
+                string issueText = string.Join("\n", validationIssues);
+                Debug.LogWarning($"[DDOITSetupWindow] XR/Meta validation cleanup needs manual check:\n{issueText}");
+                EditorUtility.DisplayDialog(
+                    "XR/Meta validation check",
+                    "Some XR/Meta validation items could not be cleared automatically.\n\n" +
+                    issueText,
+                    "?뺤씤");
+            }
+
             AssetDatabase.SaveAssets();
 
             EditorUtility.DisplayDialog(
@@ -753,6 +799,7 @@ namespace DDOIT.Tools.Setup
             AddLayerPreflight(result, 3, "Overlay UI");
             AddLayerPreflight(result, 31, "OVROverlayCanvas Rendering");
             AppendOpenXRPreflight(result);
+            AppendXRValidationCleanupPreflight(result);
 
             if (result.changes.Count == 0)
                 result.changes.Add("현재 선택된 최적화 항목은 이미 목표값과 일치합니다.");
@@ -970,6 +1017,766 @@ namespace DDOIT.Tools.Setup
                 result.warnings.Add(
                     $"OpenXR {group}: Use OpenXR Predicted Time이 꺼져 있습니다. OpenXR 1.17.1+ 기본값은 켜짐이며, Optimize는 이 값을 자동 변경하지 않습니다.");
             }
+        }
+
+        private static void AppendXRValidationCleanupPreflight(OptimizePreflightResult result)
+        {
+            int buildValidatorIssues = CountCurrentBuildValidationIssues(BuildTargetGroup.Android)
+                + CountCurrentBuildValidationIssues(BuildTargetGroup.Standalone);
+            int metaIssues = CountCurrentMetaProjectSetupIssues(BuildTargetGroup.Android)
+                + CountCurrentMetaProjectSetupIssues(BuildTargetGroup.Standalone);
+
+            if (buildValidatorIssues > 0)
+            {
+                result.changes.Add(
+                    $"XR Plug-in Management Project Validation: {buildValidatorIssues} fixable/known items will be normalized");
+            }
+
+            if (metaIssues > 0)
+            {
+                result.changes.Add(
+                    $"Meta XR Project Setup: {metaIssues} automatic or safe manual items will be cleared");
+            }
+        }
+
+        private static int ApplyXRValidationCleanup(List<string> issues, List<string> warnings)
+        {
+            int appliedCount = 0;
+
+            appliedCount += ApplyDeterministicXRSettings(warnings);
+            appliedCount += EnsureXRValidationDefineSymbols();
+            appliedCount += EnsureInputSystemBackgroundBehavior(warnings);
+
+            appliedCount += EnsureOpenXRFeatureBaseline(BuildTargetGroup.Android, issues);
+            appliedCount += EnsureOpenXRFeatureBaseline(BuildTargetGroup.Standalone, issues);
+            appliedCount += GenerateOrUpdateAndroidManifestSilently(warnings);
+
+            appliedCount += ApplyMetaProjectSetupFixes(BuildTargetGroup.Android, issues, warnings);
+            appliedCount += ApplyMetaProjectSetupFixes(BuildTargetGroup.Standalone, issues, warnings);
+
+            appliedCount += ApplyBuildValidationFixes(BuildTargetGroup.Android, issues, warnings);
+            appliedCount += ApplyBuildValidationFixes(BuildTargetGroup.Standalone, issues, warnings);
+
+            appliedCount += NormalizeOpenXRFeatureTargetApiVersions(BuildTargetGroup.Android, warnings);
+            appliedCount += NormalizeOpenXRFeatureTargetApiVersions(BuildTargetGroup.Standalone, warnings);
+            appliedCount += RemoveStaleOpenXRTargetApiValidationRules(BuildTargetGroup.Android);
+            appliedCount += RemoveStaleOpenXRTargetApiValidationRules(BuildTargetGroup.Standalone);
+
+            AssetDatabase.SaveAssets();
+            return appliedCount;
+        }
+
+        private static int ApplyDeterministicXRSettings(List<string> warnings)
+        {
+            int changed = 0;
+
+            if (!PlayerSettings.runInBackground)
+            {
+                PlayerSettings.runInBackground = true;
+                changed++;
+            }
+
+            if (!PlayerSettings.graphicsJobs)
+            {
+                PlayerSettings.graphicsJobs = true;
+                changed++;
+            }
+
+            if (PlayerSettings.graphicsJobMode != UnityEditor.GraphicsJobMode.Legacy)
+            {
+                PlayerSettings.graphicsJobMode = UnityEditor.GraphicsJobMode.Legacy;
+                changed++;
+            }
+
+            if (!PlayerSettings.MTRendering)
+            {
+                PlayerSettings.MTRendering = true;
+                changed++;
+            }
+
+#pragma warning disable CS0618
+            if (!PlayerSettings.GetMobileMTRendering(BuildTargetGroup.Android))
+            {
+                PlayerSettings.SetMobileMTRendering(BuildTargetGroup.Android, true);
+                changed++;
+            }
+#pragma warning restore CS0618
+
+            if (!PlayerSettings.use32BitDisplayBuffer)
+            {
+                PlayerSettings.use32BitDisplayBuffer = true;
+                changed++;
+            }
+
+            if (PlayerSettings.stereoRenderingPath != StereoRenderingPath.Instancing)
+            {
+                PlayerSettings.stereoRenderingPath = StereoRenderingPath.Instancing;
+                changed++;
+            }
+
+            if (QualitySettings.pixelLightCount > 1)
+            {
+                QualitySettings.pixelLightCount = 1;
+                changed++;
+            }
+
+#if UNITY_2022_2_OR_NEWER
+            if (QualitySettings.globalTextureMipmapLimit != 0)
+            {
+                QualitySettings.globalTextureMipmapLimit = 0;
+                changed++;
+            }
+#endif
+
+            if (QualitySettings.anisotropicFiltering != AnisotropicFiltering.Enable)
+            {
+                QualitySettings.anisotropicFiltering = AnisotropicFiltering.Enable;
+                changed++;
+            }
+
+            changed += EnsureGraphicsApis(
+                BuildTarget.Android,
+                new[] { UnityEngine.Rendering.GraphicsDeviceType.Vulkan, UnityEngine.Rendering.GraphicsDeviceType.OpenGLES3 });
+
+            if (Application.platform == RuntimePlatform.WindowsEditor)
+            {
+                changed += EnsureGraphicsApis(
+                    BuildTarget.StandaloneWindows64,
+                    new[] { UnityEngine.Rendering.GraphicsDeviceType.Direct3D11 });
+            }
+            else
+            {
+                warnings.Add("Standalone Direct3D11 validation was skipped because the editor is not running on Windows.");
+            }
+
+            if (Enum.TryParse("AndroidApiLevel34", out AndroidSdkVersions targetSdkVersion)
+                && PlayerSettings.Android.targetSdkVersion != targetSdkVersion)
+            {
+                PlayerSettings.Android.targetSdkVersion = targetSdkVersion;
+                changed++;
+            }
+
+            if (PlayerSettings.Android.preferredInstallLocation != AndroidPreferredInstallLocation.Auto)
+            {
+                PlayerSettings.Android.preferredInstallLocation = AndroidPreferredInstallLocation.Auto;
+                changed++;
+            }
+
+            if (PlayerSettings.Android.androidTVCompatibility)
+            {
+                PlayerSettings.Android.androidTVCompatibility = false;
+                changed++;
+            }
+
+#if UNITY_2023_2_OR_NEWER
+            if (PlayerSettings.Android.applicationEntry != AndroidApplicationEntry.GameActivity)
+            {
+                PlayerSettings.Android.applicationEntry = AndroidApplicationEntry.GameActivity;
+                changed++;
+            }
+#endif
+
+            return changed;
+        }
+
+        private static int EnsureGraphicsApis(
+            BuildTarget buildTarget,
+            UnityEngine.Rendering.GraphicsDeviceType[] expectedApis)
+        {
+            bool changed = PlayerSettings.GetUseDefaultGraphicsAPIs(buildTarget)
+                || !PlayerSettings.GetGraphicsAPIs(buildTarget).SequenceEqual(expectedApis);
+
+            if (!changed)
+                return 0;
+
+            PlayerSettings.SetUseDefaultGraphicsAPIs(buildTarget, false);
+            PlayerSettings.SetGraphicsAPIs(buildTarget, expectedApis);
+            return 1;
+        }
+
+        private static int EnsureXRValidationDefineSymbols()
+        {
+            int changed = 0;
+            var targets = new[]
+            {
+                UnityEditor.Build.NamedBuildTarget.Android,
+                UnityEditor.Build.NamedBuildTarget.Standalone,
+            };
+
+            foreach (var target in targets)
+            {
+                foreach (var symbol in XR_VALIDATION_DEFINE_SYMBOLS)
+                {
+                    changed += EnsureScriptingDefineSymbol(target, symbol);
+                }
+            }
+
+            return changed;
+        }
+
+        private static int EnsureScriptingDefineSymbol(UnityEditor.Build.NamedBuildTarget target, string symbol)
+        {
+            string currentSymbols = PlayerSettings.GetScriptingDefineSymbols(target);
+            var symbols = currentSymbols
+                .Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries)
+                .Select(item => item.Trim())
+                .Where(item => !string.IsNullOrEmpty(item))
+                .Distinct()
+                .ToList();
+
+            if (symbols.Contains(symbol))
+                return 0;
+
+            symbols.Add(symbol);
+            PlayerSettings.SetScriptingDefineSymbols(target, string.Join(";", symbols));
+            return 1;
+        }
+
+        private static int EnsureInputSystemBackgroundBehavior(List<string> warnings)
+        {
+            Type inputSystemType = FindType("UnityEngine.InputSystem.InputSystem");
+            if (inputSystemType == null)
+                return 0;
+
+            var settingsProperty = inputSystemType.GetProperty(
+                "settings",
+                System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static);
+            object settings = settingsProperty?.GetValue(null);
+            if (settings == null)
+                return 0;
+
+            var backgroundProperty = settings.GetType().GetProperty(
+                "backgroundBehavior",
+                System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
+            if (backgroundProperty == null || !backgroundProperty.PropertyType.IsEnum)
+                return 0;
+
+            try
+            {
+                object expected = Enum.Parse(backgroundProperty.PropertyType, "ResetAndDisableNonBackgroundDevices");
+                object current = backgroundProperty.GetValue(settings);
+                if (Equals(current, expected))
+                    return 0;
+
+                backgroundProperty.SetValue(settings, expected);
+                if (settings is UnityEngine.Object unityObject)
+                    EditorUtility.SetDirty(unityObject);
+                return 1;
+            }
+            catch (Exception ex)
+            {
+                warnings.Add($"Input System background behavior could not be set automatically: {ex.Message}");
+                return 0;
+            }
+        }
+
+        private static int EnsureOpenXRFeatureBaseline(BuildTargetGroup group, List<string> issues)
+        {
+            int changed = 0;
+
+            foreach (var featureTypeName in COMMON_OPENXR_FEATURES)
+            {
+                changed += SetOpenXRFeatureEnabled(group, featureTypeName, true, issues);
+            }
+
+            if (group == BuildTargetGroup.Android)
+            {
+                changed += SetOpenXRFeatureEnabled(group, "Meta.XR.MetaXRSubsampledLayout", true, issues);
+            }
+
+            if (changed > 0)
+                RefreshOpenXRFeatures(group);
+
+            return changed;
+        }
+
+        private static int SetOpenXRFeatureEnabled(
+            BuildTargetGroup group,
+            string featureTypeName,
+            bool enabled,
+            List<string> issues)
+        {
+            object settings = GetOpenXRSettings(group);
+            if (settings == null)
+                return 0;
+
+            Type featureType = FindType(featureTypeName);
+            if (featureType == null)
+                return 0;
+
+            var getFeatureMethod = settings.GetType().GetMethod(
+                "GetFeature",
+                new[] { typeof(Type) });
+            if (getFeatureMethod == null)
+            {
+                issues.Add($"OpenXR {group}: GetFeature(Type) API not found.");
+                return 0;
+            }
+
+            object feature = getFeatureMethod.Invoke(settings, new object[] { featureType });
+            if (feature == null)
+                return 0;
+
+            var enabledProperty = feature.GetType().GetProperty(
+                "enabled",
+                System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
+            if (enabledProperty == null)
+            {
+                issues.Add($"OpenXR {group}: enabled property not found for {featureTypeName}.");
+                return 0;
+            }
+
+            bool current = enabledProperty.GetValue(feature) is bool boolValue && boolValue;
+            if (current == enabled)
+                return 0;
+
+            enabledProperty.SetValue(feature, enabled);
+            if (feature is UnityEngine.Object featureObject)
+                EditorUtility.SetDirty(featureObject);
+            if (settings is UnityEngine.Object settingsObject)
+                EditorUtility.SetDirty(settingsObject);
+            return 1;
+        }
+
+        private static int GenerateOrUpdateAndroidManifestSilently(List<string> warnings)
+        {
+            Type manifestType = FindType("OVRManifestPreprocessor");
+            if (manifestType == null)
+                return 0;
+
+            var method = manifestType.GetMethod(
+                "GenerateOrUpdateAndroidManifest",
+                System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static);
+            if (method == null)
+                return 0;
+
+            try
+            {
+                bool shouldUpdate = true;
+                var existsMethod = manifestType.GetMethod(
+                    "DoesAndroidManifestExist",
+                    System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static);
+                var outdatedMethod = manifestType.GetMethod(
+                    "IsManifestOutdated",
+                    System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static);
+
+                bool exists = existsMethod?.Invoke(null, null) is bool existsValue && existsValue;
+                if (exists && outdatedMethod != null)
+                {
+                    object[] args = { null };
+                    bool outdated = outdatedMethod.Invoke(null, args) is bool outdatedValue && outdatedValue;
+                    shouldUpdate = outdated;
+                }
+
+                if (!shouldUpdate)
+                    return 0;
+
+                method.Invoke(null, new object[] { true });
+                return 1;
+            }
+            catch (Exception ex)
+            {
+                string exceptionMessage = ex.InnerException?.Message ?? ex.Message;
+                warnings.Add($"Android Manifest silent update failed: {exceptionMessage}");
+                return 0;
+            }
+        }
+
+        private static int ApplyMetaProjectSetupFixes(
+            BuildTargetGroup group,
+            List<string> issues,
+            List<string> warnings)
+        {
+            Type statusType = FindType("OVRProjectSetupStatus");
+            if (statusType == null)
+                return 0;
+
+            var computeStatusMethod = statusType.GetMethod(
+                "ComputeStatus",
+                System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static);
+            if (computeStatusMethod == null)
+                return 0;
+
+            int applied = 0;
+            var skippedMessages = new HashSet<string>();
+
+            for (int pass = 0; pass < 4; pass++)
+            {
+                object status = computeStatusMethod.Invoke(null, new object[] { group });
+                var tasks = GetReflectedValue(status, "OutstandingTasks") as IEnumerable;
+                if (tasks == null)
+                    break;
+
+                bool changedThisPass = false;
+                foreach (object task in tasks)
+                {
+                    string message = GetOptionalLambdaValue(GetReflectedValue(task, "Message"), group);
+                    string tags = GetReflectedString(task, "Tags");
+                    bool hasFix = GetReflectedValue(task, "FixAction") != null;
+                    bool hasAsyncFix = GetReflectedValue(task, "AsyncFixAction") != null;
+
+                    if (tags.Contains("ManuallyFixable"))
+                    {
+                        if (IsSafePlatformSdkManualTask(message))
+                        {
+                            var setMarkedAsFixedMethod = task.GetType().GetMethod(
+                                "SetMarkedAsFixed",
+                                System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
+                            setMarkedAsFixedMethod?.Invoke(task, new object[] { group, true });
+                            applied++;
+                            changedThisPass = true;
+                        }
+                        else if (skippedMessages.Add(message))
+                        {
+                            warnings.Add($"Meta XR {group}: manual task skipped - {message}");
+                        }
+
+                        continue;
+                    }
+
+                    if (!hasFix)
+                    {
+                        if (hasAsyncFix && skippedMessages.Add(message))
+                            warnings.Add($"Meta XR {group}: async task skipped - {message}");
+                        continue;
+                    }
+
+                    if (tags.Contains("HeavyProcessing"))
+                    {
+                        if (skippedMessages.Add(message))
+                            warnings.Add($"Meta XR {group}: heavy task skipped after silent direct setup - {message}");
+                        continue;
+                    }
+
+                    if (message.Contains("Manual selection of Graphic API, favoring Direct3D11"))
+                    {
+                        if (skippedMessages.Add(message))
+                            issues.Add($"Meta XR {group}: Direct3D11 validation remained after direct setup - {message}");
+                        continue;
+                    }
+
+                    var fixMethod = task.GetType().GetMethod(
+                        "Fix",
+                        System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
+                    if (fixMethod == null)
+                        continue;
+
+                    bool fixedTask = false;
+                    try
+                    {
+                        object result = fixMethod.Invoke(task, new object[] { group });
+                        fixedTask = result is bool boolResult && boolResult;
+                    }
+                    catch (Exception ex)
+                    {
+                        string exceptionMessage = ex.InnerException?.Message ?? ex.Message;
+                        if (skippedMessages.Add(message))
+                            warnings.Add($"Meta XR {group}: failed to fix '{message}' - {exceptionMessage}");
+                    }
+
+                    if (fixedTask)
+                    {
+                        applied++;
+                        changedThisPass = true;
+                    }
+                    else if (skippedMessages.Add(message))
+                    {
+                        warnings.Add($"Meta XR {group}: fix did not complete - {message}");
+                    }
+                }
+
+                if (!changedThisPass)
+                    break;
+            }
+
+            return applied;
+        }
+
+        private static int ApplyBuildValidationFixes(
+            BuildTargetGroup group,
+            List<string> issues,
+            List<string> warnings)
+        {
+            Type validatorType = FindType("Unity.XR.CoreUtils.Editor.BuildValidator");
+            Type ruleType = FindType("Unity.XR.CoreUtils.Editor.BuildValidationRule");
+            if (validatorType == null || ruleType == null)
+                return 0;
+
+            var method = validatorType.GetMethod(
+                "GetCurrentValidationIssues",
+                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+            if (method == null)
+                return 0;
+
+            int applied = 0;
+            var skippedMessages = new HashSet<string>();
+
+            for (int pass = 0; pass < 4; pass++)
+            {
+                object failures = Activator.CreateInstance(typeof(HashSet<>).MakeGenericType(ruleType));
+                method.Invoke(null, new object[] { failures, group });
+
+                bool changedThisPass = false;
+                foreach (object rule in (IEnumerable)failures)
+                {
+                    string message = GetReflectedString(rule, "Message");
+                    if (message.Contains(OPENXR_TARGET_API_WARNING_FRAGMENT))
+                        continue;
+
+                    if (message.Contains("Manual selection of Graphic API, favoring Direct3D11"))
+                    {
+                        if (skippedMessages.Add(message))
+                            issues.Add($"Project Validation {group}: Direct3D11 validation remained after direct setup - {message}");
+                        continue;
+                    }
+
+                    bool automatic = GetReflectedBool(rule, "FixItAutomatic");
+                    object fixIt = GetReflectedValue(rule, "FixIt");
+                    if (!automatic || fixIt == null)
+                    {
+                        if (skippedMessages.Add(message))
+                            warnings.Add($"Project Validation {group}: no automatic fix - {message}");
+                        continue;
+                    }
+
+                    var isRuleEnabled = GetReflectedValue(rule, "IsRuleEnabled") as Func<bool>;
+                    var checkPredicate = GetReflectedValue(rule, "CheckPredicate") as Func<bool>;
+                    if (isRuleEnabled != null && !isRuleEnabled())
+                        continue;
+                    if (checkPredicate != null && checkPredicate())
+                        continue;
+
+                    try
+                    {
+                        ((Action)fixIt).Invoke();
+                        applied++;
+                        changedThisPass = true;
+                    }
+                    catch (Exception ex)
+                    {
+                        string exceptionMessage = ex.InnerException?.Message ?? ex.Message;
+                        if (skippedMessages.Add(message))
+                            warnings.Add($"Project Validation {group}: failed to fix '{message}' - {exceptionMessage}");
+                    }
+                }
+
+                if (!changedThisPass)
+                    break;
+            }
+
+            return applied;
+        }
+
+        private static int NormalizeOpenXRFeatureTargetApiVersions(BuildTargetGroup group, List<string> warnings)
+        {
+            object settings = GetOpenXRSettings(group);
+            if (settings == null)
+                return 0;
+
+            var getFeaturesMethod = settings.GetType()
+                .GetMethods(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance)
+                .FirstOrDefault(method => method.Name == "GetFeatures"
+                    && !method.IsGenericMethod
+                    && method.GetParameters().Length == 0);
+            if (getFeaturesMethod == null)
+                return 0;
+
+            string currentApiVersion = GetCurrentOpenXRApiVersion();
+            int changed = 0;
+
+            object features = getFeaturesMethod.Invoke(settings, null);
+            foreach (object feature in (IEnumerable)features)
+            {
+                var enabledProperty = feature.GetType().GetProperty(
+                    "enabled",
+                    System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance);
+                bool enabled = enabledProperty?.GetValue(feature) is bool boolValue && boolValue;
+                if (!enabled || !(feature is UnityEngine.Object featureObject))
+                    continue;
+
+                var serializedObject = new SerializedObject(featureObject);
+                var targetVersionProperty = serializedObject.FindProperty("targetOpenXRApiVersion");
+                if (targetVersionProperty == null || string.IsNullOrEmpty(targetVersionProperty.stringValue))
+                    continue;
+
+                if (!IsLowerPatchOpenXRApiVersion(targetVersionProperty.stringValue, currentApiVersion))
+                    continue;
+
+                string previousVersion = targetVersionProperty.stringValue;
+                targetVersionProperty.stringValue = currentApiVersion;
+                serializedObject.ApplyModifiedPropertiesWithoutUndo();
+                EditorUtility.SetDirty(featureObject);
+                changed++;
+
+                warnings.Add(
+                    $"OpenXR {group}: normalized {feature.GetType().Name} target API {previousVersion} -> {currentApiVersion}");
+            }
+
+            if (changed > 0 && settings is UnityEngine.Object settingsObject)
+                EditorUtility.SetDirty(settingsObject);
+
+            return changed;
+        }
+
+        private static int CountCurrentBuildValidationIssues(BuildTargetGroup group)
+        {
+            Type validatorType = FindType("Unity.XR.CoreUtils.Editor.BuildValidator");
+            Type ruleType = FindType("Unity.XR.CoreUtils.Editor.BuildValidationRule");
+            if (validatorType == null || ruleType == null)
+                return 0;
+
+            var method = validatorType.GetMethod(
+                "GetCurrentValidationIssues",
+                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+            if (method == null)
+                return 0;
+
+            object failures = Activator.CreateInstance(typeof(HashSet<>).MakeGenericType(ruleType));
+            method.Invoke(null, new object[] { failures, group });
+
+            int count = 0;
+            foreach (object _ in (IEnumerable)failures)
+                count++;
+
+            return count;
+        }
+
+        private static int CountCurrentMetaProjectSetupIssues(BuildTargetGroup group)
+        {
+            Type statusType = FindType("OVRProjectSetupStatus");
+            if (statusType == null)
+                return 0;
+
+            var computeStatusMethod = statusType.GetMethod(
+                "ComputeStatus",
+                System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static);
+            if (computeStatusMethod == null)
+                return 0;
+
+            object status = computeStatusMethod.Invoke(null, new object[] { group });
+            object count = GetReflectedValue(status, "TotalOutstandingCount");
+            return count is int intValue ? intValue : 0;
+        }
+
+        private static object GetOpenXRSettings(BuildTargetGroup group)
+        {
+            Type settingsType = FindType("UnityEngine.XR.OpenXR.OpenXRSettings");
+            if (settingsType == null)
+                return null;
+
+            var method = settingsType.GetMethod(
+                "GetSettingsForBuildTargetGroup",
+                System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static);
+            return method?.Invoke(null, new object[] { group });
+        }
+
+        private static void RefreshOpenXRFeatures(BuildTargetGroup group)
+        {
+            Type helpersType = FindType("UnityEditor.XR.OpenXR.Features.FeatureHelpers");
+            var method = helpersType?.GetMethod(
+                "RefreshFeatures",
+                System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+            method?.Invoke(null, new object[] { group });
+        }
+
+        private static string GetCurrentOpenXRApiVersion()
+        {
+            Type versionType = FindType("UnityEngine.XR.OpenXR.OpenXRApiVersion");
+            var property = versionType?.GetProperty(
+                "Current",
+                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+            object current = property?.GetValue(null);
+            return current?.ToString() ?? CURRENT_OPENXR_API_VERSION_FALLBACK;
+        }
+
+        private static bool IsLowerPatchOpenXRApiVersion(string value, string target)
+        {
+            if (!Version.TryParse(value, out var currentVersion) || !Version.TryParse(target, out var targetVersion))
+                return false;
+
+            return currentVersion.Major == targetVersion.Major
+                && currentVersion.Minor == targetVersion.Minor
+                && currentVersion.Build >= 0
+                && targetVersion.Build >= 0
+                && currentVersion.Build < targetVersion.Build;
+        }
+
+        private static int RemoveStaleOpenXRTargetApiValidationRules(BuildTargetGroup group)
+        {
+            if (HasFreshOpenXRTargetApiValidationIssue(group))
+                return 0;
+
+            Type validatorType = FindType("Unity.XR.CoreUtils.Editor.BuildValidator");
+            if (validatorType == null)
+                return 0;
+
+            var platformRulesField = validatorType.GetField(
+                "s_PlatformRules",
+                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+            var platformRules = platformRulesField?.GetValue(null) as System.Collections.IDictionary;
+            if (platformRules == null || !platformRules.Contains(group))
+                return 0;
+
+            var rules = platformRules[group] as System.Collections.IList;
+            if (rules == null)
+                return 0;
+
+            int removed = 0;
+            for (int i = rules.Count - 1; i >= 0; i--)
+            {
+                object rule = rules[i];
+                string message = GetReflectedString(rule, "Message");
+                if (!message.Contains(OPENXR_TARGET_API_WARNING_FRAGMENT))
+                    continue;
+
+                rules.RemoveAt(i);
+                removed++;
+            }
+
+            return removed;
+        }
+
+        private static bool HasFreshOpenXRTargetApiValidationIssue(BuildTargetGroup group)
+        {
+            Type validationType = FindType("UnityEditor.XR.OpenXR.OpenXRProjectValidation");
+            Type ruleType = FindType("UnityEngine.XR.OpenXR.Features.OpenXRFeature+ValidationRule");
+            if (validationType == null || ruleType == null)
+                return false;
+
+            var method = validationType.GetMethod(
+                "GetCurrentValidationIssues",
+                System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static);
+            if (method == null)
+                return false;
+
+            object issues = Activator.CreateInstance(typeof(List<>).MakeGenericType(ruleType));
+            method.Invoke(null, new object[] { issues, group });
+
+            foreach (object issue in (IEnumerable)issues)
+            {
+                string message = GetReflectedString(issue, "message");
+                if (message.Contains(OPENXR_TARGET_API_WARNING_FRAGMENT))
+                    return true;
+            }
+
+            return false;
+        }
+
+        private static bool IsSafePlatformSdkManualTask(string message)
+        {
+            return message.Contains("Please ignore if you are not using any Platform SDK APIs.");
+        }
+
+        private static string GetOptionalLambdaValue(object optionalValue, BuildTargetGroup group)
+        {
+            if (optionalValue == null)
+                return string.Empty;
+
+            var method = optionalValue.GetType().GetMethod(
+                "GetValue",
+                System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+            object value = method?.Invoke(optionalValue, new object[] { group });
+            return value == null ? string.Empty : value.ToString();
         }
 
         private static bool EnsureOpenXRLoader(BuildTargetGroup group, List<string> issues)
