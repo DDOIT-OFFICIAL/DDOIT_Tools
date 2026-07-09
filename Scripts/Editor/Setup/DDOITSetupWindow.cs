@@ -27,20 +27,20 @@ namespace DDOIT.Tools.Setup
 
         private static readonly DependencyInfo[] REQUIRED_DEPENDENCIES =
         {
-            new DependencyInfo("Meta XR All-in-One SDK", "com.meta.xr.sdk.all", "203.0.0",
+            new DependencyInfo("Meta XR All-in-One SDK", "com.meta.xr.sdk.all", "203.0.0", DependencyVersionPolicy.ExactVersion,
                 "Unity Asset Store에서 먼저 내 에셋에 추가해야 합니다. (Audio/Voice 모듈만 v85.0.0 유지)"),
-            new DependencyInfo("Input System", "com.unity.inputsystem", "1.18.0", null),
-            new DependencyInfo("TextMeshPro", "com.unity.textmeshpro", "4.0.0", null),
-            new DependencyInfo("Addressables", "com.unity.addressables", "2.8.1", null),
+            new DependencyInfo("Input System", "com.unity.inputsystem", "1.18.0", DependencyVersionPolicy.MinimumVersion, null),
+            new DependencyInfo("TextMeshPro", "com.unity.textmeshpro", "4.0.0", DependencyVersionPolicy.MinimumVersion, null),
+            new DependencyInfo("Addressables", "com.unity.addressables", "2.8.1", DependencyVersionPolicy.MinimumVersion, null),
             new DependencyInfo("Lottie Player", "com.gilzoide.lottie-player",
-                "https://github.com/gilzoide/unity-lottie-player.git", null),
+                "https://github.com/gilzoide/unity-lottie-player.git", DependencyVersionPolicy.PresenceOnly, null),
         };
 
         private static readonly DependencyInfo[] OPTIONAL_DEPENDENCIES =
         {
             new DependencyInfo("Unity-CLI Connector", "com.youngwoocho02.unity-cli-connector",
                 "https://github.com/youngwoocho02/unity-cli.git?path=unity-connector",
-                "AI 기반 vibe 코딩 시 권장"),
+                DependencyVersionPolicy.PresenceOnly, "AI 기반 vibe 코딩 시 권장"),
         };
 
         private const string SHOWN_KEY = "DDOIT_SetupWindow_Shown";
@@ -65,15 +65,29 @@ namespace DDOIT.Tools.Setup
             public string displayName;
             public string packageId;
             public string versionOrUrl;
+            public DependencyVersionPolicy versionPolicy;
             public string note;
 
-            public DependencyInfo(string displayName, string packageId, string versionOrUrl, string note)
+            public DependencyInfo(
+                string displayName,
+                string packageId,
+                string versionOrUrl,
+                DependencyVersionPolicy versionPolicy,
+                string note)
             {
                 this.displayName = displayName;
                 this.packageId = packageId;
                 this.versionOrUrl = versionOrUrl;
+                this.versionPolicy = versionPolicy;
                 this.note = note;
             }
+        }
+
+        private enum DependencyVersionPolicy
+        {
+            ExactVersion,
+            MinimumVersion,
+            PresenceOnly
         }
 
         private enum DependencyState
@@ -233,7 +247,7 @@ namespace DDOIT.Tools.Setup
                 {
                     EditorGUI.indentLevel++;
                     EditorGUILayout.HelpBox(
-                        $"설치 버전: {status.installedVersion}\n요구 버전: {dep.versionOrUrl}",
+                        $"설치 버전: {status.installedVersion}\n요구 기준: {GetDependencyRequirementText(dep)}",
                         MessageType.Warning);
                     EditorGUI.indentLevel--;
                 }
@@ -893,22 +907,54 @@ namespace DDOIT.Tools.Setup
             if (string.IsNullOrEmpty(installedVersion))
                 return new DependencyStatus(DependencyState.Missing, null);
 
-            if (IsUrl(dep.versionOrUrl))
+            switch (dep.versionPolicy)
             {
-                if (manifestVersion == dep.versionOrUrl)
-                    return new DependencyStatus(DependencyState.Installed, manifestVersion);
+                case DependencyVersionPolicy.PresenceOnly:
+                    return new DependencyStatus(DependencyState.Installed, installedVersion);
 
-                if (manifestVersion == null && resolvedVersion != null)
-                    return new DependencyStatus(DependencyState.Installed, resolvedVersion);
+                case DependencyVersionPolicy.MinimumVersion:
+                    return IsVersionAtLeast(installedVersion, dep.versionOrUrl)
+                        ? new DependencyStatus(DependencyState.Installed, installedVersion)
+                        : new DependencyStatus(DependencyState.VersionMismatch, installedVersion);
 
-                return manifestVersion == dep.versionOrUrl
-                    ? new DependencyStatus(DependencyState.Installed, installedVersion)
-                    : new DependencyStatus(DependencyState.VersionMismatch, installedVersion);
+                default:
+                    return installedVersion == dep.versionOrUrl
+                        ? new DependencyStatus(DependencyState.Installed, installedVersion)
+                        : new DependencyStatus(DependencyState.VersionMismatch, installedVersion);
+            }
+        }
+
+        private static bool IsVersionAtLeast(string installedVersion, string minimumVersion)
+        {
+            if (System.Version.TryParse(NormalizeVersion(installedVersion), out var installed) &&
+                System.Version.TryParse(NormalizeVersion(minimumVersion), out var minimum))
+            {
+                return installed >= minimum;
             }
 
-            return installedVersion == dep.versionOrUrl
-                ? new DependencyStatus(DependencyState.Installed, installedVersion)
-                : new DependencyStatus(DependencyState.VersionMismatch, installedVersion);
+            return installedVersion == minimumVersion;
+        }
+
+        private static string NormalizeVersion(string version)
+        {
+            int suffixIndex = version.IndexOf('-');
+            if (suffixIndex >= 0)
+                version = version.Substring(0, suffixIndex);
+
+            return version;
+        }
+
+        private static string GetDependencyRequirementText(DependencyInfo dep)
+        {
+            switch (dep.versionPolicy)
+            {
+                case DependencyVersionPolicy.PresenceOnly:
+                    return "설치됨";
+                case DependencyVersionPolicy.MinimumVersion:
+                    return $"{dep.versionOrUrl} 이상";
+                default:
+                    return dep.versionOrUrl;
+            }
         }
 
         private static string GetResolvedPackageVersion(string packageId)
