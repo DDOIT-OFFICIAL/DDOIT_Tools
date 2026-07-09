@@ -6,7 +6,7 @@
 - Unity 버전: 6000.3.7f1
 - Meta XR All-In-One SDK 버전: 203.0.0 (Core/Interaction/Platform/Haptics/MRUK 동일, Audio/Voice는 v85.0.0 유지)
 - Meta XR Movement SDK 버전: 203.0.0 (현재 GitHub main HEAD 잠금; 재현성 필요 시 tag pin `#v203.0.0` 검토. Min Unity 6 강제)
-- XR Management: 4.5.4 / OpenXR: 1.17.0
+- XR Management: 4.5.4 / OpenXR: 1.17.1
 - 네트워킹: Photon Fusion 2.0.9 (예정)
 
 ## DDOIT_Tools 개발 원칙

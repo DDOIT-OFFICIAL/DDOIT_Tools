@@ -13,7 +13,7 @@
 | Audio / Voice | 85.0.0 |
 | Movement SDK | 203.0.0 |
 | XR Management | 4.5.4 |
-| OpenXR | 1.17.0 |
+| OpenXR | 1.17.1 |
 | Input System | 1.18.0 |
 | Unity CLI Connector | 0.3.22 |
 

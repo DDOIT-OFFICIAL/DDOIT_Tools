@@ -40,6 +40,8 @@ namespace DDOIT.Tools.Setup
             new DependencyInfo("Input System", "com.unity.inputsystem", "1.18.0", DependencyVersionPolicy.MinimumVersion, null),
             new DependencyInfo("TextMeshPro", "com.unity.textmeshpro", "4.0.0", DependencyVersionPolicy.MinimumVersion, null),
             new DependencyInfo("Addressables", "com.unity.addressables", "2.8.1", DependencyVersionPolicy.MinimumVersion, null),
+            new DependencyInfo("XR Management", "com.unity.xr.management", "4.5.4", DependencyVersionPolicy.MinimumVersion, null),
+            new DependencyInfo("OpenXR Plugin", "com.unity.xr.openxr", "1.17.1", DependencyVersionPolicy.MinimumVersion, null),
             new DependencyInfo("Lottie Player", "com.gilzoide.lottie-player",
                 "https://github.com/gilzoide/unity-lottie-player.git", DependencyVersionPolicy.PresenceOnly, null),
         };
@@ -152,9 +154,13 @@ namespace DDOIT.Tools.Setup
 
         private Vector2 _scrollPosition;
         private static readonly Queue<DependencyInfo> PendingDependencyInstalls = new Queue<DependencyInfo>();
+        private static readonly List<string> DependencyInstallErrors = new List<string>();
         private static AddRequest ActiveAddRequest;
         private static DependencyInfo ActiveDependency;
         private static bool IsInstallingDependencies;
+        private static string ActiveInstallScopeLabel;
+        private static string LastDependencyVerificationReport;
+        private static MessageType LastDependencyVerificationMessageType = MessageType.Info;
         private static bool ApplyTimingOptimization = true;
         private static bool ApplyAudioOptimization = true;
 
@@ -240,12 +246,17 @@ namespace DDOIT.Tools.Setup
 
             EditorGUILayout.Space(4);
 
-            bool hasAnyMissing = REQUIRED_DEPENDENCIES.Any(RequiresInstallOrUpdate)
-                              || OPTIONAL_DEPENDENCIES.Any(RequiresInstallOrUpdate);
+            bool hasRequiredMissing = REQUIRED_DEPENDENCIES.Any(RequiresInstallOrUpdate);
+            bool hasOptionalMissing = OPTIONAL_DEPENDENCIES.Any(RequiresInstallOrUpdate);
 
-            EditorGUI.BeginDisabledGroup(!hasAnyMissing || IsInstallingDependencies);
-            if (GUILayout.Button("미설치 패키지 모두 설치", GUILayout.Height(28)))
-                InstallMissingDependencies();
+            EditorGUI.BeginDisabledGroup(!hasRequiredMissing || IsInstallingDependencies);
+            if (GUILayout.Button("필수 패키지 설치/업데이트", GUILayout.Height(28)))
+                InstallMissingDependencies(REQUIRED_DEPENDENCIES, "필수 패키지");
+            EditorGUI.EndDisabledGroup();
+
+            EditorGUI.BeginDisabledGroup(!hasOptionalMissing || IsInstallingDependencies);
+            if (GUILayout.Button("권장 도구 설치/업데이트", GUILayout.Height(24)))
+                InstallMissingDependencies(OPTIONAL_DEPENDENCIES, "권장 도구");
             EditorGUI.EndDisabledGroup();
 
             if (IsInstallingDependencies)
@@ -254,10 +265,21 @@ namespace DDOIT.Tools.Setup
                 EditorGUILayout.HelpBox($"패키지 설치 진행 중: {ActiveDependency.displayName}", MessageType.Info);
             }
 
-            if (!hasAnyMissing)
+            if (!string.IsNullOrEmpty(LastDependencyVerificationReport))
+            {
+                EditorGUILayout.Space(2);
+                EditorGUILayout.HelpBox(LastDependencyVerificationReport, LastDependencyVerificationMessageType);
+            }
+
+            if (!hasRequiredMissing && !hasOptionalMissing)
             {
                 EditorGUILayout.Space(2);
                 EditorGUILayout.HelpBox("모든 의존성 패키지가 설치되어 있습니다.", MessageType.Info);
+            }
+            else if (!hasRequiredMissing)
+            {
+                EditorGUILayout.Space(2);
+                EditorGUILayout.HelpBox("필수 의존성 패키지는 모두 설치되어 있습니다. 권장 도구는 필요 시 별도로 설치하세요.", MessageType.Info);
             }
         }
 
@@ -874,7 +896,7 @@ namespace DDOIT.Tools.Setup
         private static void AppendOpenXRPredictedTimeWarning(OptimizePreflightResult result, BuildTargetGroup group)
         {
             string openXrVersion = GetResolvedPackageVersion("com.unity.xr.openxr");
-            if (string.IsNullOrEmpty(openXrVersion) || !IsVersionAtLeast(openXrVersion, "1.17.0"))
+            if (string.IsNullOrEmpty(openXrVersion) || !IsVersionAtLeast(openXrVersion, "1.17.1"))
                 return;
 
             Type settingsType = FindType("UnityEngine.XR.OpenXR.OpenXRSettings");
@@ -896,7 +918,7 @@ namespace DDOIT.Tools.Setup
             if (prop != null && !prop.boolValue)
             {
                 result.warnings.Add(
-                    $"OpenXR {group}: Use OpenXR Predicted Time이 꺼져 있습니다. OpenXR 1.17.0+ 기본값은 켜짐이며, Optimize는 이 값을 자동 변경하지 않습니다.");
+                    $"OpenXR {group}: Use OpenXR Predicted Time이 꺼져 있습니다. OpenXR 1.17.1+ 기본값은 켜짐이며, Optimize는 이 값을 자동 변경하지 않습니다.");
             }
         }
 
@@ -1067,7 +1089,7 @@ namespace DDOIT.Tools.Setup
 
         #region Actions
 
-        private static void InstallMissingDependencies()
+        private static void InstallMissingDependencies(DependencyInfo[] dependencies, string scopeLabel)
         {
             if (IsInstallingDependencies)
             {
@@ -1075,17 +1097,20 @@ namespace DDOIT.Tools.Setup
                 return;
             }
 
-            var allDeps = new List<DependencyInfo>(REQUIRED_DEPENDENCIES);
-            allDeps.AddRange(OPTIONAL_DEPENDENCIES);
+            DependencyInstallErrors.Clear();
+            ActiveInstallScopeLabel = scopeLabel;
 
-            var targets = allDeps.Where(RequiresInstallOrUpdate).ToList();
+            var targets = dependencies.Where(RequiresInstallOrUpdate).ToList();
             if (targets.Count == 0)
             {
-                Debug.Log("[DDOITSetupWindow] 모든 패키지가 이미 설치되어 있습니다.");
+                UpdateDependencyVerificationReport($"{scopeLabel} 검증");
+                Debug.Log($"[DDOITSetupWindow] {scopeLabel}: 설치/업데이트 대상이 없습니다.");
                 return;
             }
 
             PendingDependencyInstalls.Clear();
+            LastDependencyVerificationReport = null;
+
             foreach (var dep in targets)
                 PendingDependencyInstalls.Enqueue(dep);
 
@@ -1108,6 +1133,7 @@ namespace DDOIT.Tools.Setup
                 string errorMessage = ActiveAddRequest.Error != null
                     ? ActiveAddRequest.Error.message
                     : "알 수 없는 Package Manager 오류";
+                DependencyInstallErrors.Add($"{ActiveDependency.displayName}: {errorMessage}");
                 Debug.LogError(
                     $"[DDOITSetupWindow] 설치 실패: {ActiveDependency.displayName}\n" +
                     errorMessage);
@@ -1124,13 +1150,15 @@ namespace DDOIT.Tools.Setup
                 IsInstallingDependencies = false;
                 EditorApplication.update -= ProcessDependencyInstallQueue;
                 AssetDatabase.Refresh();
+                UpdateDependencyVerificationReport($"{ActiveInstallScopeLabel} 설치 후 검증");
 
                 EditorUtility.DisplayDialog(
-                    "패키지 설치",
-                    "패키지 설치 요청을 모두 처리했습니다.\n\n" +
+                    "패키지 설치 검증",
+                    LastDependencyVerificationReport + "\n\n" +
                     "Meta XR SDK는 Unity Asset Store에서 먼저 '내 에셋에 추가'해야 설치됩니다.",
                     "확인");
 
+                ActiveInstallScopeLabel = null;
                 RepaintOpenSetupWindows();
                 return;
             }
@@ -1140,6 +1168,64 @@ namespace DDOIT.Tools.Setup
             Debug.Log($"[DDOITSetupWindow] 설치 요청: {ActiveDependency.displayName} ({packageSpec})");
             ActiveAddRequest = Client.Add(packageSpec);
             RepaintOpenSetupWindows();
+        }
+
+        private static void UpdateDependencyVerificationReport(string title)
+        {
+            var sb = new StringBuilder();
+            int requiredIssues = CountDependencyIssues(REQUIRED_DEPENDENCIES);
+            int optionalIssues = CountDependencyIssues(OPTIONAL_DEPENDENCIES);
+
+            sb.AppendLine(title);
+            sb.AppendLine();
+            AppendDependencyVerificationSection(sb, "필수", REQUIRED_DEPENDENCIES);
+            AppendDependencyVerificationSection(sb, "권장", OPTIONAL_DEPENDENCIES);
+
+            if (DependencyInstallErrors.Count > 0)
+            {
+                sb.AppendLine();
+                sb.AppendLine("[설치 요청 오류]");
+                foreach (var error in DependencyInstallErrors)
+                    sb.AppendLine($"- {error}");
+            }
+
+            sb.AppendLine();
+            if (requiredIssues == 0)
+                sb.AppendLine("결과: 필수 의존성은 모두 설치되어 있습니다.");
+            else
+                sb.AppendLine($"결과: 필수 의존성 {requiredIssues}개를 확인해야 합니다.");
+
+            if (optionalIssues > 0)
+                sb.AppendLine($"참고: 권장 도구 {optionalIssues}개가 아직 미설치/버전 불일치 상태입니다.");
+
+            LastDependencyVerificationReport = sb.ToString().TrimEnd();
+            LastDependencyVerificationMessageType = DependencyInstallErrors.Count > 0 || requiredIssues > 0
+                ? MessageType.Error
+                : optionalIssues > 0
+                    ? MessageType.Warning
+                    : MessageType.Info;
+        }
+
+        private static void AppendDependencyVerificationSection(
+            StringBuilder sb,
+            string label,
+            DependencyInfo[] dependencies)
+        {
+            sb.AppendLine($"[{label}]");
+            foreach (var dep in dependencies)
+            {
+                var status = GetDependencyStatus(dep);
+                string installed = string.IsNullOrEmpty(status.installedVersion)
+                    ? "미설치"
+                    : status.installedVersion;
+                sb.AppendLine(
+                    $"- {GetDependencyStatusLabel(status.state)} {dep.displayName}: {installed} / 요구 {GetDependencyRequirementText(dep)}");
+            }
+        }
+
+        private static int CountDependencyIssues(DependencyInfo[] dependencies)
+        {
+            return dependencies.Count(RequiresInstallOrUpdate);
         }
 
         private static string GetPackageAddSpec(DependencyInfo dep)
