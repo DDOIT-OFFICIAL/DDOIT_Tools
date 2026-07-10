@@ -61,6 +61,9 @@ namespace DDOIT.Tools.Setup
         private const string OVR_DISABLE_HAND_PINCH_BUTTON_MAPPING_DEFINE = "OVR_DISABLE_HAND_PINCH_BUTTON_MAPPING";
         private const string USE_INPUT_SYSTEM_POSE_CONTROL_DEFINE = "USE_INPUT_SYSTEM_POSE_CONTROL";
         private const string USE_STICK_CONTROL_THUMBSTICKS_DEFINE = "USE_STICK_CONTROL_THUMBSTICKS";
+        private const double XR_VALIDATION_STARTUP_CLEANUP_DELAY_SECONDS = 0.75d;
+        private const double XR_VALIDATION_STARTUP_CLEANUP_INTERVAL_SECONDS = 0.5d;
+        private const double XR_VALIDATION_STARTUP_CLEANUP_TIMEOUT_SECONDS = 12.0d;
 
         private const string DDOIT_DATA_FOLDER = "Assets/DDOIT_Tools/Data";
         private const string PACKAGE_DATA_PATH_DEV = "Assets/DDOIT_Tools/Data";
@@ -186,6 +189,10 @@ namespace DDOIT.Tools.Setup
         private static bool ApplyTimingOptimization = true;
         private static bool ApplyAudioOptimization = true;
         private static bool IsOptionalDefineSyncScheduled;
+        private static bool IsXRValidationStartupCleanupScheduled;
+        private static double XRValidationStartupCleanupNextRunTime;
+        private static double XRValidationStartupCleanupDeadline;
+        private static int XRValidationStartupCleanupStablePasses;
 
         private static readonly UnityEditor.Build.NamedBuildTarget[] OPTIONAL_DEFINE_TARGETS =
         {
@@ -200,6 +207,7 @@ namespace DDOIT.Tools.Setup
         static DDOITSetupWindow()
         {
             ScheduleOptionalDependencyDefineSync();
+            ScheduleStartupXRValidationCleanup();
             EditorApplication.delayCall += ShowOnFirstLoad;
         }
 
@@ -207,6 +215,7 @@ namespace DDOIT.Tools.Setup
         private static void InitOnLoad()
         {
             ScheduleOptionalDependencyDefineSync();
+            ScheduleStartupXRValidationCleanup();
             EditorApplication.delayCall += ShowOnFirstLoad;
         }
 
@@ -222,6 +231,78 @@ namespace DDOIT.Tools.Setup
             bool allInstalled = REQUIRED_DEPENDENCIES.All(d => !RequiresInstallOrUpdate(d));
             if (!allInstalled)
                 ShowWindow();
+        }
+
+        private static void ScheduleStartupXRValidationCleanup()
+        {
+            if (Application.isBatchMode || IsXRValidationStartupCleanupScheduled)
+                return;
+
+            IsXRValidationStartupCleanupScheduled = true;
+            XRValidationStartupCleanupStablePasses = 0;
+
+            double now = EditorApplication.timeSinceStartup;
+            XRValidationStartupCleanupNextRunTime = now + XR_VALIDATION_STARTUP_CLEANUP_DELAY_SECONDS;
+            XRValidationStartupCleanupDeadline = now + XR_VALIDATION_STARTUP_CLEANUP_TIMEOUT_SECONDS;
+
+            EditorApplication.update += RunStartupXRValidationCleanup;
+        }
+
+        private static void StopStartupXRValidationCleanup()
+        {
+            if (!IsXRValidationStartupCleanupScheduled)
+                return;
+
+            IsXRValidationStartupCleanupScheduled = false;
+            EditorApplication.update -= RunStartupXRValidationCleanup;
+        }
+
+        private static void RunStartupXRValidationCleanup()
+        {
+            double now = EditorApplication.timeSinceStartup;
+            if (EditorApplication.isCompiling || EditorApplication.isUpdating)
+            {
+                XRValidationStartupCleanupNextRunTime = now + XR_VALIDATION_STARTUP_CLEANUP_INTERVAL_SECONDS;
+                return;
+            }
+
+            if (now < XRValidationStartupCleanupNextRunTime)
+                return;
+
+            try
+            {
+                var warnings = new List<string>();
+                int applied = ApplyOpenXRTargetApiPatchWarningCleanup(warnings);
+                if (applied > 0)
+                    AssetDatabase.SaveAssets();
+
+                int remaining = CountOpenXRTargetApiBuildValidationIssues(BuildTargetGroup.Android)
+                              + CountOpenXRTargetApiBuildValidationIssues(BuildTargetGroup.Standalone);
+
+                XRValidationStartupCleanupStablePasses = remaining == 0
+                    ? XRValidationStartupCleanupStablePasses + 1
+                    : 0;
+
+                if (XRValidationStartupCleanupStablePasses >= 2 || now >= XRValidationStartupCleanupDeadline)
+                {
+                    StopStartupXRValidationCleanup();
+
+                    if (remaining > 0)
+                    {
+                        Debug.LogWarning(
+                            $"[DDOITSetupWindow] OpenXR target API validation cleanup timed out. Remaining warning count: {remaining}");
+                    }
+
+                    return;
+                }
+
+                XRValidationStartupCleanupNextRunTime = now + XR_VALIDATION_STARTUP_CLEANUP_INTERVAL_SECONDS;
+            }
+            catch (Exception ex)
+            {
+                StopStartupXRValidationCleanup();
+                Debug.LogWarning($"[DDOITSetupWindow] Startup XR validation cleanup failed: {ex.Message}");
+            }
         }
 
         #endregion
@@ -1057,12 +1138,21 @@ namespace DDOIT.Tools.Setup
             appliedCount += ApplyBuildValidationFixes(BuildTargetGroup.Android, issues, warnings);
             appliedCount += ApplyBuildValidationFixes(BuildTargetGroup.Standalone, issues, warnings);
 
+            appliedCount += ApplyOpenXRTargetApiPatchWarningCleanup(warnings);
+
+            AssetDatabase.SaveAssets();
+            return appliedCount;
+        }
+
+        private static int ApplyOpenXRTargetApiPatchWarningCleanup(List<string> warnings)
+        {
+            int appliedCount = 0;
+
             appliedCount += NormalizeOpenXRFeatureTargetApiVersions(BuildTargetGroup.Android, warnings);
             appliedCount += NormalizeOpenXRFeatureTargetApiVersions(BuildTargetGroup.Standalone, warnings);
             appliedCount += RemoveStaleOpenXRTargetApiValidationRules(BuildTargetGroup.Android);
             appliedCount += RemoveStaleOpenXRTargetApiValidationRules(BuildTargetGroup.Standalone);
 
-            AssetDatabase.SaveAssets();
             return appliedCount;
         }
 
@@ -1637,6 +1727,42 @@ namespace DDOIT.Tools.Setup
             int count = 0;
             foreach (object _ in (IEnumerable)failures)
                 count++;
+
+            return count;
+        }
+
+        private static int CountOpenXRTargetApiBuildValidationIssues(BuildTargetGroup group)
+        {
+            Type validatorType = FindType("Unity.XR.CoreUtils.Editor.BuildValidator");
+            Type ruleType = FindType("Unity.XR.CoreUtils.Editor.BuildValidationRule");
+            if (validatorType == null || ruleType == null)
+                return 0;
+
+            var method = validatorType.GetMethod(
+                "GetCurrentValidationIssues",
+                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+            if (method == null)
+                return 0;
+
+            object failures = Activator.CreateInstance(typeof(HashSet<>).MakeGenericType(ruleType));
+            method.Invoke(null, new object[] { failures, group });
+
+            int count = 0;
+            foreach (object rule in (IEnumerable)failures)
+            {
+                string message = GetReflectedString(rule, "Message");
+                if (string.IsNullOrEmpty(message) || !message.Contains(OPENXR_TARGET_API_WARNING_FRAGMENT))
+                    continue;
+
+                var isRuleEnabled = GetReflectedValue(rule, "IsRuleEnabled") as Func<bool>;
+                var checkPredicate = GetReflectedValue(rule, "CheckPredicate") as Func<bool>;
+                if (isRuleEnabled != null && !isRuleEnabled())
+                    continue;
+                if (checkPredicate != null && checkPredicate())
+                    continue;
+
+                count++;
+            }
 
             return count;
         }

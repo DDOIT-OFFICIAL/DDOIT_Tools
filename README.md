@@ -10,7 +10,7 @@ DDOIT Tools는 Meta Quest 기반 VR 교육프로그램을 빠르게 구성하기
 | 항목 | 값 |
 |---|---|
 | Package | `com.ddoit.tools` |
-| Latest tag | `v0.18.22` |
+| Latest tag | `v0.18.23` |
 | Unity | `6000.0+` |
 | Verified Unity | `6000.3.7f1` |
 | Target | Android / Meta Quest |
@@ -21,7 +21,7 @@ DDOIT Tools는 Meta Quest 기반 VR 교육프로그램을 빠르게 구성하기
 Unity Package Manager에서 Git URL로 설치합니다.
 
 ```text
-https://github.com/DDOIT-OFFICIAL/DDOIT_Tools.git#v0.18.22
+https://github.com/DDOIT-OFFICIAL/DDOIT_Tools.git#v0.18.23
 ```
 
 `Packages/manifest.json`에 직접 추가할 수도 있습니다.
@@ -29,7 +29,7 @@ https://github.com/DDOIT-OFFICIAL/DDOIT_Tools.git#v0.18.22
 ```json
 {
   "dependencies": {
-    "com.ddoit.tools": "https://github.com/DDOIT-OFFICIAL/DDOIT_Tools.git#v0.18.22"
+    "com.ddoit.tools": "https://github.com/DDOIT-OFFICIAL/DDOIT_Tools.git#v0.18.23"
   }
 }
 ```
@@ -105,7 +105,7 @@ Quest VR 기준 프로젝트 설정을 preflight 확인 후 적용합니다.
 - XR Plug-in Management Android/Standalone OpenXR loader 자동 등록
 
 Android/Standalone OpenXR loader가 꺼져 있으면 자동 등록합니다.
-OpenXR validation warning과 `Use OpenXR Predicted Time` 상태는 자동 변경하지 않고 preflight 경고로 표시합니다.
+Meta XR 203.0.0과 OpenXR 1.17.1 조합에서 재시작마다 복귀하는 OpenXR target API patch warning은 에디터 시작 시 자동 정리합니다. `Use OpenXR Predicted Time` 상태는 자동 변경하지 않고 preflight 경고로 표시합니다.
 
 ## Main Modules
 
