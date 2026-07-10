@@ -271,6 +271,16 @@ namespace DDOIT.Tools.Setup
 
             try
             {
+                bool targetApiRulesRegistered =
+                    HasOpenXRTargetApiValidationRuleRegistered(BuildTargetGroup.Android)
+                    || HasOpenXRTargetApiValidationRuleRegistered(BuildTargetGroup.Standalone);
+
+                if (!targetApiRulesRegistered && now < XRValidationStartupCleanupDeadline)
+                {
+                    XRValidationStartupCleanupNextRunTime = now + XR_VALIDATION_STARTUP_CLEANUP_INTERVAL_SECONDS;
+                    return;
+                }
+
                 var warnings = new List<string>();
                 int applied = ApplyOpenXRTargetApiPatchWarningCleanup(warnings);
                 if (applied > 0)
@@ -279,7 +289,7 @@ namespace DDOIT.Tools.Setup
                 int remaining = CountOpenXRTargetApiBuildValidationIssues(BuildTargetGroup.Android)
                               + CountOpenXRTargetApiBuildValidationIssues(BuildTargetGroup.Standalone);
 
-                XRValidationStartupCleanupStablePasses = remaining == 0
+                XRValidationStartupCleanupStablePasses = targetApiRulesRegistered && remaining == 0
                     ? XRValidationStartupCleanupStablePasses + 1
                     : 0;
 
@@ -1860,6 +1870,33 @@ namespace DDOIT.Tools.Setup
             }
 
             return removed;
+        }
+
+        private static bool HasOpenXRTargetApiValidationRuleRegistered(BuildTargetGroup group)
+        {
+            Type validatorType = FindType("Unity.XR.CoreUtils.Editor.BuildValidator");
+            if (validatorType == null)
+                return false;
+
+            var platformRulesField = validatorType.GetField(
+                "s_PlatformRules",
+                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+            var platformRules = platformRulesField?.GetValue(null) as System.Collections.IDictionary;
+            if (platformRules == null || !platformRules.Contains(group))
+                return false;
+
+            var rules = platformRules[group] as System.Collections.IEnumerable;
+            if (rules == null)
+                return false;
+
+            foreach (object rule in rules)
+            {
+                string message = GetReflectedString(rule, "Message");
+                if (!string.IsNullOrEmpty(message) && message.Contains(OPENXR_TARGET_API_WARNING_FRAGMENT))
+                    return true;
+            }
+
+            return false;
         }
 
         private static bool HasFreshOpenXRTargetApiValidationIssue(BuildTargetGroup group)

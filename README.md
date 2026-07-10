@@ -10,7 +10,7 @@ DDOIT Tools는 Meta Quest 기반 VR 교육프로그램을 빠르게 구성하기
 | 항목 | 값 |
 |---|---|
 | Package | `com.ddoit.tools` |
-| Latest tag | `v0.18.23` |
+| Latest tag | `v0.18.24` |
 | Unity | `6000.0+` |
 | Verified Unity | `6000.3.7f1` |
 | Target | Android / Meta Quest |
@@ -21,7 +21,7 @@ DDOIT Tools는 Meta Quest 기반 VR 교육프로그램을 빠르게 구성하기
 Unity Package Manager에서 Git URL로 설치합니다.
 
 ```text
-https://github.com/DDOIT-OFFICIAL/DDOIT_Tools.git#v0.18.23
+https://github.com/DDOIT-OFFICIAL/DDOIT_Tools.git#v0.18.24
 ```
 
 `Packages/manifest.json`에 직접 추가할 수도 있습니다.
@@ -29,7 +29,7 @@ https://github.com/DDOIT-OFFICIAL/DDOIT_Tools.git#v0.18.23
 ```json
 {
   "dependencies": {
-    "com.ddoit.tools": "https://github.com/DDOIT-OFFICIAL/DDOIT_Tools.git#v0.18.23"
+    "com.ddoit.tools": "https://github.com/DDOIT-OFFICIAL/DDOIT_Tools.git#v0.18.24"
   }
 }
 ```
