@@ -58,12 +58,14 @@ namespace DDOIT.Tools.Setup
         private const string OPENXR_LOADER_TYPE_NAME = "UnityEngine.XR.OpenXR.OpenXRLoader";
         private const string CURRENT_OPENXR_API_VERSION_FALLBACK = "1.1.54";
         private const string OPENXR_TARGET_API_WARNING_FRAGMENT = "targets an API version with a patch version lower than";
+        private const string OPENXR_FEATURES_REFRESHED_SESSION_KEY = "com.unity.xr.openxr.featuresRefreshed";
         private const string OVR_DISABLE_HAND_PINCH_BUTTON_MAPPING_DEFINE = "OVR_DISABLE_HAND_PINCH_BUTTON_MAPPING";
         private const string USE_INPUT_SYSTEM_POSE_CONTROL_DEFINE = "USE_INPUT_SYSTEM_POSE_CONTROL";
         private const string USE_STICK_CONTROL_THUMBSTICKS_DEFINE = "USE_STICK_CONTROL_THUMBSTICKS";
         private const double XR_VALIDATION_STARTUP_CLEANUP_DELAY_SECONDS = 0.75d;
         private const double XR_VALIDATION_STARTUP_CLEANUP_INTERVAL_SECONDS = 0.5d;
-        private const double XR_VALIDATION_STARTUP_CLEANUP_TIMEOUT_SECONDS = 12.0d;
+        private const double XR_VALIDATION_STARTUP_CLEANUP_TIMEOUT_SECONDS = 180.0d;
+        private const int XR_VALIDATION_STARTUP_CLEANUP_STABLE_PASS_COUNT = 6;
 
         private const string DDOIT_DATA_FOLDER = "Assets/DDOIT_Tools/Data";
         private const string PACKAGE_DATA_PATH_DEV = "Assets/DDOIT_Tools/Data";
@@ -271,12 +273,23 @@ namespace DDOIT.Tools.Setup
 
             try
             {
-                bool targetApiRulesRegistered =
-                    HasOpenXRTargetApiValidationRuleRegistered(BuildTargetGroup.Android)
-                    || HasOpenXRTargetApiValidationRuleRegistered(BuildTargetGroup.Standalone);
-
-                if (!targetApiRulesRegistered && now < XRValidationStartupCleanupDeadline)
+                if (!IsOpenXRTargetApiStartupCleanupRelevant())
                 {
+                    StopStartupXRValidationCleanup();
+                    return;
+                }
+
+                bool validationRulesInitialized = HasOpenXRValidationRulesInitialized();
+                if (!validationRulesInitialized)
+                {
+                    if (now >= XRValidationStartupCleanupDeadline)
+                    {
+                        StopStartupXRValidationCleanup();
+                        Debug.LogWarning(
+                            "[DDOITSetupWindow] OpenXR target API validation cleanup timed out before OpenXR validation rules were initialized.");
+                        return;
+                    }
+
                     XRValidationStartupCleanupNextRunTime = now + XR_VALIDATION_STARTUP_CLEANUP_INTERVAL_SECONDS;
                     return;
                 }
@@ -289,11 +302,12 @@ namespace DDOIT.Tools.Setup
                 int remaining = CountOpenXRTargetApiBuildValidationIssues(BuildTargetGroup.Android)
                               + CountOpenXRTargetApiBuildValidationIssues(BuildTargetGroup.Standalone);
 
-                XRValidationStartupCleanupStablePasses = targetApiRulesRegistered && remaining == 0
+                XRValidationStartupCleanupStablePasses = remaining == 0
                     ? XRValidationStartupCleanupStablePasses + 1
                     : 0;
 
-                if (XRValidationStartupCleanupStablePasses >= 2 || now >= XRValidationStartupCleanupDeadline)
+                if (XRValidationStartupCleanupStablePasses >= XR_VALIDATION_STARTUP_CLEANUP_STABLE_PASS_COUNT
+                    || now >= XRValidationStartupCleanupDeadline)
                 {
                     StopStartupXRValidationCleanup();
 
@@ -1897,6 +1911,35 @@ namespace DDOIT.Tools.Setup
             }
 
             return false;
+        }
+
+        private static bool IsOpenXRTargetApiStartupCleanupRelevant()
+        {
+            if (FindType("UnityEngine.XR.OpenXR.OpenXRSettings") == null
+                || FindType("UnityEditor.XR.OpenXR.OpenXRProjectValidation") == null
+                || FindType("Unity.XR.CoreUtils.Editor.BuildValidator") == null)
+            {
+                return false;
+            }
+
+            bool hasTargetMetaFeatures = FindType("Meta.XR.MetaXRFeature") != null
+                || FindType("Meta.XR.OculusTouchControllerProximityProfile") != null;
+            if (!hasTargetMetaFeatures)
+                return false;
+
+            return IsOpenXRLoaderEnabled(BuildTargetGroup.Android, out _)
+                || IsOpenXRLoaderEnabled(BuildTargetGroup.Standalone, out _);
+        }
+
+        private static bool HasOpenXRValidationRulesInitialized()
+        {
+            if (SessionState.GetBool(OPENXR_FEATURES_REFRESHED_SESSION_KEY, false))
+                return true;
+
+            return HasOpenXRTargetApiValidationRuleRegistered(BuildTargetGroup.Android)
+                || HasOpenXRTargetApiValidationRuleRegistered(BuildTargetGroup.Standalone)
+                || CountOpenXRTargetApiBuildValidationIssues(BuildTargetGroup.Android) > 0
+                || CountOpenXRTargetApiBuildValidationIssues(BuildTargetGroup.Standalone) > 0;
         }
 
         private static bool HasFreshOpenXRTargetApiValidationIssue(BuildTargetGroup group)
