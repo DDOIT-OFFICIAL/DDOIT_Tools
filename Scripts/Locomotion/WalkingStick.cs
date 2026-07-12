@@ -18,7 +18,6 @@
  * limitations under the License.
  */
 
-#if DDOIT_META_XR_AVAILABLE
 using UnityEngine;
 using UnityEngine.Events;
 
@@ -149,4 +148,3 @@ namespace DDOIT.Tools.Locomotion
         #endregion
     }
 }
-#endif

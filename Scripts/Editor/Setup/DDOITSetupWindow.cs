@@ -33,6 +33,8 @@ namespace DDOIT.Tools.Setup
             "999. Resources/AssetStore"
         };
 
+        private const string OPENXR_PACKAGE_ID = "com.unity.xr.openxr";
+
         private static readonly DependencyInfo[] REQUIRED_DEPENDENCIES =
         {
             new DependencyInfo("Meta XR All-in-One SDK", "com.meta.xr.sdk.all", "203.0.0", DependencyVersionPolicy.ExactVersion,
@@ -41,7 +43,7 @@ namespace DDOIT.Tools.Setup
             new DependencyInfo("TextMeshPro", "com.unity.textmeshpro", "4.0.0", DependencyVersionPolicy.MinimumVersion, null),
             new DependencyInfo("Addressables", "com.unity.addressables", "2.8.1", DependencyVersionPolicy.MinimumVersion, null),
             new DependencyInfo("XR Management", "com.unity.xr.management", "4.5.4", DependencyVersionPolicy.MinimumVersion, null),
-            new DependencyInfo("OpenXR Plugin", "com.unity.xr.openxr", "1.17.1", DependencyVersionPolicy.MinimumVersion, null),
+            new DependencyInfo("OpenXR Plugin", OPENXR_PACKAGE_ID, "1.17.1", DependencyVersionPolicy.MinimumVersion, null),
             new DependencyInfo("Lottie Player", "com.gilzoide.lottie-player",
                 "https://github.com/gilzoide/unity-lottie-player.git", DependencyVersionPolicy.PresenceOnly, null),
         };
@@ -54,7 +56,8 @@ namespace DDOIT.Tools.Setup
         };
 
         private const string SHOWN_KEY = "DDOIT_SetupWindow_Shown";
-        private const string META_XR_AVAILABLE_DEFINE = "DDOIT_META_XR_AVAILABLE";
+        private const string IMPORT_WORKER_RESTORE_PENDING_KEY = "DDOIT_SetupWindow_ImportWorkerRestorePending";
+        private const string IMPORT_WORKER_PREVIOUS_COUNT_KEY = "DDOIT_SetupWindow_ImportWorkerPreviousCount";
         private const string OPENXR_LOADER_TYPE_NAME = "UnityEngine.XR.OpenXR.OpenXRLoader";
         private const string CURRENT_OPENXR_API_VERSION_FALLBACK = "1.1.54";
         private const string OPENXR_TARGET_API_WARNING_FRAGMENT = "targets an API version with a patch version lower than";
@@ -180,27 +183,20 @@ namespace DDOIT.Tools.Setup
         #region Private Fields
 
         private Vector2 _scrollPosition;
-        private static readonly Queue<DependencyInfo> PendingDependencyInstalls = new Queue<DependencyInfo>();
         private static readonly List<string> DependencyInstallErrors = new List<string>();
-        private static AddRequest ActiveAddRequest;
-        private static DependencyInfo ActiveDependency;
+        private static AddAndRemoveRequest ActiveDependencyInstallRequest;
+        private static string ActiveInstallTargetLabel;
         private static bool IsInstallingDependencies;
         private static string ActiveInstallScopeLabel;
         private static string LastDependencyVerificationReport;
         private static MessageType LastDependencyVerificationMessageType = MessageType.Info;
         private static bool ApplyTimingOptimization = true;
         private static bool ApplyAudioOptimization = true;
-        private static bool IsOptionalDefineSyncScheduled;
+        private static bool IsStartupInitializationScheduled;
         private static bool IsXRValidationStartupCleanupScheduled;
         private static double XRValidationStartupCleanupNextRunTime;
         private static double XRValidationStartupCleanupDeadline;
         private static int XRValidationStartupCleanupStablePasses;
-
-        private static readonly UnityEditor.Build.NamedBuildTarget[] OPTIONAL_DEFINE_TARGETS =
-        {
-            UnityEditor.Build.NamedBuildTarget.Standalone,
-            UnityEditor.Build.NamedBuildTarget.Android,
-        };
 
         #endregion
 
@@ -208,17 +204,33 @@ namespace DDOIT.Tools.Setup
 
         static DDOITSetupWindow()
         {
-            ScheduleOptionalDependencyDefineSync();
-            ScheduleStartupXRValidationCleanup();
-            EditorApplication.delayCall += ShowOnFirstLoad;
+            ScheduleStartupInitialization();
         }
 
         [InitializeOnLoadMethod]
         private static void InitOnLoad()
         {
-            ScheduleOptionalDependencyDefineSync();
+            ScheduleStartupInitialization();
+        }
+
+        private static void ScheduleStartupInitialization()
+        {
+            if (IsStartupInitializationScheduled)
+                return;
+
+            IsStartupInitializationScheduled = true;
+            EditorApplication.delayCall += InitializeAfterLoad;
+        }
+
+        private static void InitializeAfterLoad()
+        {
+            IsStartupInitializationScheduled = false;
+
+            // EditorWindow restoration can initialize this type inside ScriptableObject construction.
+            // Delay Unity native API access until that restoration has completed.
             ScheduleStartupXRValidationCleanup();
-            EditorApplication.delayCall += ShowOnFirstLoad;
+            ShowOnFirstLoad();
+            RestoreImportWorkersAfterOpenXRInstall();
         }
 
         private static void ShowOnFirstLoad()
@@ -398,7 +410,7 @@ namespace DDOIT.Tools.Setup
             if (IsInstallingDependencies)
             {
                 EditorGUILayout.Space(2);
-                EditorGUILayout.HelpBox($"패키지 설치 진행 중: {ActiveDependency.displayName}", MessageType.Info);
+                EditorGUILayout.HelpBox($"패키지 설치 진행 중: {ActiveInstallTargetLabel}", MessageType.Info);
             }
 
             if (!string.IsNullOrEmpty(LastDependencyVerificationReport))
@@ -2344,66 +2356,120 @@ namespace DDOIT.Tools.Setup
                 return;
             }
 
-            PendingDependencyInstalls.Clear();
             LastDependencyVerificationReport = null;
-
-            foreach (var dep in targets)
-                PendingDependencyInstalls.Enqueue(dep);
+            ActiveInstallTargetLabel = string.Join(", ", targets.Select(dependency => dependency.displayName));
 
             IsInstallingDependencies = true;
-            EditorApplication.update += ProcessDependencyInstallQueue;
-            StartNextDependencyInstall();
+
+            string[] packageSpecs = targets.Select(GetPackageAddSpec).ToArray();
+            Debug.Log(
+                $"[DDOITSetupWindow] 패키지 일괄 설치 요청: {string.Join(", ", packageSpecs)}");
+
+            SuspendImportWorkersForOpenXRInstall(targets);
+
+            try
+            {
+                ActiveDependencyInstallRequest = Client.AddAndRemove(packageSpecs, Array.Empty<string>());
+                EditorApplication.update += ProcessDependencyInstallRequest;
+            }
+            catch (Exception exception)
+            {
+                DependencyInstallErrors.Add($"{ActiveInstallTargetLabel}: {exception.Message}");
+                Debug.LogError(
+                    $"[DDOITSetupWindow] 패키지 일괄 설치 요청 실패: {ActiveInstallTargetLabel}\n" +
+                    exception);
+                RestoreImportWorkersAfterOpenXRInstall();
+                CompleteDependencyInstallation();
+            }
+
+            RepaintOpenSetupWindows();
         }
 
-        private static void ProcessDependencyInstallQueue()
+        private static void ProcessDependencyInstallRequest()
         {
-            if (ActiveAddRequest == null || !ActiveAddRequest.IsCompleted)
+            if (ActiveDependencyInstallRequest == null || !ActiveDependencyInstallRequest.IsCompleted)
                 return;
 
-            if (ActiveAddRequest.Status == StatusCode.Success)
+            bool succeeded = ActiveDependencyInstallRequest.Status == StatusCode.Success;
+            if (succeeded)
             {
-                Debug.Log($"[DDOITSetupWindow] 설치 완료: {ActiveDependency.displayName}");
+                Debug.Log($"[DDOITSetupWindow] 패키지 일괄 설치 완료: {ActiveInstallTargetLabel}");
             }
             else
             {
-                string errorMessage = ActiveAddRequest.Error != null
-                    ? ActiveAddRequest.Error.message
+                string errorMessage = ActiveDependencyInstallRequest.Error != null
+                    ? ActiveDependencyInstallRequest.Error.message
                     : "알 수 없는 Package Manager 오류";
-                DependencyInstallErrors.Add($"{ActiveDependency.displayName}: {errorMessage}");
+                DependencyInstallErrors.Add($"{ActiveInstallTargetLabel}: {errorMessage}");
                 Debug.LogError(
-                    $"[DDOITSetupWindow] 설치 실패: {ActiveDependency.displayName}\n" +
+                    $"[DDOITSetupWindow] 패키지 일괄 설치 실패: {ActiveInstallTargetLabel}\n" +
                     errorMessage);
             }
 
-            ActiveAddRequest = null;
-            StartNextDependencyInstall();
+            if (!succeeded)
+                RestoreImportWorkersAfterOpenXRInstall();
+
+            CompleteDependencyInstallation();
         }
 
-        private static void StartNextDependencyInstall()
+        private static void SuspendImportWorkersForOpenXRInstall(IReadOnlyCollection<DependencyInfo> targets)
         {
-            if (PendingDependencyInstalls.Count == 0)
-            {
-                IsInstallingDependencies = false;
-                EditorApplication.update -= ProcessDependencyInstallQueue;
-                AssetDatabase.Refresh();
-                ScheduleOptionalDependencyDefineSync();
-                UpdateDependencyVerificationReport($"{ActiveInstallScopeLabel} 설치 후 검증");
-
-                EditorUtility.DisplayDialog(
-                    "패키지 설치 검증",
-                    LastDependencyVerificationReport + "\n\n" +
-                    "Meta XR SDK는 Unity Asset Store에서 먼저 '내 에셋에 추가'해야 설치됩니다.",
-                    "확인");
-
-                ActiveInstallScopeLabel = null;
-                RepaintOpenSetupWindows();
+            if (!targets.Any(dependency => dependency.packageId == OPENXR_PACKAGE_ID))
                 return;
-            }
 
-            ActiveDependency = PendingDependencyInstalls.Dequeue();
-            string packageSpec = GetPackageAddSpec(ActiveDependency);
-            Debug.Log($"[DDOITSetupWindow] 설치 요청: {ActiveDependency.displayName} ({packageSpec})");
-            ActiveAddRequest = Client.Add(packageSpec);
+            int previousWorkerCount = AssetDatabase.DesiredWorkerCount;
+            if (previousWorkerCount <= 0)
+                return;
+
+            // OpenXR 1.17.1 can create its settings asset from import workers during first load.
+            // Keeping that initialization in the main process avoids concurrent GUID reservation.
+            SessionState.SetInt(IMPORT_WORKER_PREVIOUS_COUNT_KEY, previousWorkerCount);
+            SessionState.SetBool(IMPORT_WORKER_RESTORE_PENDING_KEY, true);
+            AssetDatabase.DesiredWorkerCount = 0;
+            AssetDatabase.ForceToDesiredWorkerCount();
+
+            Debug.Log(
+                $"[DDOITSetupWindow] OpenXR 초기 설치를 위해 Import Worker를 일시 중지했습니다. " +
+                $"설치 후 {previousWorkerCount}개로 복구합니다.");
+        }
+
+        private static void RestoreImportWorkersAfterOpenXRInstall()
+        {
+            if (!SessionState.GetBool(IMPORT_WORKER_RESTORE_PENDING_KEY, false))
+                return;
+
+            int previousWorkerCount = SessionState.GetInt(
+                IMPORT_WORKER_PREVIOUS_COUNT_KEY,
+                EditorUserSettings.desiredImportWorkerCount);
+
+            SessionState.SetBool(IMPORT_WORKER_RESTORE_PENDING_KEY, false);
+            SessionState.SetInt(IMPORT_WORKER_PREVIOUS_COUNT_KEY, 0);
+
+            if (previousWorkerCount <= 0)
+                return;
+
+            AssetDatabase.DesiredWorkerCount = previousWorkerCount;
+            AssetDatabase.ForceToDesiredWorkerCount();
+            Debug.Log($"[DDOITSetupWindow] Import Worker를 {previousWorkerCount}개로 복구했습니다.");
+        }
+
+        private static void CompleteDependencyInstallation()
+        {
+            IsInstallingDependencies = false;
+            EditorApplication.update -= ProcessDependencyInstallRequest;
+            ActiveDependencyInstallRequest = null;
+
+            AssetDatabase.Refresh();
+            UpdateDependencyVerificationReport($"{ActiveInstallScopeLabel} 설치 후 검증");
+
+            EditorUtility.DisplayDialog(
+                "패키지 설치 검증",
+                LastDependencyVerificationReport + "\n\n" +
+                "Meta XR SDK는 Unity Asset Store에서 먼저 '내 에셋에 추가'해야 설치됩니다.",
+                "확인");
+
+            ActiveInstallScopeLabel = null;
+            ActiveInstallTargetLabel = null;
             RepaintOpenSetupWindows();
         }
 
@@ -2458,80 +2524,6 @@ namespace DDOIT.Tools.Setup
                 sb.AppendLine(
                     $"- {GetDependencyStatusLabel(status.state)} {dep.displayName}: {installed} / 요구 {GetDependencyRequirementText(dep)}");
             }
-        }
-
-        private static void ScheduleOptionalDependencyDefineSync()
-        {
-            if (IsOptionalDefineSyncScheduled)
-                return;
-
-            IsOptionalDefineSyncScheduled = true;
-            EditorApplication.update += ProcessOptionalDependencyDefineSync;
-        }
-
-        private static void ProcessOptionalDependencyDefineSync()
-        {
-            if (EditorApplication.isCompiling || EditorApplication.isUpdating)
-                return;
-
-            EditorApplication.update -= ProcessOptionalDependencyDefineSync;
-            SyncOptionalDependencyDefines();
-        }
-
-        private static void SyncOptionalDependencyDefines()
-        {
-            IsOptionalDefineSyncScheduled = false;
-
-            bool hasMetaXr = IsPackageInstalled("com.meta.xr.sdk.all")
-                          || IsPackageInstalled("com.meta.xr.sdk.interaction");
-
-            bool changed = false;
-            foreach (var target in OPTIONAL_DEFINE_TARGETS)
-                changed |= SetScriptingDefine(target, META_XR_AVAILABLE_DEFINE, hasMetaXr);
-
-            if (changed)
-            {
-                string state = hasMetaXr ? "enabled" : "disabled";
-                Debug.Log($"[DDOITSetupWindow] {META_XR_AVAILABLE_DEFINE} {state}");
-            }
-        }
-
-        private static bool SetScriptingDefine(
-            UnityEditor.Build.NamedBuildTarget target,
-            string define,
-            bool enabled)
-        {
-            string current = PlayerSettings.GetScriptingDefineSymbols(target);
-            var symbols = current
-                .Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries)
-                .Select(s => s.Trim())
-                .Where(s => !string.IsNullOrEmpty(s))
-                .Distinct()
-                .ToList();
-
-            bool contains = symbols.Contains(define);
-            if (enabled)
-            {
-                if (contains)
-                    return false;
-
-                symbols.Add(define);
-            }
-            else
-            {
-                if (!contains)
-                    return false;
-
-                symbols.Remove(define);
-            }
-
-            PlayerSettings.SetScriptingDefineSymbols(target, string.Join(";", symbols));
-            return true;
-        }
-
-        private static bool IsPackageInstalled(string packageId)
-        {
-            return UnityEditor.PackageManager.PackageInfo.FindForPackageName(packageId) != null;
         }
 
         private static int CountDependencyIssues(DependencyInfo[] dependencies)

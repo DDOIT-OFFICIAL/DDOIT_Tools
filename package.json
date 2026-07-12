@@ -1,6 +1,6 @@
 {
   "name": "com.ddoit.tools",
-  "version": "0.18.25",
+  "version": "0.18.26",
   "displayName": "DDOIT Tools",
   "description": "VR 교육프로그램 통합 개발 도구 모음 (Scenario, UI, Audio, Scene Management)",
   "unity": "6000.0",
@@ -9,6 +9,7 @@
     "url": "https://github.com/DDOIT-OFFICIAL"
   },
   "dependencies": {
+    "com.meta.xr.sdk.all": "203.0.0",
     "com.unity.textmeshpro": "4.0.0",
     "com.unity.addressables": "2.8.1"
   }

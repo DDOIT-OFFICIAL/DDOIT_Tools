@@ -536,7 +536,7 @@ if (hasUpdate)
 
 ISDK `FirstPersonLocomotor` 기반 Player rig의 외부 진입점 (구 `PlayerController` 461 LoC를 v0.15.0에서 폐기하고 신규 도입).
 
-UPM 소비 프로젝트에서는 `com.ddoit.tools` 설치 직후 Meta XR SDK가 아직 없을 수 있다. 따라서 Meta/Interaction SDK 타입을 직접 참조하는 Locomotion 스크립트는 `DDOIT_META_XR_AVAILABLE` scripting define이 있을 때만 컴파일된다. `DDOIT Tools > Setup`은 Meta XR 설치 상태를 감지해 Standalone/Android define을 자동 동기화한다.
+UPM 패키지의 `package.json`은 `com.meta.xr.sdk.all@203.0.0`을 직접 요구한다. 따라서 `DDOIT.Tools.Runtime`이 컴파일되기 전에 Meta/Oculus 어셈블리가 준비되며, Meta/Interaction SDK 타입을 직접 참조하는 Locomotion 스크립트도 항상 컴파일된다. `DDOIT Tools > Setup`은 Meta XR이 정확히 203.0.0인지 계속 검증한다.
 
 **API**:
 - `Singleton<PlayerRig>` — `PlayerRig.Instance` / `HasInstance`
@@ -832,7 +832,7 @@ public class DDOITSettings : ScriptableObject
 ```
 1. Unity에서 새 프로젝트 생성 (Unity 6, URP)
 2. Package Manager > Add package from git URL
-   https://github.com/DDOIT-OFFICIAL/DDOIT_Tools.git#v0.18.25
+   https://github.com/DDOIT-OFFICIAL/DDOIT_Tools.git#v0.18.26
 3. Unity 상단 메뉴에서 DDOIT Tools > Setup 실행
 4. 필수 패키지 설치/업데이트 실행
 5. Init Project 실행
@@ -841,7 +841,7 @@ public class DDOITSettings : ScriptableObject
 8. 네임스페이스: {제품명}.{카테고리} 사용
 ```
 
-`com.ddoit.tools` 설치 직후 Meta XR SDK와 Input System이 자동으로 따라오지 않는 것이 정상이다. 이 둘은 Package Manager 하드 의존성이 아니라 Setup의 필수 설치/검증 대상으로 관리한다. TextMeshPro와 Addressables는 패키지 컴파일에 즉시 필요하므로 UPM 하드 의존성으로 유지한다.
+`com.ddoit.tools`의 `package.json`은 `com.meta.xr.sdk.all@203.0.0`을 직접 요구한다. 따라서 UPM이 Meta/Oculus 어셈블리를 먼저 준비하고 `DDOIT.Tools.Runtime`과 Locomotion 스크립트는 첫 컴파일부터 정상적으로 컴파일된다. Setup은 Meta XR 버전을 정확히 203.0.0으로 계속 검증하며, Input System 1.18.0 이상, XR Management 4.5.4 이상, OpenXR 1.17.1 이상, Lottie Player는 Setup에서 설치/검증한다. 특히 OpenXR은 최초 설치 전에 Asset Import Worker를 일시 정지할 수 있도록 Setup 관리 대상으로 유지한다. TextMeshPro와 Addressables도 패키지 컴파일에 즉시 필요하므로 UPM 직접 의존성으로 유지한다.
 
 ### 5.2 방법 B: 템플릿 복제
 ```
@@ -943,5 +943,5 @@ MAJOR.MINOR.PATCH
 ---
 
 **문서 버전**: 0.4.0
-**DDOIT_Tools 패키지 버전**: v0.18.25
+**DDOIT_Tools 패키지 버전**: v0.18.26
 **최종 업데이트**: 2026-07-10

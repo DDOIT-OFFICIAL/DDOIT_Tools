@@ -18,7 +18,6 @@
  * limitations under the License.
  */
 
-#if DDOIT_META_XR_AVAILABLE
 using UnityEngine;
 
 using Oculus.Interaction;
@@ -172,4 +171,3 @@ namespace DDOIT.Tools.Locomotion
         #endregion
     }
 }
-#endif

@@ -7,8 +7,7 @@
     "Unity.ResourceManager",
     "Unity.ugui",
     "Oculus.VR",
-    "Oculus.Interaction",
-    "Unity.InputSystem"
+    "Oculus.Interaction"
   ],
   "includePlatforms": [],
   "excludePlatforms": [],

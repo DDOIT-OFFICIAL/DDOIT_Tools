@@ -18,7 +18,6 @@
  * limitations under the License.
  */
 
-#if DDOIT_META_XR_AVAILABLE
 using Oculus.Interaction.Input;
 using System;
 using System.Collections.Generic;
@@ -669,4 +668,3 @@ namespace DDOIT.Tools.Locomotion
 
     }
 }
-#endif
