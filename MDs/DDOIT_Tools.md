@@ -832,7 +832,7 @@ public class DDOITSettings : ScriptableObject
 ```
 1. Unity에서 새 프로젝트 생성 (Unity 6, URP)
 2. Package Manager > Add package from git URL
-   https://github.com/DDOIT-OFFICIAL/DDOIT_Tools.git#v0.18.27
+   https://github.com/DDOIT-OFFICIAL/DDOIT_Tools.git#v0.19.0
 3. Unity 상단 메뉴에서 DDOIT Tools > Setup 실행
 4. 필수 패키지 설치/업데이트 실행
 5. Init Project 실행
@@ -842,6 +842,15 @@ public class DDOITSettings : ScriptableObject
 ```
 
 `com.ddoit.tools`의 `package.json`은 `com.meta.xr.sdk.all@203.0.0`을 직접 요구한다. 따라서 UPM이 Meta/Oculus 어셈블리를 먼저 준비하고 `DDOIT.Tools.Runtime`과 Locomotion 스크립트는 첫 컴파일부터 정상적으로 컴파일된다. Setup은 Meta XR 버전을 정확히 203.0.0으로 계속 검증하며, Input System 1.18.0 이상, XR Management 4.5.4 이상, OpenXR 1.17.1 이상, Lottie Player는 Setup에서 설치/검증한다. 특히 OpenXR은 최초 설치 전에 Asset Import Worker를 일시 정지할 수 있도록 Setup 관리 대상으로 유지한다. TextMeshPro와 Addressables도 패키지 컴파일에 즉시 필요하므로 UPM 직접 의존성으로 유지한다.
+
+#### 5.1.1 Git UPM 패키지 업데이트
+
+`DDOIT Tools > Setup` 창 상단의 `최신 릴리스 확인/업데이트` 버튼은 GitHub의 안정 릴리스 태그를 조회하고 현재 설치 버전보다 높은 버전이 있으면 업데이트를 제안한다. 확인 대화상자에서 승인하면 Unity Package Manager의 `Client.Add()`를 사용해 새 태그 URL로 교체한다. `packages-lock.json`을 직접 삭제하거나 Package Manager에 Git URL을 다시 입력할 필요가 없다.
+
+- Git URL로 설치된 `com.ddoit.tools`에서만 실제 업데이트가 활성화된다.
+- `Assets/DDOIT_Tools` 개발 원본 모드에서는 최신 릴리스 조회만 가능하다.
+- 다른 패키지 설치 작업과 동시에 실행되지 않도록 Setup의 패키지 버튼이 잠긴다.
+- 업데이트 중 스크립트 재컴파일과 도메인 리로드가 발생할 수 있다.
 
 ### 5.2 방법 B: 템플릿 복제
 ```
@@ -943,5 +952,5 @@ MAJOR.MINOR.PATCH
 ---
 
 **문서 버전**: 0.4.0
-**DDOIT_Tools 패키지 버전**: v0.18.27
-**최종 업데이트**: 2026-07-10
+**DDOIT_Tools 패키지 버전**: v0.19.0
+**최종 업데이트**: 2026-07-13

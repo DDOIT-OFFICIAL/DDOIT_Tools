@@ -10,7 +10,7 @@ DDOIT Tools는 Meta Quest 기반 VR 교육프로그램을 빠르게 구성하기
 | 항목 | 값 |
 |---|---|
 | Package | `com.ddoit.tools` |
-| Latest tag | `v0.18.27` |
+| Latest tag | `v0.19.0` |
 | Unity | `6000.0+` |
 | Verified Unity | `6000.3.7f1` |
 | Target | Android / Meta Quest |
@@ -21,7 +21,7 @@ DDOIT Tools는 Meta Quest 기반 VR 교육프로그램을 빠르게 구성하기
 Unity Package Manager에서 Git URL로 설치합니다.
 
 ```text
-https://github.com/DDOIT-OFFICIAL/DDOIT_Tools.git#v0.18.27
+https://github.com/DDOIT-OFFICIAL/DDOIT_Tools.git#v0.19.0
 ```
 
 `Packages/manifest.json`에 직접 추가할 수도 있습니다.
@@ -29,7 +29,7 @@ https://github.com/DDOIT-OFFICIAL/DDOIT_Tools.git#v0.18.27
 ```json
 {
   "dependencies": {
-    "com.ddoit.tools": "https://github.com/DDOIT-OFFICIAL/DDOIT_Tools.git#v0.18.27"
+    "com.ddoit.tools": "https://github.com/DDOIT-OFFICIAL/DDOIT_Tools.git#v0.19.0"
   }
 }
 ```
@@ -68,11 +68,20 @@ Meta XR All-in-One SDK는 Unity Asset Store에서 먼저 내 에셋에 추가되
 
 | 메뉴 | 용도 |
 |---|---|
-| `DDOIT Tools > Setup` | 의존성 점검, 프로젝트 초기화, Quest 최적화 |
+| `DDOIT Tools > Setup` | 패키지 업데이트, 의존성 점검, 프로젝트 초기화, Quest 최적화 |
 | `DDOIT Tools > Tools Window` | 시나리오/설정/도구 통합 창 |
 | `DDOIT Tools > Scene Switcher` | DDOIT/InitScene/Addressable 씬 전환 메뉴 생성 |
 
 ## Setup Features
+
+### Package Update
+
+Setup 창 상단의 `최신 릴리스 확인/업데이트` 버튼으로 GitHub의 최신 안정 태그를 확인하고 새 버전으로 갱신할 수 있습니다.
+
+- Git URL로 설치된 패키지만 실제 업데이트 가능
+- 현재 버전과 최신 안정 버전을 비교한 뒤 사용자 확인 후 업데이트
+- Package Manager에 새 Git URL을 다시 입력하거나 lock 파일을 삭제할 필요 없음
+- `Assets/DDOIT_Tools` 개발 원본 모드에서는 최신 릴리스 조회만 제공
 
 ### Initialize Project
 

@@ -3,11 +3,15 @@ using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Runtime.Serialization;
+using System.Runtime.Serialization.Json;
 using System.Text;
 using UnityEditor;
 using UnityEditor.PackageManager;
 using UnityEditor.PackageManager.Requests;
 using UnityEngine;
+using UnityEngine.Networking;
+using PackageManagerPackageInfo = UnityEditor.PackageManager.PackageInfo;
 
 namespace DDOIT.Tools.Setup
 {
@@ -34,6 +38,10 @@ namespace DDOIT.Tools.Setup
         };
 
         private const string OPENXR_PACKAGE_ID = "com.unity.xr.openxr";
+        private const string DDOIT_PACKAGE_ID = "com.ddoit.tools";
+        private const string DDOIT_GIT_URL = "https://github.com/DDOIT-OFFICIAL/DDOIT_Tools.git";
+        private const string DDOIT_GITHUB_TAGS_API_URL =
+            "https://api.github.com/repos/DDOIT-OFFICIAL/DDOIT_Tools/tags?per_page=100";
 
         private static readonly DependencyInfo[] REQUIRED_DEPENDENCIES =
         {
@@ -56,6 +64,8 @@ namespace DDOIT.Tools.Setup
         };
 
         private const string SHOWN_KEY = "DDOIT_SetupWindow_Shown";
+        private const string PACKAGE_UPDATE_PENDING_KEY = "DDOIT_SetupWindow_PackageUpdatePending";
+        private const string PACKAGE_UPDATE_TARGET_VERSION_KEY = "DDOIT_SetupWindow_PackageUpdateTargetVersion";
         private const string IMPORT_WORKER_RESTORE_PENDING_KEY = "DDOIT_SetupWindow_ImportWorkerRestorePending";
         private const string IMPORT_WORKER_PREVIOUS_COUNT_KEY = "DDOIT_SetupWindow_ImportWorkerPreviousCount";
         private const string OPENXR_LOADER_TYPE_NAME = "UnityEngine.XR.OpenXR.OpenXRLoader";
@@ -178,6 +188,15 @@ namespace DDOIT.Tools.Setup
             public bool CanApply => errors.Count == 0;
         }
 
+        [DataContract]
+        private sealed class GitHubTagInfo
+        {
+            [DataMember(Name = "name")]
+            private string _name;
+
+            public string Name => _name;
+        }
+
         #endregion
 
         #region Private Fields
@@ -185,11 +204,17 @@ namespace DDOIT.Tools.Setup
         private Vector2 _scrollPosition;
         private static readonly List<string> DependencyInstallErrors = new List<string>();
         private static AddAndRemoveRequest ActiveDependencyInstallRequest;
+        private static UnityWebRequest ActivePackageVersionCheckRequest;
+        private static AddRequest ActivePackageUpdateRequest;
         private static string ActiveInstallTargetLabel;
         private static bool IsInstallingDependencies;
+        private static bool IsCheckingForPackageUpdate;
+        private static bool IsUpdatingPackage;
         private static string ActiveInstallScopeLabel;
         private static string LastDependencyVerificationReport;
         private static MessageType LastDependencyVerificationMessageType = MessageType.Info;
+        private static string PackageUpdateStatusMessage;
+        private static MessageType PackageUpdateStatusMessageType = MessageType.Info;
         private static bool ApplyTimingOptimization = true;
         private static bool ApplyAudioOptimization = true;
         private static bool IsStartupInitializationScheduled;
@@ -229,6 +254,7 @@ namespace DDOIT.Tools.Setup
             // EditorWindow restoration can initialize this type inside ScriptableObject construction.
             // Delay Unity native API access until that restoration has completed.
             ScheduleStartupXRValidationCleanup();
+            RestorePackageUpdateStatusAfterReload();
             ShowOnFirstLoad();
             RestoreImportWorkersAfterOpenXRInstall();
         }
@@ -363,6 +389,10 @@ namespace DDOIT.Tools.Setup
             EditorGUILayout.LabelField("DDOIT Tools Setup", EditorStyles.boldLabel);
             EditorGUILayout.Space(8);
 
+            DrawPackageUpdateSection();
+
+            DrawSeparator();
+
             // ── 의존성 ──
             DrawDependencySection();
 
@@ -377,6 +407,63 @@ namespace DDOIT.Tools.Setup
             DrawOptimizeSection();
 
             EditorGUILayout.EndScrollView();
+        }
+
+        #endregion
+
+        #region Package Update Section
+
+        private void DrawPackageUpdateSection()
+        {
+            EditorGUILayout.LabelField("DDOIT Tools 패키지", EditorStyles.boldLabel);
+            EditorGUILayout.Space(4);
+
+            PackageManagerPackageInfo packageInfo = GetInstalledDDOITPackageInfo();
+            if (packageInfo == null)
+            {
+                EditorGUILayout.HelpBox(
+                    "현재 프로젝트는 Assets/DDOIT_Tools 개발 원본 모드입니다. " +
+                    "최신 릴리스 조회는 가능하지만 실제 업데이트는 Git UPM 소비 프로젝트에서만 사용할 수 있습니다.",
+                    MessageType.Info);
+
+                EditorGUILayout.Space(4);
+                EditorGUI.BeginDisabledGroup(IsPackageOperationInProgress);
+                if (GUILayout.Button("최신 릴리스 확인", GUILayout.Height(28)))
+                    CheckForPackageUpdate();
+                EditorGUI.EndDisabledGroup();
+
+                DrawPackageUpdateStatus();
+                return;
+            }
+
+            EditorGUILayout.LabelField("설치 버전", packageInfo.version);
+            EditorGUILayout.LabelField("설치 소스", packageInfo.source.ToString());
+
+            if (packageInfo.source != PackageSource.Git)
+            {
+                EditorGUILayout.HelpBox(
+                    "자체 업데이트는 Git URL로 설치된 DDOIT Tools 패키지에서만 사용할 수 있습니다.",
+                    MessageType.Warning);
+                return;
+            }
+
+            EditorGUILayout.Space(4);
+
+            EditorGUI.BeginDisabledGroup(IsPackageOperationInProgress);
+            if (GUILayout.Button("최신 릴리스 확인/업데이트", GUILayout.Height(28)))
+                CheckForPackageUpdate();
+            EditorGUI.EndDisabledGroup();
+
+            DrawPackageUpdateStatus();
+        }
+
+        private static void DrawPackageUpdateStatus()
+        {
+            if (!string.IsNullOrEmpty(PackageUpdateStatusMessage))
+            {
+                EditorGUILayout.Space(2);
+                EditorGUILayout.HelpBox(PackageUpdateStatusMessage, PackageUpdateStatusMessageType);
+            }
         }
 
         #endregion
@@ -397,12 +484,12 @@ namespace DDOIT.Tools.Setup
             bool hasRequiredMissing = REQUIRED_DEPENDENCIES.Any(RequiresInstallOrUpdate);
             bool hasOptionalMissing = OPTIONAL_DEPENDENCIES.Any(RequiresInstallOrUpdate);
 
-            EditorGUI.BeginDisabledGroup(!hasRequiredMissing || IsInstallingDependencies);
+            EditorGUI.BeginDisabledGroup(!hasRequiredMissing || IsPackageOperationInProgress);
             if (GUILayout.Button("필수 패키지 설치/업데이트", GUILayout.Height(28)))
                 InstallMissingDependencies(REQUIRED_DEPENDENCIES, "필수 패키지");
             EditorGUI.EndDisabledGroup();
 
-            EditorGUI.BeginDisabledGroup(!hasOptionalMissing || IsInstallingDependencies);
+            EditorGUI.BeginDisabledGroup(!hasOptionalMissing || IsPackageOperationInProgress);
             if (GUILayout.Button("권장 도구 설치/업데이트", GUILayout.Height(24)))
                 InstallMissingDependencies(OPTIONAL_DEPENDENCIES, "권장 도구");
             EditorGUI.EndDisabledGroup();
@@ -2337,11 +2424,352 @@ namespace DDOIT.Tools.Setup
 
         #region Actions
 
+        /// <summary>
+        /// GitHub의 DDOIT Tools 태그를 조회하고 최신 안정 릴리스가 있으면 업데이트를 제안한다.
+        /// </summary>
+        private static void CheckForPackageUpdate()
+        {
+            if (IsPackageOperationInProgress)
+            {
+                Debug.LogWarning("[DDOITSetupWindow] 다른 패키지 작업이 진행 중입니다.");
+                return;
+            }
+
+            PackageManagerPackageInfo packageInfo = GetInstalledDDOITPackageInfo();
+            if (packageInfo != null && packageInfo.source != PackageSource.Git)
+            {
+                Debug.LogWarning("[DDOITSetupWindow] Git URL로 설치된 DDOIT Tools 패키지만 자체 업데이트할 수 있습니다.");
+                return;
+            }
+
+            IsCheckingForPackageUpdate = true;
+            PackageUpdateStatusMessage = "GitHub에서 최신 DDOIT Tools 릴리스를 확인하고 있습니다.";
+            PackageUpdateStatusMessageType = MessageType.Info;
+
+            try
+            {
+                ActivePackageVersionCheckRequest = UnityWebRequest.Get(DDOIT_GITHUB_TAGS_API_URL);
+                ActivePackageVersionCheckRequest.timeout = 15;
+                ActivePackageVersionCheckRequest.SetRequestHeader("Accept", "application/vnd.github+json");
+                ActivePackageVersionCheckRequest.SetRequestHeader("X-GitHub-Api-Version", "2022-11-28");
+                ActivePackageVersionCheckRequest.SendWebRequest();
+
+                EditorApplication.update -= ProcessPackageVersionCheckRequest;
+                EditorApplication.update += ProcessPackageVersionCheckRequest;
+            }
+            catch (Exception exception)
+            {
+                ActivePackageVersionCheckRequest?.Dispose();
+                ActivePackageVersionCheckRequest = null;
+                IsCheckingForPackageUpdate = false;
+                PackageUpdateStatusMessage = $"최신 릴리스 확인 요청을 시작하지 못했습니다: {exception.Message}";
+                PackageUpdateStatusMessageType = MessageType.Error;
+                Debug.LogError($"[DDOITSetupWindow] 최신 릴리스 확인 요청 실패\n{exception}");
+            }
+
+            RepaintOpenSetupWindows();
+        }
+
+        private static void ProcessPackageVersionCheckRequest()
+        {
+            if (ActivePackageVersionCheckRequest == null)
+            {
+                EditorApplication.update -= ProcessPackageVersionCheckRequest;
+                IsCheckingForPackageUpdate = false;
+                return;
+            }
+
+            if (!ActivePackageVersionCheckRequest.isDone)
+                return;
+
+            EditorApplication.update -= ProcessPackageVersionCheckRequest;
+
+            UnityWebRequest request = ActivePackageVersionCheckRequest;
+            ActivePackageVersionCheckRequest = null;
+            IsCheckingForPackageUpdate = false;
+
+            try
+            {
+                if (request.result != UnityWebRequest.Result.Success)
+                {
+                    string message = request.responseCode == 403
+                        ? "GitHub API 요청 한도에 도달했거나 접근이 거부되었습니다. 잠시 후 다시 시도하세요."
+                        : $"최신 릴리스 확인에 실패했습니다: {request.error}";
+
+                    PackageUpdateStatusMessage = message;
+                    PackageUpdateStatusMessageType = MessageType.Warning;
+                    Debug.LogWarning($"[DDOITSetupWindow] {message}");
+                    return;
+                }
+
+                EvaluateLatestPackageRelease(request.downloadHandler.text);
+            }
+            catch (Exception exception)
+            {
+                PackageUpdateStatusMessage = $"최신 릴리스 응답을 처리하지 못했습니다: {exception.Message}";
+                PackageUpdateStatusMessageType = MessageType.Error;
+                Debug.LogError($"[DDOITSetupWindow] 최신 릴리스 응답 처리 실패\n{exception}");
+            }
+            finally
+            {
+                request.Dispose();
+                RepaintOpenSetupWindows();
+            }
+        }
+
+        private static void EvaluateLatestPackageRelease(string responseJson)
+        {
+            if (!TryGetLatestStableRelease(responseJson, out string latestTag, out Version latestVersion))
+            {
+                PackageUpdateStatusMessage = "DDOIT Tools의 안정 릴리스 태그를 찾지 못했습니다.";
+                PackageUpdateStatusMessageType = MessageType.Warning;
+                Debug.LogWarning("[DDOITSetupWindow] GitHub 태그 응답에서 안정 릴리스를 찾지 못했습니다.");
+                return;
+            }
+
+            PackageManagerPackageInfo packageInfo = GetInstalledDDOITPackageInfo();
+            if (packageInfo == null)
+            {
+                PackageUpdateStatusMessage = $"최신 안정 릴리스는 {latestTag}입니다. 개발 원본 모드에서는 조회만 가능합니다.";
+                PackageUpdateStatusMessageType = MessageType.Info;
+                Debug.Log($"[DDOITSetupWindow] DDOIT Tools 최신 안정 릴리스: {latestTag}");
+                return;
+            }
+
+            if (string.IsNullOrWhiteSpace(packageInfo.version) ||
+                !Version.TryParse(NormalizeVersion(packageInfo.version), out Version installedVersion))
+            {
+                PackageUpdateStatusMessage = "현재 설치된 DDOIT Tools 버전을 해석하지 못했습니다.";
+                PackageUpdateStatusMessageType = MessageType.Error;
+                Debug.LogError("[DDOITSetupWindow] 현재 DDOIT Tools 패키지 버전을 해석하지 못했습니다.");
+                return;
+            }
+
+            if (latestVersion <= installedVersion)
+            {
+                PackageUpdateStatusMessage = $"최신 버전입니다. 설치 버전: v{packageInfo.version}";
+                PackageUpdateStatusMessageType = MessageType.Info;
+                Debug.Log($"[DDOITSetupWindow] DDOIT Tools가 최신 버전입니다: v{packageInfo.version}");
+                return;
+            }
+
+            PackageUpdateStatusMessage =
+                $"새 릴리스가 있습니다. 설치 버전: v{packageInfo.version} / 최신 버전: {latestTag}";
+            PackageUpdateStatusMessageType = MessageType.Warning;
+
+            string installedVersionText = packageInfo.version;
+            string latestVersionText = latestVersion.ToString();
+            EditorApplication.delayCall += () => ConfirmPackageUpdate(
+                installedVersionText,
+                latestTag,
+                latestVersionText);
+        }
+
+        private static bool TryGetLatestStableRelease(
+            string responseJson,
+            out string latestTag,
+            out Version latestVersion)
+        {
+            latestTag = null;
+            latestVersion = null;
+
+            if (string.IsNullOrWhiteSpace(responseJson))
+                return false;
+
+            var serializer = new DataContractJsonSerializer(typeof(List<GitHubTagInfo>));
+            List<GitHubTagInfo> tags;
+
+            using (var stream = new MemoryStream(Encoding.UTF8.GetBytes(responseJson)))
+            {
+                tags = serializer.ReadObject(stream) as List<GitHubTagInfo>;
+            }
+
+            if (tags == null)
+                return false;
+
+            foreach (GitHubTagInfo tag in tags)
+            {
+                if (tag == null || !TryParseStableReleaseTag(tag.Name, out Version candidateVersion))
+                    continue;
+
+                if (latestVersion != null && candidateVersion <= latestVersion)
+                    continue;
+
+                latestTag = tag.Name;
+                latestVersion = candidateVersion;
+            }
+
+            return latestVersion != null;
+        }
+
+        private static bool TryParseStableReleaseTag(string tagName, out Version version)
+        {
+            version = null;
+
+            if (string.IsNullOrWhiteSpace(tagName) ||
+                !tagName.StartsWith("v", StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+
+            string versionText = tagName.Substring(1);
+            if (versionText.IndexOf('-') >= 0 || versionText.IndexOf('+') >= 0)
+                return false;
+
+            if (!Version.TryParse(versionText, out Version parsedVersion) ||
+                parsedVersion.Build < 0 || parsedVersion.Revision >= 0)
+            {
+                return false;
+            }
+
+            version = parsedVersion;
+            return true;
+        }
+
+        private static void ConfirmPackageUpdate(
+            string installedVersion,
+            string latestTag,
+            string latestVersion)
+        {
+            if (IsPackageOperationInProgress)
+                return;
+
+            bool confirmed = EditorUtility.DisplayDialog(
+                "DDOIT Tools 업데이트",
+                $"새 DDOIT Tools 릴리스가 있습니다.\n\n" +
+                $"현재 버전: v{installedVersion}\n" +
+                $"최신 버전: {latestTag}\n\n" +
+                "업데이트 중 스크립트가 다시 컴파일되고 에디터가 잠시 응답하지 않을 수 있습니다.",
+                "업데이트",
+                "취소");
+
+            if (!confirmed)
+            {
+                PackageUpdateStatusMessage = $"{latestTag} 업데이트를 취소했습니다.";
+                PackageUpdateStatusMessageType = MessageType.Info;
+                RepaintOpenSetupWindows();
+                return;
+            }
+
+            StartPackageUpdate(latestTag, latestVersion);
+        }
+
+        private static void StartPackageUpdate(string targetTag, string targetVersion)
+        {
+            string packageSpec = $"{DDOIT_GIT_URL}#{targetTag}";
+
+            IsUpdatingPackage = true;
+            PackageUpdateStatusMessage = $"DDOIT Tools {targetTag} 업데이트를 요청했습니다.";
+            PackageUpdateStatusMessageType = MessageType.Info;
+            SessionState.SetBool(PACKAGE_UPDATE_PENDING_KEY, true);
+            SessionState.SetString(PACKAGE_UPDATE_TARGET_VERSION_KEY, targetVersion);
+
+            try
+            {
+                Debug.Log($"[DDOITSetupWindow] DDOIT Tools 업데이트 요청: {packageSpec}");
+                ActivePackageUpdateRequest = Client.Add(packageSpec);
+                EditorApplication.update -= ProcessPackageUpdateRequest;
+                EditorApplication.update += ProcessPackageUpdateRequest;
+            }
+            catch (Exception exception)
+            {
+                ClearPackageUpdatePendingState();
+                ActivePackageUpdateRequest = null;
+                IsUpdatingPackage = false;
+                PackageUpdateStatusMessage = $"DDOIT Tools 업데이트 요청에 실패했습니다: {exception.Message}";
+                PackageUpdateStatusMessageType = MessageType.Error;
+                Debug.LogError($"[DDOITSetupWindow] DDOIT Tools 업데이트 요청 실패\n{exception}");
+            }
+
+            RepaintOpenSetupWindows();
+        }
+
+        private static void ProcessPackageUpdateRequest()
+        {
+            if (ActivePackageUpdateRequest == null)
+            {
+                EditorApplication.update -= ProcessPackageUpdateRequest;
+                IsUpdatingPackage = false;
+                return;
+            }
+
+            if (!ActivePackageUpdateRequest.IsCompleted)
+                return;
+
+            EditorApplication.update -= ProcessPackageUpdateRequest;
+
+            bool succeeded = ActivePackageUpdateRequest.Status == StatusCode.Success;
+            if (succeeded)
+            {
+                string installedVersion = ActivePackageUpdateRequest.Result != null
+                    ? ActivePackageUpdateRequest.Result.version
+                    : SessionState.GetString(PACKAGE_UPDATE_TARGET_VERSION_KEY, string.Empty);
+
+                PackageUpdateStatusMessage = $"DDOIT Tools v{installedVersion} 업데이트가 완료되었습니다.";
+                PackageUpdateStatusMessageType = MessageType.Info;
+                Debug.Log($"[DDOITSetupWindow] {PackageUpdateStatusMessage}");
+            }
+            else
+            {
+                string errorMessage = ActivePackageUpdateRequest.Error != null
+                    ? ActivePackageUpdateRequest.Error.message
+                    : "알 수 없는 Package Manager 오류";
+
+                PackageUpdateStatusMessage = $"DDOIT Tools 업데이트에 실패했습니다: {errorMessage}";
+                PackageUpdateStatusMessageType = MessageType.Error;
+                Debug.LogError($"[DDOITSetupWindow] {PackageUpdateStatusMessage}");
+                ClearPackageUpdatePendingState();
+            }
+
+            ActivePackageUpdateRequest = null;
+            IsUpdatingPackage = false;
+            RepaintOpenSetupWindows();
+        }
+
+        private static void RestorePackageUpdateStatusAfterReload()
+        {
+            if (!SessionState.GetBool(PACKAGE_UPDATE_PENDING_KEY, false))
+                return;
+
+            string targetVersion = SessionState.GetString(PACKAGE_UPDATE_TARGET_VERSION_KEY, string.Empty);
+            PackageManagerPackageInfo packageInfo = GetInstalledDDOITPackageInfo();
+            ClearPackageUpdatePendingState();
+
+            if (packageInfo != null && AreEquivalentVersions(packageInfo.version, targetVersion))
+            {
+                PackageUpdateStatusMessage = $"DDOIT Tools v{packageInfo.version} 업데이트가 완료되었습니다.";
+                PackageUpdateStatusMessageType = MessageType.Info;
+                Debug.Log($"[DDOITSetupWindow] {PackageUpdateStatusMessage}");
+                return;
+            }
+
+            PackageUpdateStatusMessage =
+                $"DDOIT Tools v{targetVersion} 업데이트 완료를 확인하지 못했습니다. 최신 릴리스를 다시 확인하세요.";
+            PackageUpdateStatusMessageType = MessageType.Warning;
+            Debug.LogWarning($"[DDOITSetupWindow] {PackageUpdateStatusMessage}");
+        }
+
+        private static void ClearPackageUpdatePendingState()
+        {
+            SessionState.SetBool(PACKAGE_UPDATE_PENDING_KEY, false);
+            SessionState.EraseString(PACKAGE_UPDATE_TARGET_VERSION_KEY);
+        }
+
+        private static bool AreEquivalentVersions(string left, string right)
+        {
+            if (string.IsNullOrWhiteSpace(left) || string.IsNullOrWhiteSpace(right))
+                return false;
+
+            return Version.TryParse(NormalizeVersion(left), out Version leftVersion) &&
+                   Version.TryParse(NormalizeVersion(right), out Version rightVersion) &&
+                   leftVersion == rightVersion;
+        }
+
         private static void InstallMissingDependencies(DependencyInfo[] dependencies, string scopeLabel)
         {
-            if (IsInstallingDependencies)
+            if (IsPackageOperationInProgress)
             {
-                Debug.LogWarning("[DDOITSetupWindow] 패키지 설치가 이미 진행 중입니다.");
+                Debug.LogWarning("[DDOITSetupWindow] 다른 패키지 작업이 진행 중입니다.");
                 return;
             }
 
@@ -2679,6 +3107,14 @@ namespace DDOIT.Tools.Setup
         #endregion
 
         #region Utility
+
+        private static bool IsPackageOperationInProgress =>
+            IsInstallingDependencies || IsCheckingForPackageUpdate || IsUpdatingPackage;
+
+        private static PackageManagerPackageInfo GetInstalledDDOITPackageInfo()
+        {
+            return PackageManagerPackageInfo.FindForPackageName(DDOIT_PACKAGE_ID);
+        }
 
         /// <summary>
         /// URP Global Settings에서 Volume Profile 프로퍼티를 이름 기반으로 찾아 교체한다.
