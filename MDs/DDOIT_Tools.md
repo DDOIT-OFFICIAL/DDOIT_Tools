@@ -642,7 +642,7 @@ UIManager (Singleton)        ← Queue<UIPanel> 풀 관리
 └── SmoothFollowCanvas       ← 비고정형 UI의 카메라 추적
 ```
 
-- **UIManager**: `OpenUI(UIData)` → 풀에서 UIPanel 꺼내 표시. `CloseUI(UIPanel)` → 풀 반환. 풀 고갈 시 가장 오래된 패널 강제 회수.
+- **UIManager**: `OpenUI(UIData)` → 풀에서 UIPanel 꺼내 표시. `CloseUI(UIPanel)` → 풀 반환. 풀이 비면 기존 활성 패널을 빼앗지 않고 새 패널을 동적으로 생성.
 - **UIPanel**: 모든 UI 요소를 포함한 단일 Canvas. UIType에 따라 필요한 요소만 `SetActive(true)`. 빈 데이터(null Sprite, 빈 string)는 자동 숨김. 표시/숨김 시 EaseOutBack 스케일 애니메이션 재생.
 - **SmoothFollowCanvas**: CenterEyeAnchor 기준 Yaw(좌우 회전)만 추적. Pitch/Roll 무시하여 VR 멀미 방지. 눈높이 유지.
 
@@ -832,7 +832,7 @@ public class DDOITSettings : ScriptableObject
 ```
 1. Unity에서 새 프로젝트 생성 (Unity 6, URP)
 2. Package Manager > Add package from git URL
-   https://github.com/DDOIT-OFFICIAL/DDOIT_Tools.git#v0.19.0
+   https://github.com/DDOIT-OFFICIAL/DDOIT_Tools.git#v0.19.1
 3. Unity 상단 메뉴에서 DDOIT Tools > Setup 실행
 4. 필수 패키지 설치/업데이트 실행
 5. Init Project 실행
@@ -952,5 +952,5 @@ MAJOR.MINOR.PATCH
 ---
 
 **문서 버전**: 0.4.0
-**DDOIT_Tools 패키지 버전**: v0.19.0
-**최종 업데이트**: 2026-07-13
+**DDOIT_Tools 패키지 버전**: v0.19.1
+**최종 업데이트**: 2026-07-16

@@ -28,6 +28,7 @@ namespace DDOIT.Tools.Managers
 
         private Queue<UIPanel> _pool;
         private List<UIPanel> _activePanels;
+        private int _createdPanelCount;
 
         #endregion
 
@@ -48,10 +49,11 @@ namespace DDOIT.Tools.Managers
         {
             _pool = new Queue<UIPanel>();
             _activePanels = new List<UIPanel>();
+            _createdPanelCount = 0;
 
             for (int i = 0; i < _poolSize; i++)
             {
-                UIPanel panel = CreatePooledPanel(i);
+                UIPanel panel = CreatePooledPanel();
                 if (panel != null)
                     _pool.Enqueue(panel);
             }
@@ -60,7 +62,7 @@ namespace DDOIT.Tools.Managers
             yield break;
         }
 
-        private UIPanel CreatePooledPanel(int index)
+        private UIPanel CreatePooledPanel()
         {
             if (_panelPrefab == null)
             {
@@ -69,8 +71,9 @@ namespace DDOIT.Tools.Managers
             }
 
             UIPanel panel = Instantiate(_panelPrefab, transform);
-            panel.gameObject.name = $"UIPanel_{index}";
+            panel.gameObject.name = $"UIPanel_{_createdPanelCount}";
             panel.gameObject.SetActive(false);
+            _createdPanelCount++;
             return panel;
         }
 
@@ -81,7 +84,7 @@ namespace DDOIT.Tools.Managers
         /// <summary>
         /// UI 패널을 표시한다. 풀에서 UIPanel을 꺼내 데이터를 바인딩하고 활성화한다.
         /// </summary>
-        /// <returns>활성화된 UIPanel. 풀이 비었으면 가장 오래된 패널을 강제 반환 후 재사용.</returns>
+        /// <returns>활성화된 UIPanel. 풀이 비었으면 새 패널을 생성하여 사용.</returns>
         public UIPanel OpenUI(UIData data)
         {
             UIPanel panel = AcquirePanel();
@@ -129,26 +132,15 @@ namespace DDOIT.Tools.Managers
             if (_pool.Count > 0)
                 return _pool.Dequeue();
 
-            return StealOldestPanel();
-        }
+            UIPanel expandedPanel = CreatePooledPanel();
+            if (expandedPanel != null)
+            {
+                Debug.Log(
+                    $"[UIManager] Pool 확장 - '{expandedPanel.gameObject.name}' 생성 " +
+                    $"(총 {_createdPanelCount}개)");
+            }
 
-        /// <summary>
-        /// 풀이 비었을 때 가장 오래된 활성 패널을 강제 반환한다.
-        /// </summary>
-        private UIPanel StealOldestPanel()
-        {
-            if (_activePanels.Count == 0) return null;
-
-            UIPanel oldest = _activePanels[0];
-            Debug.LogWarning($"[UIManager] 풀 소진 - '{oldest.gameObject.name}' 강제 반환");
-
-            _activePanels.RemoveAt(0);
-
-            // 애니메이션 없이 즉시 비활성화
-            oldest.Hide(() => { });
-            oldest.gameObject.SetActive(false);
-
-            return oldest;
+            return expandedPanel;
         }
 
         #endregion
