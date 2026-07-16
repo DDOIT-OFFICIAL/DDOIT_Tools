@@ -85,6 +85,10 @@ namespace DDOIT.Tools.Setup
         private const string DDOIT_DATA_FOLDER = "Assets/DDOIT_Tools/Data";
         private const string PACKAGE_DATA_PATH_DEV = "Assets/DDOIT_Tools/Data";
         private const string PACKAGE_DATA_PATH_UPM = "Packages/com.ddoit.tools/Data";
+        private const string DDOIT_SCENE_PATH = "Assets/01. Scenes/DDOIT/DDOIT.unity";
+        private const string OVR_MANAGER_TYPE_NAME = "OVRManager";
+        private const string OVR_CONTROLLER_DRIVEN_HAND_POSES_FIELD = "controllerDrivenHandPosesType";
+        private const int OVR_CONTROLLER_DRIVEN_HAND_POSES_NATURAL_ENUM_INDEX = 2;
 
         private static readonly string[] XR_VALIDATION_DEFINE_SYMBOLS =
         {
@@ -125,6 +129,7 @@ namespace DDOIT.Tools.Setup
             "ProjectSettings/TimeManager.asset",
             "ProjectSettings/AudioManager.asset",
             "ProjectSettings/TagManager.asset",
+            DDOIT_SCENE_PATH,
         };
 
         #endregion
@@ -871,6 +876,13 @@ namespace DDOIT.Tools.Setup
                     "?뺤씤");
             }
 
+            int rigAppliedCount = ApplyDdoitOvrRigDefaults(validationWarnings);
+            if (rigAppliedCount > 0)
+            {
+                appliedCount += rigAppliedCount;
+                Debug.Log($"[DDOITSetupWindow] DDOIT OVR rig defaults applied ({rigAppliedCount} items)");
+            }
+
             AssetDatabase.SaveAssets();
 
             EditorUtility.DisplayDialog(
@@ -1006,6 +1018,7 @@ namespace DDOIT.Tools.Setup
             AddLayerPreflight(result, 31, "OVROverlayCanvas Rendering");
             AppendOpenXRPreflight(result);
             AppendXRValidationCleanupPreflight(result);
+            AppendDdoitOvrRigPreflight(result);
 
             if (result.changes.Count == 0)
                 result.changes.Add("현재 선택된 최적화 항목은 이미 목표값과 일치합니다.");
@@ -1212,6 +1225,164 @@ namespace DDOIT.Tools.Setup
                 result.changes.Add(
                     $"Meta XR Project Setup: {metaIssues} automatic or safe manual items will be cleared");
             }
+        }
+
+        private static void AppendDdoitOvrRigPreflight(OptimizePreflightResult result)
+        {
+            string fullPath = GetProjectRelativeFullPath(DDOIT_SCENE_PATH);
+            if (!File.Exists(fullPath))
+            {
+                result.warnings.Add($"{DDOIT_SCENE_PATH}: scene not found. Run Init Project before rig migration.");
+                return;
+            }
+
+            if (DdoitSceneNeedsOvrManagerDefaults(fullPath))
+            {
+                result.changes.Add(
+                    "DDOIT OVRCameraRig: Controller Driven Hand Poses Type will be set to Natural");
+            }
+        }
+
+        private static bool DdoitSceneNeedsOvrManagerDefaults(string fullPath)
+        {
+            string text = File.ReadAllText(fullPath);
+
+            if (text.Contains($"{OVR_CONTROLLER_DRIVEN_HAND_POSES_FIELD}: {OVR_CONTROLLER_DRIVEN_HAND_POSES_NATURAL_ENUM_INDEX}"))
+                return false;
+
+            int propertyIndex = text.IndexOf(
+                $"propertyPath: {OVR_CONTROLLER_DRIVEN_HAND_POSES_FIELD}",
+                StringComparison.Ordinal);
+            if (propertyIndex < 0)
+                return true;
+
+            int nextTargetIndex = text.IndexOf("- target:", propertyIndex + 1, StringComparison.Ordinal);
+            string propertyBlock = nextTargetIndex < 0
+                ? text.Substring(propertyIndex)
+                : text.Substring(propertyIndex, nextTargetIndex - propertyIndex);
+
+            return !propertyBlock.Contains($"value: {OVR_CONTROLLER_DRIVEN_HAND_POSES_NATURAL_ENUM_INDEX}");
+        }
+
+        private static int ApplyDdoitOvrRigDefaults(List<string> warnings)
+        {
+            if (EditorApplication.isPlayingOrWillChangePlaymode)
+            {
+                warnings.Add("DDOIT OVR rig defaults skipped while Editor is entering or running Play Mode.");
+                return 0;
+            }
+
+            Type ovrManagerType = FindType(OVR_MANAGER_TYPE_NAME);
+            if (ovrManagerType == null)
+            {
+                warnings.Add("OVRManager type not found. Meta XR Core SDK may not be compiled yet.");
+                return 0;
+            }
+
+            string fullPath = GetProjectRelativeFullPath(DDOIT_SCENE_PATH);
+            if (!File.Exists(fullPath))
+                return 0;
+
+            var activeScene = UnityEngine.SceneManagement.SceneManager.GetActiveScene();
+            var scene = FindLoadedScene(DDOIT_SCENE_PATH);
+            bool openedForMigration = !scene.IsValid();
+
+            if (openedForMigration)
+            {
+                scene = UnityEditor.SceneManagement.EditorSceneManager.OpenScene(
+                    DDOIT_SCENE_PATH,
+                    UnityEditor.SceneManagement.OpenSceneMode.Additive);
+            }
+
+            if (!scene.IsValid() || !scene.isLoaded)
+            {
+                warnings.Add($"{DDOIT_SCENE_PATH}: could not be opened for OVR rig migration.");
+                return 0;
+            }
+
+            int changed = ApplyOvrManagerDefaultsToScene(scene, ovrManagerType, warnings);
+            if (changed > 0)
+            {
+                UnityEditor.SceneManagement.EditorSceneManager.MarkSceneDirty(scene);
+                UnityEditor.SceneManagement.EditorSceneManager.SaveScene(scene);
+            }
+
+            if (openedForMigration)
+            {
+                if (activeScene.IsValid() && activeScene.isLoaded)
+                    UnityEditor.SceneManagement.EditorSceneManager.SetActiveScene(activeScene);
+
+                UnityEditor.SceneManagement.EditorSceneManager.CloseScene(scene, true);
+            }
+
+            return changed;
+        }
+
+        private static UnityEngine.SceneManagement.Scene FindLoadedScene(string scenePath)
+        {
+            string normalizedPath = scenePath.Replace("\\", "/");
+            int sceneCount = UnityEngine.SceneManagement.SceneManager.sceneCount;
+            for (int i = 0; i < sceneCount; i++)
+            {
+                var scene = UnityEngine.SceneManagement.SceneManager.GetSceneAt(i);
+                if (scene.path.Replace("\\", "/") == normalizedPath)
+                    return scene;
+            }
+
+            return default;
+        }
+
+        private static int ApplyOvrManagerDefaultsToScene(
+            UnityEngine.SceneManagement.Scene scene,
+            Type ovrManagerType,
+            List<string> warnings)
+        {
+            int changed = 0;
+            int managerCount = 0;
+
+            foreach (var root in scene.GetRootGameObjects())
+            {
+                foreach (var component in root.GetComponentsInChildren(ovrManagerType, true))
+                {
+                    if (component == null)
+                        continue;
+
+                    managerCount++;
+                    changed += ApplyOvrManagerDefaultsToComponent(component, warnings);
+                }
+            }
+
+            if (managerCount == 0)
+                warnings.Add($"{scene.path}: OVRManager not found.");
+
+            return changed;
+        }
+
+        private static int ApplyOvrManagerDefaultsToComponent(
+            Component ovrManager,
+            List<string> warnings)
+        {
+            var so = new SerializedObject(ovrManager);
+            var poseType = so.FindProperty(OVR_CONTROLLER_DRIVEN_HAND_POSES_FIELD);
+            if (poseType == null)
+            {
+                warnings.Add($"{ovrManager.gameObject.name}: {OVR_CONTROLLER_DRIVEN_HAND_POSES_FIELD} not found.");
+                return 0;
+            }
+
+            if (poseType.enumValueIndex == OVR_CONTROLLER_DRIVEN_HAND_POSES_NATURAL_ENUM_INDEX)
+                return 0;
+
+            poseType.enumValueIndex = OVR_CONTROLLER_DRIVEN_HAND_POSES_NATURAL_ENUM_INDEX;
+            so.ApplyModifiedPropertiesWithoutUndo();
+            EditorUtility.SetDirty(ovrManager);
+            return 1;
+        }
+
+        private static string GetProjectRelativeFullPath(string assetPath)
+        {
+            string projectRoot = Path.GetDirectoryName(Application.dataPath);
+            return Path.Combine(projectRoot, assetPath).Replace("\\", "/");
         }
 
         private static int ApplyXRValidationCleanup(List<string> issues, List<string> warnings)
@@ -3008,6 +3179,11 @@ namespace DDOIT.Tools.Setup
             CopyAgentDocsToProjectRoot();
 
             AssetDatabase.Refresh();
+            var rigWarnings = new List<string>();
+            int rigAppliedCount = ApplyDdoitOvrRigDefaults(rigWarnings);
+            foreach (var warning in rigWarnings)
+                Debug.LogWarning($"[DDOITSetupWindow] {warning}");
+
             int folderCount = PROJECT_FOLDERS.Length + PROJECT_SUBFOLDERS.Length;
             Debug.Log($"[DDOITSetupWindow] 프로젝트 초기화 완료 (폴더 {folderCount}개, 씬 {copiedCount}개 복사)");
         }
