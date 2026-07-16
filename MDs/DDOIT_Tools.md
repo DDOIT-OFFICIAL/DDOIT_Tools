@@ -632,7 +632,7 @@ Player Transform 갱신
 
 ```
 UIManager (Singleton)        ← Queue<UIPanel> 풀 관리
-├── UIPanel (Canvas)         ← 풀링 대상. World Space + OVROverlayCanvas
+├── UIPanel (Canvas)         ← 풀링 대상. World Space + InSceneOverlayCanvasRenderer
 │   ├── Title (TMP)
 │   ├── Context (TMP)
 │   ├── ContextSub (TMP)
@@ -713,9 +713,11 @@ UIManager.Instance.OpenUI(data);
 
 #### 4.7.7 프리팹 구성
 
-- `UIPanel.prefab`: World Space Canvas + OVROverlayCanvas (Animated UI 프리셋)
+- `UIPanel.prefab`: World Space Canvas + `InSceneOverlayCanvasRenderer` (RenderTexture 기반 in-scene overlay UI)
 - Interaction: `PointableCanvas` + `PokeInteractable` + `RayInteractable` share `Surface/ClippedPlaneSurface`; controller/hand rays from `OVRInteractionComprehensive` can select UI buttons.
-- 모든 자식 오브젝트: Layer 3 (Overlay UI)
+- Runtime rendering: source Canvas hierarchy is moved to Layer 30 (`DDOIT UI Render Source`) and rendered by an internal camera into a RenderTexture; the visible display mesh stays on Layer 0 and uses `ZTest Always` / render queue 4500.
+- Interaction visuals: hand/controller/ray renderers are raised above the UI mesh at runtime so rays and hands remain visible over the panel.
+- Editor prefab children: Layer 3 (Overlay UI)
 - RectTransform.localScale: (0.0005, 0.0005, 0.0005)
 - CanvasScaler.dynamicPixelsPerUnit: 10
 
@@ -833,7 +835,7 @@ public class DDOITSettings : ScriptableObject
 ```
 1. Unity에서 새 프로젝트 생성 (Unity 6, URP)
 2. Package Manager > Add package from git URL
-   https://github.com/DDOIT-OFFICIAL/DDOIT_Tools.git#v0.19.5
+   https://github.com/DDOIT-OFFICIAL/DDOIT_Tools.git#v0.19.6
 3. Unity 상단 메뉴에서 DDOIT Tools > Setup 실행
 4. 필수 패키지 설치/업데이트 실행
 5. Init Project 실행
@@ -953,5 +955,5 @@ MAJOR.MINOR.PATCH
 ---
 
 **문서 버전**: 0.4.0
-**DDOIT_Tools 패키지 버전**: v0.19.5
+**DDOIT_Tools 패키지 버전**: v0.19.6
 **최종 업데이트**: 2026-07-16

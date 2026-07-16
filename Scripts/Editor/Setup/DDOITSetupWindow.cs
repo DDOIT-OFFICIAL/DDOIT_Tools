@@ -808,19 +808,20 @@ namespace DDOIT.Tools.Setup
             appliedCount++;
             Debug.Log("[DDOITSetupWindow] Compression Method → LZ4");
 
-            // ── 7. OVR Overlay 레이어 등록 ──
+            // ── 7. UI 렌더링 레이어 등록 ──
             var layerIssues = new List<string>();
             bool overlayLayerOk = RegisterLayer(3, "Overlay UI", layerIssues);
+            bool ddoitUiRenderLayerOk = RegisterLayer(30, "DDOIT UI Render Source", layerIssues);
             bool overlayCanvasLayerOk = RegisterLayer(31, "OVROverlayCanvas Rendering", layerIssues);
-            if (overlayLayerOk && overlayCanvasLayerOk)
+            if (overlayLayerOk && ddoitUiRenderLayerOk && overlayCanvasLayerOk)
             {
                 appliedCount++;
-                Debug.Log("[DDOITSetupWindow] OVR Overlay 레이어 등록 완료");
+                Debug.Log("[DDOITSetupWindow] UI 렌더링 레이어 등록 완료");
             }
             else
             {
                 string issueText = string.Join("\n", layerIssues);
-                Debug.LogWarning($"[DDOITSetupWindow] OVR Overlay 레이어 등록 충돌:\n{issueText}");
+                Debug.LogWarning($"[DDOITSetupWindow] UI 렌더링 레이어 등록 충돌:\n{issueText}");
                 EditorUtility.DisplayDialog(
                     "레이어 충돌",
                     "일부 레이어가 이미 다른 이름으로 사용 중이라 자동 등록하지 않았습니다.\n\n" +
@@ -1015,6 +1016,7 @@ namespace DDOIT.Tools.Setup
                 ANDROID_BUILD_COMPRESSION);
 
             AddLayerPreflight(result, 3, "Overlay UI");
+            AddLayerPreflight(result, 30, "DDOIT UI Render Source");
             AddLayerPreflight(result, 31, "OVROverlayCanvas Rendering");
             AppendOpenXRPreflight(result);
             AppendXRValidationCleanupPreflight(result);

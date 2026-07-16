@@ -52,6 +52,9 @@ namespace DDOIT.Tools.UI
         [Header("배치")]
         [SerializeField] private SmoothFollowCanvas _smoothFollow;
 
+        [Header("Rendering")]
+        [SerializeField] private InSceneOverlayCanvasRenderer _overlayRenderer;
+
         #endregion
 
         #region Constants
@@ -91,6 +94,7 @@ namespace DDOIT.Tools.UI
         /// </summary>
         public void Show(UIData data)
         {
+            CacheOverlayRenderer();
             _isActive = true;
             gameObject.SetActive(true);
 
@@ -101,6 +105,7 @@ namespace DDOIT.Tools.UI
 
             // 레이아웃 강제 갱신
             LayoutRebuilder.ForceRebuildLayoutImmediate(_designPanel);
+            _overlayRenderer?.MarkDirty();
         }
 
         /// <summary>
@@ -227,11 +232,18 @@ namespace DDOIT.Tools.UI
 
             if (_titleIcon != null)
                 _titleIcon.color = theme.textColor;
+
+            _overlayRenderer?.MarkDirty();
         }
 
         #endregion
 
         #region Unity Lifecycle
+
+        private void Awake()
+        {
+            CacheOverlayRenderer();
+        }
 
         private void Update()
         {
@@ -387,6 +399,12 @@ namespace DDOIT.Tools.UI
 
             if (_smoothFollow != null)
                 _smoothFollow.enabled = false;
+        }
+
+        private void CacheOverlayRenderer()
+        {
+            if (_overlayRenderer == null)
+                _overlayRenderer = GetComponent<InSceneOverlayCanvasRenderer>();
         }
 
         /// <summary>

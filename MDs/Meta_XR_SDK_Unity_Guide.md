@@ -936,7 +936,8 @@ unity-cli exec "return DDOIT.Tools.Player.PlayerRig.HasInstance;"
 | Depth/Occlusion 안 됨 | `EnvironmentDepthManager`, device support, permission |
 | MRUK room 없음 | scene permission, room capture, MRUK prefab/source |
 | Grab 안 됨 | collider, rigidbody, interactable/interactor, layer/filter |
-| Ray/Poke UI 안 됨 | Canvas mode, event system, PointableCanvasModule, hit area |
+| Ray/Poke UI 안 됨 | Canvas mode, event system, PointableCanvasModule, hit area, `RayInteractable`/`PokeInteractable` surface |
+| UI가 손/레이를 가림 | DDOIT 기본 UI는 `OVROverlayCanvas`가 아니라 `InSceneOverlayCanvasRenderer`를 사용한다. `OVROverlayCanvas`가 켜져 있으면 compositor layer가 손/레이 위에 합성될 수 있으므로 `UIPanel.prefab`에서는 비활성 상태가 정상이다. |
 | Locomotion 안 됨 | `FirstPersonLocomotor`, `LocomotionEventsConnection`, event broadcaster |
 | WalkingStick 안 됨 | `PlayerRig`, `_walkingStickRoot`, hand refs, locomotion event wiring |
 | Body retargeting 안 됨 | body tracking permission, `MetaSourceDataProvider`, mapping/T-pose |

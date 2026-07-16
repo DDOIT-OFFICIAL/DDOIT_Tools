@@ -55,7 +55,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: fe87c0e1cc204ed48ad3b37840f39efc, type: 3}
-  m_Name: 
+  m_Name:
   m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.Image
   m_Material: {fileID: 0}
   m_Color: {r: 0.5921569, g: 0.93333334, b: 0.9529412, a: 1}
@@ -129,7 +129,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 59f8146938fff824cb5fd77236b75775, type: 3}
-  m_Name: 
+  m_Name:
   m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.VerticalLayoutGroup
   m_Padding:
     m_Left: 40
@@ -163,6 +163,7 @@ GameObject:
   - component: {fileID: 7262786704702509399}
   - component: {fileID: 3530302114904568196}
   - component: {fileID: 7345615056962716622}
+  - component: {fileID: 3628320364927456662}
   m_Layer: 3
   m_Name: UIPanel
   m_TagString: Untagged
@@ -235,7 +236,7 @@ MonoBehaviour:
   m_FallbackScreenDPI: 96
   m_DefaultSpriteDPI: 96
   m_DynamicPixelsPerUnit: 10
-  m_PresetInfoIsWorld: 1
+  m_PresetInfoIsWorld: 0
 --- !u!114 &4454375541083605570
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -260,7 +261,7 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1887171023470924724}
-  m_Enabled: 1
+  m_Enabled: 0
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: ee10491ef6d5d1d49a270cf6b09bdc19, type: 3}
   m_Name: 
@@ -280,7 +281,7 @@ MonoBehaviour:
   curveRadius: 1
   overlapMask: 0
   compositionMode: 2
-  _overlayEnabled: 1
+  _overlayEnabled: 0
 --- !u!114 &7274012466311615754
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -315,6 +316,7 @@ MonoBehaviour:
   _logoImage: {fileID: 1061256552463879097}
   _titleContextSplitter: {fileID: 6919525527459776678}
   _smoothFollow: {fileID: 4031857923340016262}
+  _overlayRenderer: {fileID: 3628320364927456662}
 --- !u!114 &4031857923340016262
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -514,6 +516,29 @@ MonoBehaviour:
   _selectSurface: {fileID: 0}
   _movementProvider: {fileID: 0}
   _tiebreakerScore: 0
+--- !u!114 &3628320364927456662
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1887171023470924724}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c6e0a861c0d84f78aeb4a48f0ca253b1, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: Assembly-CSharp::DDOIT.Tools.UI.InSceneOverlayCanvasRenderer
+  _canvas: {fileID: 8683705136650318791}
+  _rectTransform: {fileID: 8988361905710878713}
+  _renderScale: 2
+  _maxTextureSize: 2048
+  _redrawEveryFrame: 1
+  _renderInterval: 1
+  _sourceLayer: 30
+  _displayLayer: 0
+  _excludeSourceLayerFromSceneCameras: 1
+  _displayRenderQueue: 4500
+  _disableOvrOverlayCanvas: 1
 --- !u!1 &1929633451360032631
 GameObject:
   m_ObjectHideFlags: 0
