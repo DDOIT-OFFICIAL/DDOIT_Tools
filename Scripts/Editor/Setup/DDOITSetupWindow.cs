@@ -38,6 +38,7 @@ namespace DDOIT.Tools.Setup
         };
 
         private const string OPENXR_PACKAGE_ID = "com.unity.xr.openxr";
+        private const string META_XR_MOVEMENT_GIT_URL = "https://github.com/oculus-samples/Unity-Movement.git#v201.0.0";
         private const string DDOIT_PACKAGE_ID = "com.ddoit.tools";
         private const string DDOIT_GIT_URL = "https://github.com/DDOIT-OFFICIAL/DDOIT_Tools.git";
         private const string DDOIT_GITHUB_TAGS_API_URL =
@@ -45,13 +46,14 @@ namespace DDOIT.Tools.Setup
 
         private static readonly DependencyInfo[] REQUIRED_DEPENDENCIES =
         {
-            new DependencyInfo("Meta XR All-in-One SDK", "com.meta.xr.sdk.all", "203.0.0", DependencyVersionPolicy.ExactVersion,
+            new DependencyInfo("Meta XR All-in-One SDK", "com.meta.xr.sdk.all", "201.0.0", DependencyVersionPolicy.ExactVersion,
                 "Unity Asset Store에서 먼저 내 에셋에 추가해야 합니다. (Audio/Voice 모듈만 v85.0.0 유지)"),
+            new DependencyInfo("Meta XR Movement SDK", "com.meta.xr.sdk.movement", META_XR_MOVEMENT_GIT_URL, DependencyVersionPolicy.ExactReference, null),
             new DependencyInfo("Input System", "com.unity.inputsystem", "1.18.0", DependencyVersionPolicy.MinimumVersion, null),
             new DependencyInfo("TextMeshPro", "com.unity.textmeshpro", "4.0.0", DependencyVersionPolicy.MinimumVersion, null),
             new DependencyInfo("Addressables", "com.unity.addressables", "2.8.1", DependencyVersionPolicy.MinimumVersion, null),
-            new DependencyInfo("XR Management", "com.unity.xr.management", "4.5.4", DependencyVersionPolicy.MinimumVersion, null),
-            new DependencyInfo("OpenXR Plugin", OPENXR_PACKAGE_ID, "1.17.1", DependencyVersionPolicy.MinimumVersion, null),
+            new DependencyInfo("XR Management", "com.unity.xr.management", "4.5.3", DependencyVersionPolicy.ExactVersion, null),
+            new DependencyInfo("OpenXR Plugin", OPENXR_PACKAGE_ID, "1.16.1", DependencyVersionPolicy.ExactVersion, null),
             new DependencyInfo("Lottie Player", "com.gilzoide.lottie-player",
                 "https://github.com/gilzoide/unity-lottie-player.git", DependencyVersionPolicy.PresenceOnly, null),
         };
@@ -69,7 +71,7 @@ namespace DDOIT.Tools.Setup
         private const string IMPORT_WORKER_RESTORE_PENDING_KEY = "DDOIT_SetupWindow_ImportWorkerRestorePending";
         private const string IMPORT_WORKER_PREVIOUS_COUNT_KEY = "DDOIT_SetupWindow_ImportWorkerPreviousCount";
         private const string OPENXR_LOADER_TYPE_NAME = "UnityEngine.XR.OpenXR.OpenXRLoader";
-        private const string CURRENT_OPENXR_API_VERSION_FALLBACK = "1.1.54";
+        private const string CURRENT_OPENXR_API_VERSION_FALLBACK = "1.1.53";
         private const string OPENXR_TARGET_API_WARNING_FRAGMENT = "targets an API version with a patch version lower than";
         private const string OPENXR_FEATURES_REFRESHED_SESSION_KEY = "com.unity.xr.openxr.featuresRefreshed";
         private const string OVR_DISABLE_HAND_PINCH_BUTTON_MAPPING_DEFINE = "OVR_DISABLE_HAND_PINCH_BUTTON_MAPPING";
@@ -96,7 +98,6 @@ namespace DDOIT.Tools.Setup
             "Meta.XR.MetaXRFeature",
             "Meta.XR.MetaXRFoveationFeature",
             "UnityEngine.XR.OpenXR.Features.Interactions.OculusTouchControllerProfile",
-            "Meta.XR.OculusTouchControllerProximityProfile",
         };
 
         private static readonly string[] OPTIMIZE_ASSETS =
@@ -156,6 +157,7 @@ namespace DDOIT.Tools.Setup
         private enum DependencyVersionPolicy
         {
             ExactVersion,
+            ExactReference,
             MinimumVersion,
             PresenceOnly
         }
@@ -1147,8 +1149,6 @@ namespace DDOIT.Tools.Setup
             AppendOpenXRLoaderPreflight(result, BuildTargetGroup.Standalone);
             AppendOpenXRValidationIssues(result, BuildTargetGroup.Android);
             AppendOpenXRValidationIssues(result, BuildTargetGroup.Standalone);
-            AppendOpenXRPredictedTimeWarning(result, BuildTargetGroup.Android);
-            AppendOpenXRPredictedTimeWarning(result, BuildTargetGroup.Standalone);
         }
 
         private static void AppendOpenXRLoaderPreflight(OptimizePreflightResult result, BuildTargetGroup group)
@@ -1191,35 +1191,6 @@ namespace DDOIT.Tools.Setup
                     result.errors.Add(text);
                 else
                     result.warnings.Add(text);
-            }
-        }
-
-        private static void AppendOpenXRPredictedTimeWarning(OptimizePreflightResult result, BuildTargetGroup group)
-        {
-            string openXrVersion = GetResolvedPackageVersion("com.unity.xr.openxr");
-            if (string.IsNullOrEmpty(openXrVersion) || !IsVersionAtLeast(openXrVersion, "1.17.1"))
-                return;
-
-            Type settingsType = FindType("UnityEngine.XR.OpenXR.OpenXRSettings");
-            if (settingsType == null)
-                return;
-
-            var method = settingsType.GetMethod(
-                "GetSettingsForBuildTargetGroup",
-                System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static);
-            if (method == null)
-                return;
-
-            var settings = method.Invoke(null, new object[] { group }) as ScriptableObject;
-            if (settings == null)
-                return;
-
-            var so = new SerializedObject(settings);
-            var prop = so.FindProperty("m_useOpenXRPredictedTime");
-            if (prop != null && !prop.boolValue)
-            {
-                result.warnings.Add(
-                    $"OpenXR {group}: Use OpenXR Predicted Time이 꺼져 있습니다. OpenXR 1.17.1+ 기본값은 켜짐이며, Optimize는 이 값을 자동 변경하지 않습니다.");
             }
         }
 
@@ -1812,7 +1783,7 @@ namespace DDOIT.Tools.Setup
                 if (targetVersionProperty == null || string.IsNullOrEmpty(targetVersionProperty.stringValue))
                     continue;
 
-                if (!IsLowerPatchOpenXRApiVersion(targetVersionProperty.stringValue, currentApiVersion))
+                if (!HasDifferentPatchOpenXRApiVersion(targetVersionProperty.stringValue, currentApiVersion))
                     continue;
 
                 string previousVersion = targetVersionProperty.stringValue;
@@ -1938,7 +1909,7 @@ namespace DDOIT.Tools.Setup
             return current?.ToString() ?? CURRENT_OPENXR_API_VERSION_FALLBACK;
         }
 
-        private static bool IsLowerPatchOpenXRApiVersion(string value, string target)
+        private static bool HasDifferentPatchOpenXRApiVersion(string value, string target)
         {
             if (!Version.TryParse(value, out var currentVersion) || !Version.TryParse(target, out var targetVersion))
                 return false;
@@ -1947,7 +1918,7 @@ namespace DDOIT.Tools.Setup
                 && currentVersion.Minor == targetVersion.Minor
                 && currentVersion.Build >= 0
                 && targetVersion.Build >= 0
-                && currentVersion.Build < targetVersion.Build;
+                && currentVersion.Build != targetVersion.Build;
         }
 
         private static int RemoveStaleOpenXRTargetApiValidationRules(BuildTargetGroup group)
@@ -2021,8 +1992,7 @@ namespace DDOIT.Tools.Setup
                 return false;
             }
 
-            bool hasTargetMetaFeatures = FindType("Meta.XR.MetaXRFeature") != null
-                || FindType("Meta.XR.OculusTouchControllerProximityProfile") != null;
+            bool hasTargetMetaFeatures = FindType("Meta.XR.MetaXRFeature") != null;
             if (!hasTargetMetaFeatures)
                 return false;
 
@@ -2849,7 +2819,7 @@ namespace DDOIT.Tools.Setup
             if (previousWorkerCount <= 0)
                 return;
 
-            // OpenXR 1.17.1 can create its settings asset from import workers during first load.
+            // OpenXR can create or migrate its settings asset during first load.
             // Keeping that initialization in the main process avoids concurrent GUID reservation.
             SessionState.SetInt(IMPORT_WORKER_PREVIOUS_COUNT_KEY, previousWorkerCount);
             SessionState.SetBool(IMPORT_WORKER_RESTORE_PENDING_KEY, true);
@@ -3267,6 +3237,12 @@ namespace DDOIT.Tools.Setup
 
                 case DependencyVersionPolicy.MinimumVersion:
                     return IsVersionAtLeast(installedVersion, dep.versionOrUrl)
+                        ? new DependencyStatus(DependencyState.Installed, installedVersion)
+                        : new DependencyStatus(DependencyState.VersionMismatch, installedVersion);
+
+                case DependencyVersionPolicy.ExactReference:
+                    string manifestReference = manifestVersion ?? installedVersion;
+                    return string.Equals(manifestReference, dep.versionOrUrl, StringComparison.Ordinal)
                         ? new DependencyStatus(DependencyState.Installed, installedVersion)
                         : new DependencyStatus(DependencyState.VersionMismatch, installedVersion);
 

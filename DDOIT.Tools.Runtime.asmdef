@@ -6,6 +6,7 @@
     "Unity.Addressables",
     "Unity.ResourceManager",
     "Unity.ugui",
+    "Unity.InputSystem",
     "Oculus.VR",
     "Oculus.Interaction"
   ],

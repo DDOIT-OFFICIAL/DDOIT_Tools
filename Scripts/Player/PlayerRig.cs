@@ -1,5 +1,8 @@
 using System;
 using UnityEngine;
+#if ENABLE_INPUT_SYSTEM
+using UnityEngine.InputSystem;
+#endif
 
 using DDOIT.Tools.Utilities;
 namespace DDOIT.Tools.Player
@@ -116,7 +119,19 @@ namespace DDOIT.Tools.Player
         private void HandleDebugKeyboard()
         {
             if (!_enableDebugKeyboard) return;
-            if (Input.GetKeyDown(KeyCode.Space))
+
+            bool isTogglePressed = false;
+#if ENABLE_INPUT_SYSTEM
+            isTogglePressed = Keyboard.current != null && Keyboard.current.spaceKey.wasPressedThisFrame;
+#endif
+#if ENABLE_LEGACY_INPUT_MANAGER
+            if (!isTogglePressed)
+            {
+                isTogglePressed = Input.GetKeyDown(KeyCode.Space);
+            }
+#endif
+
+            if (isTogglePressed)
             {
                 if (IsWalkingStickMode) DisableWalkingStick();
                 else                    EnableWalkingStick();
