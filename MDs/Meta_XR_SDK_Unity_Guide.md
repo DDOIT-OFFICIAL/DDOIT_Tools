@@ -460,9 +460,22 @@ Assets/DDOIT_Tools/Scripts/Player/PlayerRig.cs
 
 - DDOIT player rig의 외부 진입점
 - `PlayerRig.Instance`
+- `Teleport(Vector3)` / `Teleport(Vector3, Quaternion)`
+- `ApplyDefaultControllerLocomotionProfile()`
+- `SetComfortTunnelingEnabled(bool)`
 - `EnableWalkingStick()`
 - `DisableWalkingStick()`
 - `IsWalkingStickMode`
+
+기본 컨트롤러 프로파일:
+
+- 왼쪽 컨트롤러 `ControllerSlideInteractor`: active, 왼쪽 스틱 이동
+- 오른쪽 컨트롤러 `ControllerTurnerInteractor`: active, 45도 Snap turn
+- 양쪽 `ControllerStepInteractor`, `TeleportControllerInteractor`: inactive
+- `SmoothMovementTunneling`, `WallPenetrationTunneling`: inactive
+- `WalkingStickGroup`: 기본 inactive, 시나리오에서 필요할 때만 `EnableWalkingStick()`으로 active
+
+`FirstPersonLocomotor`의 velocity 이동은 grounded 상태에서만 실제 이동 속도가 붙는다. DDOIT 씬은 player/system 씬이므로 지면 collider를 포함하지 않는다. 스냅턴은 되는데 조이스틱 이동만 안 되면, 입력 코드보다 먼저 함께 로드된 콘텐츠/체험 씬이 PlayerController 아래에서 ground로 감지되는 바닥/지형 collider를 제공하는지 확인한다. `DDOIT Tools > Setup > Optimize Project`는 DDOIT 씬의 PlayerRig 직렬화 슬롯, Meta Locomotion event connection, 오른쪽 스냅턴, tunneling 비활성, CharacterController layer mask 기본값을 다시 보정한다. AI가 새 씬이나 UPM 소비 프로젝트를 점검할 때는 직접 transform 이동 스크립트를 추가하지 말고, 먼저 이 표준 구성이 깨졌는지 확인한다.
 
 ### 7.2 WalkingStick
 
@@ -491,6 +504,20 @@ Assets/DDOIT_Tools/Scripts/Scenario/Nodes/WalkingStickNode.cs
 ### 7.3 동작 흐름
 
 ```text
+Controller left stick
+  -> ControllerSlideInteractor
+  -> Left LocomotionControllerInteractorGroup
+  -> Left LocomotionOutput
+  -> Locomotor
+  -> FirstPersonLocomotor
+
+Controller right stick
+  -> ControllerTurnerInteractor
+  -> Right LocomotionControllerInteractorGroup
+  -> Right LocomotionOutput
+  -> Locomotor
+  -> FirstPersonLocomotor
+
 Scenario
   -> WalkingStickNode
   -> PlayerRig.EnableWalkingStick()

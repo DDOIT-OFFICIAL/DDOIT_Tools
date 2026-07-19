@@ -619,7 +619,11 @@ namespace DDOIT.Tools.Setup
                 "  - DSP Buffer: 256 (Best Latency)\n\n" +
                 "[ Build ]\n" +
                 "  - Texture Compression: ASTC\n" +
-                "  - Compression Method: LZ4",
+                "  - Compression Method: LZ4\n\n" +
+                "[ DDOIT Player ]\n" +
+                "  - 왼쪽 스틱 이동 / 오른쪽 스틱 45도 스냅턴\n" +
+                "  - Teleport/Step 이동 및 comfort tunneling 비활성화\n" +
+                "  - CharacterController layer mask 기본값 보정",
                 MessageType.Info);
 
             EditorGUILayout.Space(8);
@@ -881,7 +885,7 @@ namespace DDOIT.Tools.Setup
             if (rigAppliedCount > 0)
             {
                 appliedCount += rigAppliedCount;
-                Debug.Log($"[DDOITSetupWindow] DDOIT OVR rig defaults applied ({rigAppliedCount} items)");
+                Debug.Log($"[DDOITSetupWindow] DDOIT OVR/Player rig defaults applied ({rigAppliedCount} items)");
             }
 
             AssetDatabase.SaveAssets();
@@ -1243,6 +1247,8 @@ namespace DDOIT.Tools.Setup
                 result.changes.Add(
                     "DDOIT OVRCameraRig: Controller Driven Hand Poses Type will be set to Natural");
             }
+
+            DDOITPlayerRigDefaults.AppendPreflight(DDOIT_SCENE_PATH, result.changes, result.warnings);
         }
 
         private static bool DdoitSceneNeedsOvrManagerDefaults(string fullPath)
@@ -1303,6 +1309,7 @@ namespace DDOIT.Tools.Setup
             }
 
             int changed = ApplyOvrManagerDefaultsToScene(scene, ovrManagerType, warnings);
+            changed += DDOITPlayerRigDefaults.ApplyToScene(scene, warnings);
             if (changed > 0)
             {
                 UnityEditor.SceneManagement.EditorSceneManager.MarkSceneDirty(scene);

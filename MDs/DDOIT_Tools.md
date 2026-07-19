@@ -542,6 +542,8 @@ UPM 패키지의 `package.json`은 `com.meta.xr.sdk.all@201.0.0`, `com.unity.inp
 - `Singleton<PlayerRig>` — `PlayerRig.Instance` / `HasInstance`
 - `HeadTransform` (read-only Transform) — `OVRCameraRig/TrackingSpace/CenterEyeAnchor` 노출. UI lookAt/follow 등에 사용
 - `Teleport(Vector3 position)` / `Teleport(Vector3 position, Quaternion rotation)` — `_playerOrigin` (OVRCameraRig root) 위치 이동
+- `ApplyDefaultControllerLocomotionProfile()` — 왼쪽 스틱 이동, 오른쪽 스틱 45도 스냅턴, comfort tunneling 비활성 표준값 적용
+- `SetComfortTunnelingEnabled(bool enabled)` — `SmoothMovementTunneling`, `WallPenetrationTunneling` 활성 상태 일괄 변경
 - `EnableWalkingStick()` / `DisableWalkingStick()` — `_walkingStickRoot.SetActive` 토글, `IsWalkingStickMode {get; private set}` 갱신
 - `_enableDebugKeyboard` Inspector 토글 — 활성 시 스페이스바로 EnableWalkingStick/DisableWalkingStick 토글
 
@@ -549,17 +551,34 @@ UPM 패키지의 `package.json`은 `com.meta.xr.sdk.all@201.0.0`, `com.unity.inp
 - `_headTransform` ← `OVRCameraRig/TrackingSpace/CenterEyeAnchor`
 - `_playerOrigin` ← `OVRCameraRig` root (Teleport 시 이동 대상)
 - `_walkingStickRoot` ← `OVRCameraRig/OVRInteractionComprehensive/Locomotor/WalkingStickGroup` (단일 토글 컨테이너)
+- `_leftControllerSlideInteractor` ← 왼쪽 `ControllerSlideInteractor` (기본 active)
+- `_rightControllerTurnerInteractor` ← 오른쪽 `ControllerTurnerInteractor` (기본 active, Snap turn)
+- `_leftControllerStepInteractor`, `_rightControllerStepInteractor` ← 기본 inactive
+- `_leftTeleportControllerInteractor`, `_rightTeleportControllerInteractor` ← 기본 inactive
+- `_smoothMovementTunneling`, `_wallPenetrationTunneling` ← 기본 inactive
 
 **Scene Hierarchy** (DDOIT 씬 — Bootstrap 이중 씬 구조의 일부):
 ```
 OVRCameraRig (root) + PlayerRig 컴포넌트
 ├ TrackingSpace/CenterEyeAnchor      ← _headTransform
 └ OVRInteractionComprehensive
+   ├ LeftInteractions/Interactors/Controller/LocomotionControllerInteractorGroup
+   │  ├ ControllerSlideInteractor      ← 왼쪽 스틱 이동 active
+   │  ├ ControllerTurnerInteractor     ← inactive
+   │  ├ ControllerStepInteractor       ← inactive
+   │  └ TeleportControllerInteractor   ← inactive
+   ├ RightInteractions/Interactors/Controller/LocomotionControllerInteractorGroup
+   │  ├ ControllerTurnerInteractor     ← 오른쪽 스틱 45도 Snap turn active
+   │  ├ ControllerSlideInteractor      ← inactive
+   │  ├ ControllerStepInteractor       ← inactive
+   │  └ TeleportControllerInteractor   ← inactive
    └ Locomotor
       ├ PlayerController              ← FirstPersonLocomotor + IsGroundedActiveState
       │  layer = Water (self-cast 방지)
       │  ISDK CharacterController._layerMask = 7 (Default+TFX+IgnoreRaycast)
       │  speedFactor=30, groundDamping=40, acceleration=5, ...
+      ├ SmoothMovementTunneling        ← 기본 inactive
+      ├ WallPenetrationTunneling       ← 기본 inactive
       └ WalkingStickGroup             ← _walkingStickRoot
          ├ WalkingStickLocomotor      ← LocomotionEventsConnection→FirstPersonLocomotor
          ├ HandWalkingStick (L)
@@ -569,8 +588,11 @@ OVRCameraRig (root) + PlayerRig 컴포넌트
 **Critical 설정** (생략 시 ground 검출/이동 실패):
 - `OVRManager._trackingOriginType = FloorLevel` (EyeLevel 시 OVRCameraRig가 HMD 위치로 jump → tracking-space head.y ≈ 0 → stick 길이 0)
 - `OVRRightHandVisual` 하위 `OpenXRRightHand` 활성 (OculusHand_R 비활성) — 좌측 동일
-- `TunnelingEffect` 3개 슬롯 wiring: `_leftEyeAnchor`, `_rightEyeAnchor`, `_centerEyeCamera` (Camera 컴포넌트)
+- DDOIT 기본 컨트롤러 프로파일: 왼쪽 스틱 이동, 오른쪽 스틱 Snap turn, Step/Teleport/tunneling 비활성
+- `FirstPersonLocomotor` velocity 이동은 grounded 상태에서만 속도가 붙는다. DDOIT 씬은 player/system 씬이므로 지면 collider를 포함하지 않는다. 실제 콘텐츠/체험 씬이 `Default` 등 Player CharacterController layer mask에 포함된 레이어의 바닥/지형 collider를 제공해야 한다.
+- `SmoothMovementTunneling`, `WallPenetrationTunneling`은 기본 비활성이지만, 옵션으로 다시 켤 경우 `TunnelingEffect`의 eye/camera 슬롯이 유지되어야 함
 - `EventSystem`은 DDOIT 씬에만 (환경 씬에 두지 않음)
+- `DDOIT Tools > Setup > Optimize Project`는 위 PlayerRig/Locomotion 기본값을 다시 보정한다
 
 #### 4.5.3 WalkingStick Locomotion (`DDOIT.Tools.Locomotion`)
 
@@ -835,7 +857,7 @@ public class DDOITSettings : ScriptableObject
 ```
 1. Unity에서 새 프로젝트 생성 (Unity 6, URP)
 2. Package Manager > Add package from git URL
-   https://github.com/DDOIT-OFFICIAL/DDOIT_Tools.git#v0.19.6
+   https://github.com/DDOIT-OFFICIAL/DDOIT_Tools.git#v0.19.7
 3. Unity 상단 메뉴에서 DDOIT Tools > Setup 실행
 4. 필수 패키지 설치/업데이트 실행
 5. Init Project 실행
@@ -955,5 +977,5 @@ MAJOR.MINOR.PATCH
 ---
 
 **문서 버전**: 0.4.0
-**DDOIT_Tools 패키지 버전**: v0.19.6
+**DDOIT_Tools 패키지 버전**: v0.19.7
 **최종 업데이트**: 2026-07-16

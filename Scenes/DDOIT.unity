@@ -799,6 +799,10 @@ PrefabInstance:
       propertyPath: m_Layer
       value: 6
       objectReference: {fileID: 0}
+    - target: {fileID: 6030967184715002, guid: 0a7d2469f24041c4284c66706f84c45e, type: 3}
+      propertyPath: _turnMethod
+      value: 0
+      objectReference: {fileID: 0}
     - target: {fileID: 34339752671360513, guid: 0a7d2469f24041c4284c66706f84c45e, type: 3}
       propertyPath: m_Layer
       value: 6
@@ -2447,6 +2451,10 @@ PrefabInstance:
       propertyPath: m_Layer
       value: 6
       objectReference: {fileID: 0}
+    - target: {fileID: 1838289475393856967, guid: 0a7d2469f24041c4284c66706f84c45e, type: 3}
+      propertyPath: m_IsActive
+      value: 0
+      objectReference: {fileID: 0}
     - target: {fileID: 1876285864150506021, guid: 0a7d2469f24041c4284c66706f84c45e, type: 3}
       propertyPath: m_Layer
       value: 6
@@ -3419,6 +3427,10 @@ PrefabInstance:
       propertyPath: m_Layer
       value: 6
       objectReference: {fileID: 0}
+    - target: {fileID: 4147102894439380630, guid: 0a7d2469f24041c4284c66706f84c45e, type: 3}
+      propertyPath: _turnMethod
+      value: 0
+      objectReference: {fileID: 0}
     - target: {fileID: 4148778239110795873, guid: 0a7d2469f24041c4284c66706f84c45e, type: 3}
       propertyPath: m_Name
       value: OVRInteractionComprehensive
@@ -3662,6 +3674,10 @@ PrefabInstance:
     - target: {fileID: 4604000520904607249, guid: 0a7d2469f24041c4284c66706f84c45e, type: 3}
       propertyPath: m_Layer
       value: 6
+      objectReference: {fileID: 0}
+    - target: {fileID: 4604000520904607249, guid: 0a7d2469f24041c4284c66706f84c45e, type: 3}
+      propertyPath: m_IsActive
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: 4605550062447066401, guid: 0a7d2469f24041c4284c66706f84c45e, type: 3}
       propertyPath: m_Layer
@@ -7708,6 +7724,20 @@ MonoBehaviour:
   _headTransform: {fileID: 1392734290}
   _playerOrigin: {fileID: 1392734292}
   _walkingStickRoot: {fileID: 1506847459}
+  _applyDefaultControllerProfileOnAwake: 1
+  _leftControllerSlideInteractor: {fileID: 1774174275}
+  _leftControllerTurnerInteractor: {fileID: 1774174274}
+  _leftControllerStepInteractor: {fileID: 2039690808}
+  _leftTeleportControllerInteractor: {fileID: 2039690807}
+  _rightControllerSlideInteractor: {fileID: 1774174273}
+  _rightControllerTurnerInteractor: {fileID: 1774174272}
+  _rightControllerStepInteractor: {fileID: 2039690806}
+  _rightTeleportControllerInteractor: {fileID: 2039690805}
+  _smoothMovementTunneling: {fileID: 1774174271}
+  _wallPenetrationTunneling: {fileID: 1774174270}
+  _snapTurnDegrees: 45
+  _fireSnapOnUnselect: 0
+  _comfortTunnelingEnabled: 0
   _enableDebugKeyboard: 1
 --- !u!1 &1506847459
 GameObject:
@@ -7926,6 +7956,36 @@ MonoBehaviour:
   m_SendPointerHoverToParent: 1
   _useInitialPressPositionForDrag: 1
   _exclusiveMode: 1
+--- !u!1 &1774174270 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 1838289475393856967, guid: 0a7d2469f24041c4284c66706f84c45e, type: 3}
+  m_PrefabInstance: {fileID: 1096496436}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1 &1774174271 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 4604000520904607249, guid: 0a7d2469f24041c4284c66706f84c45e, type: 3}
+  m_PrefabInstance: {fileID: 1096496436}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1 &1774174272 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 2978571458893240916, guid: 0a7d2469f24041c4284c66706f84c45e, type: 3}
+  m_PrefabInstance: {fileID: 1096496436}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1 &1774174273 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 3725902998641757613, guid: 0a7d2469f24041c4284c66706f84c45e, type: 3}
+  m_PrefabInstance: {fileID: 1096496436}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1 &1774174274 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 1210931498640539704, guid: 0a7d2469f24041c4284c66706f84c45e, type: 3}
+  m_PrefabInstance: {fileID: 1096496436}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1 &1774174275 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 733246938184751041, guid: 0a7d2469f24041c4284c66706f84c45e, type: 3}
+  m_PrefabInstance: {fileID: 1096496436}
+  m_PrefabAsset: {fileID: 0}
 --- !u!20 &1834265405 stripped
 Camera:
   m_CorrespondingSourceObject: {fileID: 8826230058175701705, guid: b43af3495266d6344a5fc403fe8d6d22, type: 3}
@@ -7939,39 +7999,7 @@ PrefabInstance:
     serializedVersion: 3
     m_TransformParent: {fileID: 0}
     m_Modifications:
-    - target: {fileID: 8826230058175607089, guid: b43af3495266d6344a5fc403fe8d6d22, type: 3}
-      propertyPath: m_Layer
-      value: 6
-      objectReference: {fileID: 0}
-    - target: {fileID: 8826230058175607091, guid: b43af3495266d6344a5fc403fe8d6d22, type: 3}
-      propertyPath: m_Layer
-      value: 6
-      objectReference: {fileID: 0}
-    - target: {fileID: 8826230058175607093, guid: b43af3495266d6344a5fc403fe8d6d22, type: 3}
-      propertyPath: m_Name
-      value: OVRCameraRig
-      objectReference: {fileID: 0}
-    - target: {fileID: 8826230058175607093, guid: b43af3495266d6344a5fc403fe8d6d22, type: 3}
-      propertyPath: m_Layer
-      value: 6
-      objectReference: {fileID: 0}
-    - target: {fileID: 8826230058175607095, guid: b43af3495266d6344a5fc403fe8d6d22, type: 3}
-      propertyPath: m_Layer
-      value: 6
-      objectReference: {fileID: 0}
-    - target: {fileID: 8826230058175602029, guid: b43af3495266d6344a5fc403fe8d6d22, type: 3}
-      propertyPath: m_Layer
-      value: 6
-      objectReference: {fileID: 0}
-    - target: {fileID: 8826230058175597561, guid: b43af3495266d6344a5fc403fe8d6d22, type: 3}
-      propertyPath: m_Layer
-      value: 6
-      objectReference: {fileID: 0}
-    - target: {fileID: 8826230058175518839, guid: b43af3495266d6344a5fc403fe8d6d22, type: 3}
-      propertyPath: m_Layer
-      value: 6
-      objectReference: {fileID: 0}
-    - target: {fileID: 8826230058175538555, guid: b43af3495266d6344a5fc403fe8d6d22, type: 3}
+    - target: {fileID: 8825395743255234793, guid: b43af3495266d6344a5fc403fe8d6d22, type: 3}
       propertyPath: m_Layer
       value: 6
       objectReference: {fileID: 0}
@@ -8015,6 +8043,42 @@ PrefabInstance:
       propertyPath: m_LocalEulerAnglesHint.z
       value: 0
       objectReference: {fileID: 0}
+    - target: {fileID: 8826230058175518839, guid: b43af3495266d6344a5fc403fe8d6d22, type: 3}
+      propertyPath: m_Layer
+      value: 6
+      objectReference: {fileID: 0}
+    - target: {fileID: 8826230058175538555, guid: b43af3495266d6344a5fc403fe8d6d22, type: 3}
+      propertyPath: m_Layer
+      value: 6
+      objectReference: {fileID: 0}
+    - target: {fileID: 8826230058175597561, guid: b43af3495266d6344a5fc403fe8d6d22, type: 3}
+      propertyPath: m_Layer
+      value: 6
+      objectReference: {fileID: 0}
+    - target: {fileID: 8826230058175602029, guid: b43af3495266d6344a5fc403fe8d6d22, type: 3}
+      propertyPath: m_Layer
+      value: 6
+      objectReference: {fileID: 0}
+    - target: {fileID: 8826230058175607089, guid: b43af3495266d6344a5fc403fe8d6d22, type: 3}
+      propertyPath: m_Layer
+      value: 6
+      objectReference: {fileID: 0}
+    - target: {fileID: 8826230058175607091, guid: b43af3495266d6344a5fc403fe8d6d22, type: 3}
+      propertyPath: m_Layer
+      value: 6
+      objectReference: {fileID: 0}
+    - target: {fileID: 8826230058175607093, guid: b43af3495266d6344a5fc403fe8d6d22, type: 3}
+      propertyPath: m_Name
+      value: OVRCameraRig
+      objectReference: {fileID: 0}
+    - target: {fileID: 8826230058175607093, guid: b43af3495266d6344a5fc403fe8d6d22, type: 3}
+      propertyPath: m_Layer
+      value: 6
+      objectReference: {fileID: 0}
+    - target: {fileID: 8826230058175607095, guid: b43af3495266d6344a5fc403fe8d6d22, type: 3}
+      propertyPath: m_Layer
+      value: 6
+      objectReference: {fileID: 0}
     - target: {fileID: 8826230058181117137, guid: b43af3495266d6344a5fc403fe8d6d22, type: 3}
       propertyPath: _trackingOriginType
       value: 1
@@ -8032,10 +8096,6 @@ PrefabInstance:
       value: 1
       objectReference: {fileID: 0}
     - target: {fileID: 8826685613848415295, guid: b43af3495266d6344a5fc403fe8d6d22, type: 3}
-      propertyPath: m_Layer
-      value: 6
-      objectReference: {fileID: 0}
-    - target: {fileID: 8825395743255234793, guid: b43af3495266d6344a5fc403fe8d6d22, type: 3}
       propertyPath: m_Layer
       value: 6
       objectReference: {fileID: 0}
@@ -8233,6 +8293,26 @@ MonoBehaviour:
     m_VarianceClampScale: 0.9
     m_ContrastAdaptiveSharpening: 0
   m_Version: 2
+--- !u!1 &2039690805 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 8642537477760321812, guid: 0a7d2469f24041c4284c66706f84c45e, type: 3}
+  m_PrefabInstance: {fileID: 1096496436}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1 &2039690806 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 1658660232168627227, guid: 0a7d2469f24041c4284c66706f84c45e, type: 3}
+  m_PrefabInstance: {fileID: 1096496436}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1 &2039690807 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 5649874818017284984, guid: 0a7d2469f24041c4284c66706f84c45e, type: 3}
+  m_PrefabInstance: {fileID: 1096496436}
+  m_PrefabAsset: {fileID: 0}
+--- !u!1 &2039690808 stripped
+GameObject:
+  m_CorrespondingSourceObject: {fileID: 3358748043045602935, guid: 0a7d2469f24041c4284c66706f84c45e, type: 3}
+  m_PrefabInstance: {fileID: 1096496436}
+  m_PrefabAsset: {fileID: 0}
 --- !u!1 &2108454670
 GameObject:
   m_ObjectHideFlags: 0
