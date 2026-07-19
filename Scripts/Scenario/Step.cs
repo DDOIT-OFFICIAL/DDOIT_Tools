@@ -50,6 +50,8 @@ namespace DDOIT.Tools.Scenario
         private Dictionary<int, List<ScenarioNode>> _conditionGroups;
         private int _completedGroupIndex;
         private Coroutine _defaultWaitCoroutine;
+        private bool _isInitializing;
+        private bool _endRequestedDuringInitialization;
 
         // 외부 marker (UINode 등의 UnityEvent에서 MarkConditionGroupN 호출)
         private HashSet<int> _expectedExternalMarkers = new HashSet<int>();
@@ -66,6 +68,8 @@ namespace DDOIT.Tools.Scenario
             gameObject.SetActive(true);
             IsActive = true;
             _completedGroupIndex = -1;
+            _isInitializing = false;
+            _endRequestedDuringInitialization = false;
 
             _parentScenario = GetComponentInParent<Scenario>();
             _nodes = GetComponentsInChildren<ScenarioNode>(true);
@@ -96,12 +100,26 @@ namespace DDOIT.Tools.Scenario
                 Debug.Log($"[Step] '{gameObject.name}' 시작 (Node {_nodes.Length}개, 조건 그룹 {_conditionGroups.Count}개, 조건 노드 {totalConditions}개, 외부 marker {_expectedExternalMarkers.Count}개)");
             }
 
-            _onStart?.Invoke();
-
-            foreach (var node in _nodes)
+            _isInitializing = true;
+            try
             {
-                node.gameObject.SetActive(true);
-                node.Init();
+                _onStart?.Invoke();
+
+                foreach (var node in _nodes)
+                {
+                    node.gameObject.SetActive(true);
+                    node.Init();
+                }
+            }
+            finally
+            {
+                _isInitializing = false;
+            }
+
+            if (_endRequestedDuringInitialization)
+            {
+                EndTrigger();
+                return;
             }
 
             // 조건 노드도 외부 marker도 없으면 기본 대기 후 자동 진행
@@ -147,6 +165,9 @@ namespace DDOIT.Tools.Scenario
 
         private void CheckGroupCompletion()
         {
+            if (_endRequestedDuringInitialization)
+                return;
+
             for (int g = 1; g <= _conditionGroupCount; g++)
             {
                 bool hasNodes = _conditionGroups.ContainsKey(g);
@@ -249,6 +270,15 @@ namespace DDOIT.Tools.Scenario
         public void EndTrigger()
         {
             if (!IsActive) return;
+
+            if (_isInitializing)
+            {
+                if (!_endRequestedDuringInitialization && ScenarioManager.DebugMode)
+                    Debug.Log($"[Step] '{gameObject.name}' 초기화 중 종료 요청 감지 → 초기화 완료 후 종료");
+
+                _endRequestedDuringInitialization = true;
+                return;
+            }
 
             if (ScenarioManager.DebugMode) Debug.Log($"[Step] '{gameObject.name}' 종료");
 

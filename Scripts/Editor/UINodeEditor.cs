@@ -2,6 +2,7 @@ using System.Linq;
 using UnityEditor;
 using UnityEngine;
 
+using DDOIT.Tools.Managers;
 using DDOIT.Tools.Scenario.Nodes;
 using DDOIT.Tools.UI;
 namespace DDOIT.Tools.Editor
@@ -35,7 +36,6 @@ namespace DDOIT.Tools.Editor
         // Theme
         private SerializedProperty _theme;
         private UITheme[] _themes;
-        private string[] _themeNames;
 
         // Title Bold / Icon
         private SerializedProperty _titleBold;
@@ -129,22 +129,7 @@ namespace DDOIT.Tools.Editor
 
         private void DrawThemeDropdown()
         {
-            EditorGUILayout.LabelField("테마", EditorStyles.boldLabel);
-
-            if (_themes == null || _themes.Length == 0)
-            {
-                EditorGUILayout.HelpBox("UITheme 에셋이 없습니다.", MessageType.Warning);
-                return;
-            }
-
-            var currentTheme = _theme.objectReferenceValue as UITheme;
-            int selectedIndex = System.Array.IndexOf(_themes, currentTheme);
-            if (selectedIndex < 0) selectedIndex = 0;
-
-            EditorGUI.BeginChangeCheck();
-            selectedIndex = EditorGUILayout.Popup("테마", selectedIndex, _themeNames);
-            if (EditorGUI.EndChangeCheck())
-                _theme.objectReferenceValue = _themes[selectedIndex];
+            DrawThemeDropdownWithDefault();
         }
 
         private void DrawElementToggles()
@@ -368,6 +353,58 @@ namespace DDOIT.Tools.Editor
             }
         }
 
+        private bool DrawThemeDropdownWithDefault()
+        {
+            EditorGUILayout.LabelField("테마", EditorStyles.boldLabel);
+
+            UITheme defaultTheme = FindDefaultTheme();
+            string[] themeNames = BuildThemeNames(defaultTheme);
+            var currentTheme = _theme.objectReferenceValue as UITheme;
+            int selectedIndex = 0;
+
+            if (currentTheme != null && _themes != null)
+            {
+                int themeIndex = System.Array.IndexOf(_themes, currentTheme);
+                selectedIndex = themeIndex >= 0 ? themeIndex + 1 : 0;
+            }
+
+            EditorGUI.BeginChangeCheck();
+            selectedIndex = EditorGUILayout.Popup("테마", selectedIndex, themeNames);
+            if (EditorGUI.EndChangeCheck())
+                _theme.objectReferenceValue = selectedIndex == 0 ? null : _themes[selectedIndex - 1];
+
+            if ((_themes == null || _themes.Length == 0) && defaultTheme == null)
+                EditorGUILayout.HelpBox("UITheme 에셋이 없습니다.", MessageType.Warning);
+
+            return true;
+        }
+
+        private string[] BuildThemeNames(UITheme defaultTheme)
+        {
+            int themeCount = _themes?.Length ?? 0;
+            var names = new string[themeCount + 1];
+            names[0] = "기본 (" + (defaultTheme != null ? defaultTheme.name : "미지정") + ")";
+
+            for (int i = 0; i < themeCount; i++)
+                names[i + 1] = _themes[i].name;
+
+            return names;
+        }
+
+        private UITheme FindDefaultTheme()
+        {
+            var manager = Object.FindFirstObjectByType<UIManager>(FindObjectsInactive.Include);
+            if (manager != null && manager.DefaultTheme != null)
+                return manager.DefaultTheme;
+
+            return FindThemeByName("UITheme_Blue");
+        }
+
+        private UITheme FindThemeByName(string themeName)
+        {
+            return _themes?.FirstOrDefault(theme => theme != null && theme.name == themeName);
+        }
+
         private void RefreshThemeList()
         {
             var guids = AssetDatabase.FindAssets("t:UITheme");
@@ -377,7 +414,6 @@ namespace DDOIT.Tools.Editor
                 .OrderBy(t => t.name)
                 .ToArray();
 
-            _themeNames = _themes.Select(t => t.name).ToArray();
         }
 
         private void RefreshGlobalSettings()

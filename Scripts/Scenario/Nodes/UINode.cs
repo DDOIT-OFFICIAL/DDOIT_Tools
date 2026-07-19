@@ -63,8 +63,7 @@ namespace DDOIT.Tools.Scenario.Nodes
 
             if (!UIManager.HasInstance)
             {
-                Debug.LogError($"[UINode] '{gameObject.name}': UIManager가 존재하지 않습니다.");
-                if (IsStepCondition) SetConditionMet();
+                LogOpenFailure("UIManager instance not found.");
                 return;
             }
 
@@ -74,16 +73,14 @@ namespace DDOIT.Tools.Scenario.Nodes
                 data.title = $"<b>{data.title}</b>";
             data.titleIcon = _titleIcon;
 
-            _activePanel = UIManager.Instance.OpenUI(data);
+            _activePanel = UIManager.Instance.OpenUI(data, _theme);
             if (_activePanel == null)
             {
-                if (IsStepCondition) SetConditionMet();
+                LogOpenFailure("UIManager.OpenUI returned null.");
                 return;
             }
 
             // 테마 적용
-            _activePanel.ApplyTheme(_theme);
-
             // 배치
             _activePanel.SetPlacement(_isFixed, _isFixed ? transform : null, _lookAtMode);
 
@@ -135,6 +132,18 @@ namespace DDOIT.Tools.Scenario.Nodes
                 UIManager.Instance.CloseUI(_activePanel);
                 _activePanel = null;
             }
+        }
+
+        private void LogOpenFailure(string reason)
+        {
+            Scenario scenario = GetComponentInParent<Scenario>(true);
+            string sceneName = gameObject.scene.IsValid() ? gameObject.scene.name : "<no scene>";
+            string scenarioName = scenario != null ? scenario.name : "<no scenario>";
+            string stepName = ParentStep != null ? ParentStep.name : "<no step>";
+
+            Debug.LogError(
+                $"[UINode] UI 표시 실패: {reason} " +
+                $"(Scene='{sceneName}', Scenario='{scenarioName}', Step='{stepName}', UINode='{gameObject.name}')");
         }
 
         private bool HasButtons()

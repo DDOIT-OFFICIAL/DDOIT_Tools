@@ -22,6 +22,9 @@ namespace DDOIT.Tools.Managers
         [Tooltip("초기 풀 크기")]
         [SerializeField] private int _poolSize = 5;
 
+        [Header("Theme Settings")]
+        [SerializeField] private UITheme _defaultTheme;
+
         #endregion
 
         #region Private Fields
@@ -37,6 +40,7 @@ namespace DDOIT.Tools.Managers
         public bool IsReady { get; private set; }
         public bool HasActiveUI => _activePanels != null && _activePanels.Count > 0;
         public int ActiveCount => _activePanels?.Count ?? 0;
+        public UITheme DefaultTheme => _defaultTheme;
 
         #endregion
 
@@ -87,6 +91,26 @@ namespace DDOIT.Tools.Managers
         /// <returns>활성화된 UIPanel. 풀이 비었으면 새 패널을 생성하여 사용.</returns>
         public UIPanel OpenUI(UIData data)
         {
+            return OpenUI(data, null);
+        }
+
+        /// <summary>
+        /// Opens a pooled UI panel and applies either the requested theme or the manager default theme.
+        /// </summary>
+        public UIPanel OpenUI(UIData data, UITheme theme)
+        {
+            if (!IsReady || _pool == null || _activePanels == null)
+            {
+                Debug.LogError("[UIManager] Initialize()가 완료되기 전에 OpenUI가 호출되었습니다.");
+                return null;
+            }
+
+            if (_panelPrefab == null)
+            {
+                Debug.LogError("[UIManager] Panel 프리팹이 지정되지 않았습니다.");
+                return null;
+            }
+
             UIPanel panel = AcquirePanel();
             if (panel == null)
             {
@@ -95,6 +119,7 @@ namespace DDOIT.Tools.Managers
             }
 
             panel.Show(data);
+            panel.ApplyTheme(theme != null ? theme : _defaultTheme);
             _activePanels.Add(panel);
             return panel;
         }

@@ -7861,6 +7861,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::DDOIT.Tools.UIManager
   _panelPrefab: {fileID: 7274012466311615754, guid: 5387ba4d7f842214ba19f1747769a18a, type: 3}
   _poolSize: 5
+  _defaultTheme: {fileID: 11400000, guid: 0471295ea0d8d094c80941d03d221001, type: 2}
 --- !u!1 &1654957808
 GameObject:
   m_ObjectHideFlags: 0

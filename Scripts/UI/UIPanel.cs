@@ -69,6 +69,23 @@ namespace DDOIT.Tools.UI
         private bool _lookAtPlayer;
         private Transform _playerTransform;
         private Material _bgMaterialInstance;
+        private bool _themeDefaultsCached;
+        private Material _defaultBackgroundMaterial;
+        private Color _defaultBackgroundColor;
+        private Color _defaultButtonABackgroundColor;
+        private Color _defaultButtonAEdgeColor;
+        private Color _defaultButtonBBackgroundColor;
+        private Color _defaultButtonBEdgeColor;
+        private Color _defaultEdgeColor;
+        private Color _defaultLogoColor;
+        private Color _defaultTitleIconColor;
+        private Color _defaultTitleTextColor;
+        private Color _defaultContextTextColor;
+        private Color _defaultContextSubTextColor;
+        private Color _defaultButtonLabelAColor;
+        private Color _defaultButtonLabelBColor;
+        private Color _defaultTitleContextSplitterColor;
+        private Image _titleContextSplitterImage;
 
         #endregion
 
@@ -97,6 +114,7 @@ namespace DDOIT.Tools.UI
             CacheOverlayRenderer();
             _isActive = true;
             gameObject.SetActive(true);
+            ResetThemeVisualState();
 
             ConfigureElements(data);
             BindData(data);
@@ -182,16 +200,19 @@ namespace DDOIT.Tools.UI
         /// </summary>
         public void ApplyTheme(UITheme theme)
         {
+            ResetThemeVisualState();
             if (theme == null) return;
 
             // 배경 그라디언트 (머티리얼 인스턴스 — 패널 전용)
-            if (_backgroundImage != null && _backgroundImage.material != null)
+            Material sourceMaterial = _defaultBackgroundMaterial != null
+                ? _defaultBackgroundMaterial
+                : _backgroundImage != null ? _backgroundImage.material : null;
+            if (_backgroundImage != null && sourceMaterial != null)
             {
-                if (_bgMaterialInstance == null)
-                    _bgMaterialInstance = new Material(_backgroundImage.material);
+                _bgMaterialInstance = new Material(sourceMaterial);
 
-                _bgMaterialInstance.SetColor("_ColorTop", theme.backgroundColorTop);
-                _bgMaterialInstance.SetColor("_ColorBottom", theme.backgroundColorBottom);
+                SetMaterialColor(_bgMaterialInstance, "_ColorTop", theme.backgroundColorTop);
+                SetMaterialColor(_bgMaterialInstance, "_ColorBottom", theme.backgroundColorBottom);
                 _backgroundImage.material = _bgMaterialInstance;
             }
 
@@ -225,7 +246,7 @@ namespace DDOIT.Tools.UI
             // Splitter, TitleIcon은 텍스트 색상을 따라감
             if (_titleContextSplitter != null)
             {
-                var splitterImage = _titleContextSplitter.GetComponent<Image>();
+                var splitterImage = GetTitleContextSplitterImage();
                 if (splitterImage != null)
                     splitterImage.color = theme.textColor;
             }
@@ -243,6 +264,7 @@ namespace DDOIT.Tools.UI
         private void Awake()
         {
             CacheOverlayRenderer();
+            CacheThemeDefaults();
         }
 
         private void Update()
@@ -375,6 +397,105 @@ namespace DDOIT.Tools.UI
             }
         }
 
+        private void CacheThemeDefaults()
+        {
+            if (_themeDefaultsCached) return;
+
+            _defaultBackgroundMaterial = _backgroundImage != null ? _backgroundImage.material : null;
+            _defaultBackgroundColor = GetImageColor(_backgroundImage);
+            _defaultButtonABackgroundColor = GetImageColor(_buttonABackground);
+            _defaultButtonAEdgeColor = GetImageColor(_buttonAEdge);
+            _defaultButtonBBackgroundColor = GetImageColor(_buttonBBackground);
+            _defaultButtonBEdgeColor = GetImageColor(_buttonBEdge);
+            _defaultEdgeColor = GetImageColor(_edgeImage);
+            _defaultLogoColor = GetImageColor(_logoImage);
+            _defaultTitleIconColor = GetImageColor(_titleIcon);
+            _defaultTitleTextColor = GetTextColor(_titleText);
+            _defaultContextTextColor = GetTextColor(_contextText);
+            _defaultContextSubTextColor = GetTextColor(_contextSubText);
+            _defaultButtonLabelAColor = GetTextColor(_buttonLabelA);
+            _defaultButtonLabelBColor = GetTextColor(_buttonLabelB);
+            _defaultTitleContextSplitterColor = GetImageColor(GetTitleContextSplitterImage());
+            _themeDefaultsCached = true;
+        }
+
+        private void ResetThemeVisualState()
+        {
+            CacheThemeDefaults();
+            ReleaseThemeMaterialInstance();
+
+            if (_backgroundImage != null)
+            {
+                _backgroundImage.material = _defaultBackgroundMaterial;
+                _backgroundImage.color = _defaultBackgroundColor;
+            }
+
+            SetImageColor(_buttonABackground, _defaultButtonABackgroundColor);
+            SetImageColor(_buttonAEdge, _defaultButtonAEdgeColor);
+            SetImageColor(_buttonBBackground, _defaultButtonBBackgroundColor);
+            SetImageColor(_buttonBEdge, _defaultButtonBEdgeColor);
+            SetImageColor(_edgeImage, _defaultEdgeColor);
+            SetImageColor(_logoImage, _defaultLogoColor);
+            SetImageColor(_titleIcon, _defaultTitleIconColor);
+            SetImageColor(GetTitleContextSplitterImage(), _defaultTitleContextSplitterColor);
+
+            SetTextColor(_titleText, _defaultTitleTextColor);
+            SetTextColor(_contextText, _defaultContextTextColor);
+            SetTextColor(_contextSubText, _defaultContextSubTextColor);
+            SetTextColor(_buttonLabelA, _defaultButtonLabelAColor);
+            SetTextColor(_buttonLabelB, _defaultButtonLabelBColor);
+
+            _overlayRenderer?.MarkDirty();
+        }
+
+        private void ReleaseThemeMaterialInstance()
+        {
+            if (_bgMaterialInstance == null) return;
+
+            if (Application.isPlaying)
+                Destroy(_bgMaterialInstance);
+            else
+                DestroyImmediate(_bgMaterialInstance);
+
+            _bgMaterialInstance = null;
+        }
+
+        private Image GetTitleContextSplitterImage()
+        {
+            if (_titleContextSplitterImage == null && _titleContextSplitter != null)
+                _titleContextSplitterImage = _titleContextSplitter.GetComponent<Image>();
+
+            return _titleContextSplitterImage;
+        }
+
+        private static Color GetImageColor(Image image)
+        {
+            return image != null ? image.color : Color.white;
+        }
+
+        private static Color GetTextColor(TMP_Text text)
+        {
+            return text != null ? text.color : Color.white;
+        }
+
+        private static void SetImageColor(Image image, Color color)
+        {
+            if (image != null)
+                image.color = color;
+        }
+
+        private static void SetTextColor(TMP_Text text, Color color)
+        {
+            if (text != null)
+                text.color = color;
+        }
+
+        private static void SetMaterialColor(Material material, string propertyName, Color color)
+        {
+            if (material != null && material.HasProperty(propertyName))
+                material.SetColor(propertyName, color);
+        }
+
         private void Cleanup()
         {
             OnButtonClicked = null;
@@ -391,11 +512,7 @@ namespace DDOIT.Tools.UI
             _lookAtPlayer = false;
             _playerTransform = null;
 
-            if (_bgMaterialInstance != null)
-            {
-                Destroy(_bgMaterialInstance);
-                _bgMaterialInstance = null;
-            }
+            ResetThemeVisualState();
 
             if (_smoothFollow != null)
                 _smoothFollow.enabled = false;
