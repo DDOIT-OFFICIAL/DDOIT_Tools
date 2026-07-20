@@ -60,6 +60,10 @@ namespace DDOIT.Tools.UI
         #region Constants
 
         private const float LOOK_AT_SPEED = 5f;
+        private const int DEFAULT_VIDEO_TEXTURE_WIDTH = 1280;
+        private const int DEFAULT_VIDEO_TEXTURE_HEIGHT = 720;
+        private const int MAX_VIDEO_TEXTURE_SIZE = 2048;
+        private const int MIN_VIDEO_TEXTURE_SIZE = 16;
 
         #endregion
 
@@ -86,6 +90,7 @@ namespace DDOIT.Tools.UI
         private Color _defaultButtonLabelBColor;
         private Color _defaultTitleContextSplitterColor;
         private Image _titleContextSplitterImage;
+        private RenderTexture _videoRenderTexture;
 
         #endregion
 
@@ -115,6 +120,7 @@ namespace DDOIT.Tools.UI
             _isActive = true;
             gameObject.SetActive(true);
             ResetThemeVisualState();
+            ResetVideoState();
 
             ConfigureElements(data);
             BindData(data);
@@ -282,6 +288,12 @@ namespace DDOIT.Tools.UI
 
         private void OnDisable()
         {
+            ResetVideoState();
+        }
+
+        private void OnDestroy()
+        {
+            ResetVideoState();
         }
 
         #endregion
@@ -369,11 +381,7 @@ namespace DDOIT.Tools.UI
             if (_imageSub != null && data.imageSub != null)
                 _imageSub.sprite = data.imageSub;
 
-            if (_videoPlayer != null && _videoSurface != null && data.video != null)
-            {
-                _videoPlayer.clip = data.video;
-                _videoPlayer.Play();
-            }
+            BindVideo(data.useVideo ? data.video : null);
         }
 
         private void SetupButtons(UIData data)
@@ -395,6 +403,111 @@ namespace DDOIT.Tools.UI
                 if (_buttonLabelB != null)
                     _buttonLabelB.text = data.buttonLabelB;
             }
+        }
+
+        private void BindVideo(VideoClip videoClip)
+        {
+            if (videoClip == null || _videoPlayer == null || _videoSurface == null)
+                return;
+
+            EnsureVideoRenderTexture(videoClip);
+            if (_videoRenderTexture == null)
+                return;
+
+            _videoPlayer.Stop();
+            _videoPlayer.renderMode = VideoRenderMode.RenderTexture;
+            _videoPlayer.targetTexture = _videoRenderTexture;
+            _videoPlayer.clip = videoClip;
+            _videoSurface.texture = _videoRenderTexture;
+            _videoPlayer.Play();
+            _overlayRenderer?.MarkDirty();
+        }
+
+        private void EnsureVideoRenderTexture(VideoClip videoClip)
+        {
+            Vector2Int size = CalculateVideoTextureSize(videoClip);
+            if (_videoRenderTexture != null &&
+                _videoRenderTexture.width == size.x &&
+                _videoRenderTexture.height == size.y &&
+                _videoRenderTexture.IsCreated())
+            {
+                return;
+            }
+
+            ReleaseVideoRenderTexture();
+
+            _videoRenderTexture = new RenderTexture(
+                size.x,
+                size.y,
+                0,
+                RenderTextureFormat.ARGB32,
+                RenderTextureReadWrite.sRGB)
+            {
+                name = $"{name}_VideoRT",
+                filterMode = FilterMode.Bilinear,
+                wrapMode = TextureWrapMode.Clamp,
+                useMipMap = false,
+                autoGenerateMips = false
+            };
+            _videoRenderTexture.Create();
+        }
+
+        private static Vector2Int CalculateVideoTextureSize(VideoClip videoClip)
+        {
+            int width = videoClip != null ? (int)videoClip.width : 0;
+            int height = videoClip != null ? (int)videoClip.height : 0;
+
+            if (width <= 0)
+                width = DEFAULT_VIDEO_TEXTURE_WIDTH;
+
+            if (height <= 0)
+                height = DEFAULT_VIDEO_TEXTURE_HEIGHT;
+
+            int maxDimension = Mathf.Max(width, height);
+            if (maxDimension > MAX_VIDEO_TEXTURE_SIZE)
+            {
+                float scale = MAX_VIDEO_TEXTURE_SIZE / (float)maxDimension;
+                width = Mathf.RoundToInt(width * scale);
+                height = Mathf.RoundToInt(height * scale);
+            }
+
+            width = Mathf.Max(MIN_VIDEO_TEXTURE_SIZE, width);
+            height = Mathf.Max(MIN_VIDEO_TEXTURE_SIZE, height);
+            return new Vector2Int(width, height);
+        }
+
+        private void ResetVideoState()
+        {
+            if (_videoPlayer != null)
+            {
+                if (_videoPlayer.isPlaying)
+                    _videoPlayer.Stop();
+
+                _videoPlayer.targetTexture = null;
+                _videoPlayer.clip = null;
+            }
+
+            if (_videoSurface != null)
+                _videoSurface.texture = null;
+
+            ReleaseVideoRenderTexture();
+            _overlayRenderer?.MarkDirty();
+        }
+
+        private void ReleaseVideoRenderTexture()
+        {
+            if (_videoRenderTexture == null)
+                return;
+
+            if (_videoRenderTexture.IsCreated())
+                _videoRenderTexture.Release();
+
+            if (Application.isPlaying)
+                Destroy(_videoRenderTexture);
+            else
+                DestroyImmediate(_videoRenderTexture);
+
+            _videoRenderTexture = null;
         }
 
         private void CacheThemeDefaults()
@@ -506,8 +619,7 @@ namespace DDOIT.Tools.UI
             if (_buttonB != null)
                 _buttonB.onClick.RemoveAllListeners();
 
-            if (_videoPlayer != null && _videoPlayer.isPlaying)
-                _videoPlayer.Stop();
+            ResetVideoState();
 
             _lookAtPlayer = false;
             _playerTransform = null;
