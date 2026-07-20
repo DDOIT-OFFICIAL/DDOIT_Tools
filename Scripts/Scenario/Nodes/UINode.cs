@@ -39,6 +39,7 @@ namespace DDOIT.Tools.Scenario.Nodes
 
         private UIPanel _activePanel;
         private int _selectedButtonIndex = -1;
+        private bool _hasProcessedButtonSelection;
 
         #endregion
 
@@ -60,6 +61,7 @@ namespace DDOIT.Tools.Scenario.Nodes
         protected override void OnInit()
         {
             _selectedButtonIndex = -1;
+            _hasProcessedButtonSelection = false;
 
             if (!UIManager.HasInstance)
             {
@@ -111,6 +113,10 @@ namespace DDOIT.Tools.Scenario.Nodes
 
         private void OnButtonClicked(int index)
         {
+            if (_hasProcessedButtonSelection || _activePanel == null || !_activePanel.IsActive)
+                return;
+
+            _hasProcessedButtonSelection = true;
             _selectedButtonIndex = index;
 
             if (ScenarioManager.DebugMode)
@@ -119,10 +125,21 @@ namespace DDOIT.Tools.Scenario.Nodes
             if (index == 0) _onButtonA?.Invoke();
             else _onButtonB?.Invoke();
 
+            if (!CanContinueButtonSelection())
+                return;
+
             _onEnd?.Invoke();
+
+            if (!CanContinueButtonSelection())
+                return;
 
             if (IsStepCondition)
                 SetConditionMet();
+        }
+
+        private bool CanContinueButtonSelection()
+        {
+            return _activePanel != null && _activePanel.IsActive;
         }
 
         private void ClosePanel()

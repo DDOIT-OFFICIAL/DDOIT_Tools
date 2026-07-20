@@ -637,7 +637,10 @@ namespace DDOIT.Tools.Editor
         {
             EditorGUILayout.LabelField("테마", EditorStyles.boldLabel);
 
-            UITheme defaultTheme = FindDefaultTheme();
+            UITheme runtimeDefaultTheme = FindRuntimeDefaultTheme();
+            UITheme defaultTheme = runtimeDefaultTheme != null
+                ? runtimeDefaultTheme
+                : DDOITEditorAssetLocator.FindDefaultTheme();
             string[] themeNames = BuildThemeNames(defaultTheme);
             var currentTheme = _theme.objectReferenceValue as UITheme;
             int selectedIndex = 0;
@@ -656,7 +659,38 @@ namespace DDOIT.Tools.Editor
             if ((_themes == null || _themes.Length == 0) && defaultTheme == null)
                 EditorGUILayout.HelpBox("UITheme 에셋이 없습니다.", MessageType.Warning);
 
+            DrawThemeFallbackHint(currentTheme, runtimeDefaultTheme, defaultTheme);
+
             return true;
+        }
+
+        private static void DrawThemeFallbackHint(
+            UITheme currentTheme,
+            UITheme runtimeDefaultTheme,
+            UITheme editorDefaultTheme)
+        {
+            if (currentTheme != null)
+                return;
+
+            if (runtimeDefaultTheme != null)
+            {
+                EditorGUILayout.HelpBox(
+                    $"테마가 '기본'으로 설정되어 있습니다. 런타임에서는 UIManager의 기본 테마 '{runtimeDefaultTheme.name}'가 적용됩니다.",
+                    MessageType.Info);
+                return;
+            }
+
+            if (editorDefaultTheme != null)
+            {
+                EditorGUILayout.HelpBox(
+                    $"테마가 '기본'으로 설정되어 있습니다. 현재 씬에서 UIManager 기본 테마를 확인할 수 없으므로 런타임 기본 테마는 DDOIT 씬의 UIManager 설정을 따릅니다. 참고 기본 에셋: '{editorDefaultTheme.name}'.",
+                    MessageType.Info);
+                return;
+            }
+
+            EditorGUILayout.HelpBox(
+                "테마가 '기본'으로 설정되어 있지만 UIManager 기본 테마와 기본 UITheme 에셋을 찾지 못했습니다. 런타임에서 테마 색상이 적용되지 않을 수 있습니다.",
+                MessageType.Warning);
         }
 
         private string[] BuildThemeNames(UITheme defaultTheme)
@@ -671,13 +705,10 @@ namespace DDOIT.Tools.Editor
             return names;
         }
 
-        private UITheme FindDefaultTheme()
+        private static UITheme FindRuntimeDefaultTheme()
         {
             var manager = Object.FindFirstObjectByType<UIManager>(FindObjectsInactive.Include);
-            if (manager != null && manager.DefaultTheme != null)
-                return manager.DefaultTheme;
-
-            return DDOITEditorAssetLocator.FindDefaultTheme();
+            return manager != null ? manager.DefaultTheme : null;
         }
 
         private void RefreshThemeList()

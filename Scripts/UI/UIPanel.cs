@@ -22,7 +22,7 @@ namespace DDOIT.Tools.UI
         #region Serialized Fields
 
         [Header("비주얼 컨테이너")]
-        [Tooltip("스케일 애니메이션 대상 (배경 포함)")]
+        [Tooltip("레이아웃 갱신 대상 비주얼 컨테이너")]
         [SerializeField] private RectTransform _designPanel;
 
         [Header("콘텐츠 요소")]
@@ -91,6 +91,7 @@ namespace DDOIT.Tools.UI
         private Color _defaultTitleContextSplitterColor;
         private Image _titleContextSplitterImage;
         private RenderTexture _videoRenderTexture;
+        private bool _hasButtonSelection;
 
         #endregion
 
@@ -112,12 +113,13 @@ namespace DDOIT.Tools.UI
         #region Public Methods
 
         /// <summary>
-        /// UI 패널을 표시한다. 데이터에 따라 요소를 활성화하고 애니메이션을 재생한다.
+        /// UI 패널을 표시한다. 데이터에 따라 요소를 활성화하고 값을 바인딩한다.
         /// </summary>
         public void Show(UIData data)
         {
             CacheOverlayRenderer();
             _isActive = true;
+            _hasButtonSelection = false;
             gameObject.SetActive(true);
             ResetThemeVisualState();
             ResetVideoState();
@@ -133,7 +135,7 @@ namespace DDOIT.Tools.UI
         }
 
         /// <summary>
-        /// UI 패널을 숨긴다. 축소 애니메이션 후 콜백을 호출한다.
+        /// UI 패널을 숨기고 콜백을 호출한다.
         /// </summary>
         public void Hide(Action onComplete = null)
         {
@@ -386,23 +388,44 @@ namespace DDOIT.Tools.UI
 
         private void SetupButtons(UIData data)
         {
-            if (_buttonA != null)
-            {
-                _buttonA.onClick.RemoveAllListeners();
-                _buttonA.onClick.AddListener(() => OnButtonClicked?.Invoke(0));
+            SetupButton(_buttonA, _buttonLabelA, data.buttonLabelA, data.useButtonA, 0);
+            SetupButton(_buttonB, _buttonLabelB, data.buttonLabelB, data.useButtonB, 1);
+        }
 
-                if (_buttonLabelA != null)
-                    _buttonLabelA.text = data.buttonLabelA;
+        private void SetupButton(Button button, TMP_Text label, string labelText, bool enabled, int index)
+        {
+            if (button != null)
+            {
+                button.onClick.RemoveAllListeners();
+                button.interactable = enabled;
+
+                if (enabled)
+                    button.onClick.AddListener(() => HandleButtonClicked(index));
             }
+
+            if (label != null)
+                label.text = labelText;
+        }
+
+        private void HandleButtonClicked(int index)
+        {
+            if (!_isActive || _hasButtonSelection)
+                return;
+
+            _hasButtonSelection = true;
+            SetButtonsInteractable(false);
+            OnButtonClicked?.Invoke(index);
+        }
+
+        private void SetButtonsInteractable(bool interactable)
+        {
+            if (_buttonA != null)
+                _buttonA.interactable = interactable;
 
             if (_buttonB != null)
-            {
-                _buttonB.onClick.RemoveAllListeners();
-                _buttonB.onClick.AddListener(() => OnButtonClicked?.Invoke(1));
+                _buttonB.interactable = interactable;
 
-                if (_buttonLabelB != null)
-                    _buttonLabelB.text = data.buttonLabelB;
-            }
+            _overlayRenderer?.MarkDirty();
         }
 
         private void BindVideo(VideoClip videoClip)
@@ -611,6 +634,7 @@ namespace DDOIT.Tools.UI
 
         private void Cleanup()
         {
+            _hasButtonSelection = false;
             OnButtonClicked = null;
 
             if (_buttonA != null)

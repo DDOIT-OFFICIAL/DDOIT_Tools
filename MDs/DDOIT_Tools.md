@@ -400,7 +400,7 @@ namespace DDOIT.Tools
 | **ToggleNodeEditor** | 모드별(GameObject/Component/Particle/Script) 대상 필드, Activate 토글 |
 | **AnimatorNodeEditor** | 파라미터 타입별 입력 필드(Trigger/Bool/Int/Float) |
 | **TriggerConditionNodeEditor** | 외부 Collider 설정, Collider 타입 버튼 (Box/Sphere/Capsule), 감지 모드(Enter/Exit/Stay) |
-| **UINodeEditor** | UI 요소 플래그별 조건부 필드, 버튼 이벤트 섹션, 작성 누락/분기 경고 |
+| **UINodeEditor** | UI 요소 플래그별 조건부 필드, Theme 기본값 안내, 버튼 이벤트 섹션, 작성 누락/분기 경고 |
 | **SoundNodeEditor** | 사운드 이름 드롭다운, 오디오 미리듣기 (Play/Stop), 미선택 경고 |
 | **TimerConditionNodeEditor** | 대기 시간 설정, 0 이하 경고 |
 | **ConditionGroupDrawer** | ScenarioNode의 `_conditionGroup` 필드를 그룹 번호 버튼 UI로 표시 |
@@ -739,6 +739,8 @@ UINode는 시나리오 흐름에서 UI를 표시하는 ScenarioNode:
 
 `UINode`가 Step 조건 노드로 쓰이면 버튼 클릭 시 `SetConditionMet()`을 호출한다. 버튼 UnityEvent에는 일반 로직뿐 아니라 부모 Step의 `MarkConditionGroup1` ~ `MarkConditionGroup7`을 연결할 수 있어 분기형 UI를 만들 수 있다.
 
+UINode 버튼은 기본적으로 **1회 선택**으로 동작한다. 한 번 클릭되면 UIPanel이 A/B 버튼을 즉시 비활성화하고, 같은 패널에서 추가 클릭 이벤트를 다시 발생시키지 않는다. 버튼별 UnityEvent 실행 중 Step이 종료되어 UINode가 Release되면 남은 공통 `_onEnd`와 자체 조건 충족 처리는 실행하지 않는다.
+
 작성 실수를 줄이기 위해 `UINodeEditor`는 다음 경고를 표시한다.
 
 - 활성화된 UI 요소가 하나도 없음
@@ -746,6 +748,9 @@ UINode는 시나리오 흐름에서 UI를 표시하는 ScenarioNode:
 - 버튼 라벨이 비어 있음
 - 버튼 이벤트가 없거나 Step 조건 완료 경로가 불명확함
 - UINode의 조건 그룹과 버튼 이벤트의 `MarkConditionGroupN` 연결이 충돌할 가능성
+- Theme이 `Default`일 때 실제 적용 기준을 안내하고, 기본 Theme을 찾지 못하면 경고함
+
+초보 개발자는 `UINodeEditor`의 경고를 "즉시 고장"으로 해석하기보다 "실행하면 의도와 다르게 보일 가능성"으로 해석하면 된다. 예를 들어 `useImageA`가 켜져 있는데 `image`가 비어 있으면 런타임에서 ImageA 영역은 숨겨진다. 이 동작 자체는 안전하지만, 작성자가 이미지를 넣었다고 착각한 경우를 잡기 위해 Inspector가 경고한다.
 
 #### 4.7.6 사용 예시
 
@@ -774,11 +779,30 @@ UIManager.Instance.CloseUI(panel);
 
 - `UITheme`은 배경 상단/하단 색, edge 색, 텍스트 색을 정의한다.
 - `UINode._theme`이 비어 있으면 `UIManager.DefaultTheme`이 적용된다.
+- `UINodeEditor`의 Theme 드롭다운에서 `기본 (...)` 또는 `Default`는 `_theme = null` 상태를 뜻한다. 이 값은 "Theme 없음"이 아니라 "런타임에 UIManager 기본 Theme을 사용"한다는 의미다.
+- 현재 씬에서 `UIManager.DefaultTheme`을 찾을 수 있으면 Inspector는 실제 적용될 Theme 이름을 안내한다.
+- 현재 씬에 UIManager가 없으면 Inspector는 패키지 기본 Theme 에셋을 참고 이름으로 보여줄 수 있다. 단, 최종 런타임 Theme은 DDOIT 씬의 UIManager 설정이 결정한다.
+- UIManager 기본 Theme과 기본 Theme 에셋을 모두 찾지 못하는 경우에만 Theme 적용 누락 위험으로 본다.
 - 패널은 재사용 전에 프리팹 기본 색/머티리얼 상태로 되돌아간 뒤 새 Theme를 적용한다.
 - `UIGlobalSettings`는 현재 런타임 레이아웃 권한자가 아니다. Tools Window에서 설정 값을 편집하고 필요 시 프리팹에 수동 적용하는 용도다.
 - UPM 소비 프로젝트에서는 Editor 도구가 `Assets/Settings/DDOIT`의 프로젝트 로컬 설정을 우선 찾고, 없으면 `Packages/com.ddoit.tools/Data`의 패키지 기본값을 사용한다.
 
-#### 4.7.8 Video
+#### 4.7.8 UINode 작성 체크리스트
+
+UINode를 새로 만들 때는 다음 순서로 확인하면 된다.
+
+1. Step 하위에 UINode를 만든다.
+2. 필요한 UI 요소 버튼만 켠다. 예: 제목과 본문만 필요하면 `Title`, `Context`만 켠다.
+3. 켠 요소의 실제 데이터를 입력한다. 예: `Image`를 켰으면 Sprite를 넣고, `Video`를 켰으면 VideoClip을 넣는다.
+4. Theme을 직접 고르지 않을 경우 `Default`로 둔다. 이 경우 DDOIT 씬의 UIManager 기본 Theme이 적용된다.
+5. 버튼을 켰다면 라벨을 입력한다. 버튼은 기본 1회 선택이므로 같은 패널에서 반복 클릭을 받아야 하는 용도로 사용하지 않는다.
+6. 버튼 클릭으로 Step이 끝나야 하면 다음 중 하나를 명확히 설정한다.
+   - UINode 자체를 조건 그룹에 넣어 어느 버튼이든 클릭 시 조건 충족
+   - 버튼 이벤트에서 부모 Step의 `EndTrigger()` 호출
+   - 버튼 이벤트에서 부모 Step의 `MarkConditionGroup1()` ~ `MarkConditionGroup7()` 호출
+7. 분기형 UI라면 UINode 자체 조건 그룹과 버튼 이벤트 marker를 동시에 섞지 않는 편이 안전하다. 버튼 A/B가 서로 다른 분기로 가야 하면 UINode 조건 그룹은 `없음`으로 두고 버튼 이벤트에서 각각 `MarkConditionGroupN()`만 호출하는 구성이 가장 명확하다.
+
+#### 4.7.9 Video
 
 `UIPanel`은 `VideoClip`을 직접 `RawImage`에 넣지 않는다. 패널별 Runtime `RenderTexture`를 만들고 다음 흐름으로 연결한다.
 
@@ -788,7 +812,7 @@ VideoClip -> VideoPlayer.targetTexture -> RenderTexture -> RawImage.texture
 
 영상 크기를 알 수 있으면 `VideoClip.width/height` 기준으로 RenderTexture를 만들고, 알 수 없으면 1280x720을 사용한다. 너무 큰 영상은 가장 긴 변이 2048을 넘지 않도록 제한한다. 패널이 닫히거나 비활성화되면 VideoPlayer, RawImage texture, RenderTexture를 정리한다.
 
-#### 4.7.9 렌더링과 입력
+#### 4.7.10 렌더링과 입력
 
 - `UIPanel.prefab`: World Space Canvas + `InSceneOverlayCanvasRenderer`
 - Interaction: `PointableCanvas` + `PokeInteractable` + `RayInteractable`
@@ -801,7 +825,7 @@ VideoClip -> VideoPlayer.targetTexture -> RenderTexture -> RawImage.texture
 - RectTransform.localScale: (0.0005, 0.0005, 0.0005)
 - CanvasScaler.dynamicPixelsPerUnit: 10
 
-#### 4.7.10 Addressables 미디어 정책
+#### 4.7.11 Addressables 미디어 정책
 
 현재 `UIData`의 이미지/영상은 직접 `Sprite`/`VideoClip` 참조를 사용한다. 이 방식은 단순하고 안정적이므로 기본 정책으로 유지한다.
 
@@ -921,7 +945,7 @@ public class DDOITSettings : ScriptableObject
 ```
 1. Unity에서 새 프로젝트 생성 (Unity 6, URP)
 2. Package Manager > Add package from git URL
-   https://github.com/DDOIT-OFFICIAL/DDOIT_Tools.git#v0.19.11
+   https://github.com/DDOIT-OFFICIAL/DDOIT_Tools.git#v0.19.12
 3. Unity 상단 메뉴에서 DDOIT Tools > Setup 실행
 4. 필수 패키지 설치/업데이트 실행
 5. Init Project 실행
@@ -1041,5 +1065,5 @@ MAJOR.MINOR.PATCH
 ---
 
 **문서 버전**: 0.4.0
-**DDOIT_Tools 패키지 버전**: v0.19.11
+**DDOIT_Tools 패키지 버전**: v0.19.12
 **최종 업데이트**: 2026-07-20
