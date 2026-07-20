@@ -162,7 +162,10 @@ namespace DDOIT.Tools.UI
             if (isFixed)
             {
                 if (_smoothFollow != null)
+                {
+                    _smoothFollow.SetTarget(null);
                     _smoothFollow.enabled = false;
+                }
 
                 if (anchor != null)
                 {
@@ -192,13 +195,22 @@ namespace DDOIT.Tools.UI
 
                 if (_smoothFollow != null)
                 {
-                    var eyeAnchor = FindCenterEyeAnchor();
-                    if (eyeAnchor != null)
-                        _smoothFollow.SetTarget(eyeAnchor);
-                    else if (PlayerRig.HasInstance)
-                        _smoothFollow.SetTarget(PlayerRig.Instance.HeadTransform);
+                    _smoothFollow.SetTarget(null);
 
-                    _smoothFollow.enabled = true;
+                    Transform followTarget = FindCenterEyeAnchor();
+                    if (followTarget == null && PlayerRig.HasInstance)
+                        followTarget = PlayerRig.Instance.HeadTransform;
+
+                    if (followTarget != null)
+                    {
+                        _smoothFollow.SetTarget(followTarget, true);
+                        _smoothFollow.enabled = true;
+                    }
+                    else
+                    {
+                        _smoothFollow.enabled = false;
+                        Debug.LogWarning("[UIPanel] SmoothFollow target not found. Non-fixed UI panel will keep its current transform.");
+                    }
                 }
             }
         }
@@ -651,7 +663,10 @@ namespace DDOIT.Tools.UI
             ResetThemeVisualState();
 
             if (_smoothFollow != null)
+            {
+                _smoothFollow.SetTarget(null);
                 _smoothFollow.enabled = false;
+            }
         }
 
         private void CacheOverlayRenderer()

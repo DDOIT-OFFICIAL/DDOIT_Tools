@@ -726,6 +726,8 @@ public struct UIData
 | **월드 고정 + 계속 바라보기** | true | `LookAlways` | 패널 위치는 고정하고 회전만 플레이어를 계속 추적 |
 | **플레이어 추적** | false | 무시 | `SmoothFollowCanvas`가 CenterEyeAnchor 또는 HeadTransform을 따라감 |
 
+플레이어 추적 모드에서는 패널을 열 때 `SmoothFollowCanvas` target을 먼저 비운 뒤 새 target을 찾는다. CenterEyeAnchor를 우선 사용하고, 없으면 `PlayerRig.HeadTransform`을 사용한다. 새 target을 찾으면 첫 위치/회전을 즉시 snap한 뒤 다음 프레임부터 보간한다. target을 찾지 못하면 이전 target을 재사용하지 않고 SmoothFollow를 비활성화하며 경고를 남긴다.
+
 #### 4.7.5 UINode (시나리오 노드)
 
 UINode는 시나리오 흐름에서 UI를 표시하는 ScenarioNode:
@@ -945,7 +947,7 @@ public class DDOITSettings : ScriptableObject
 ```
 1. Unity에서 새 프로젝트 생성 (Unity 6, URP)
 2. Package Manager > Add package from git URL
-   https://github.com/DDOIT-OFFICIAL/DDOIT_Tools.git#v0.19.12
+   https://github.com/DDOIT-OFFICIAL/DDOIT_Tools.git#v0.19.13
 3. Unity 상단 메뉴에서 DDOIT Tools > Setup 실행
 4. 필수 패키지 설치/업데이트 실행
 5. Init Project 실행
@@ -1065,5 +1067,5 @@ MAJOR.MINOR.PATCH
 ---
 
 **문서 버전**: 0.4.0
-**DDOIT_Tools 패키지 버전**: v0.19.12
+**DDOIT_Tools 패키지 버전**: v0.19.13
 **최종 업데이트**: 2026-07-20

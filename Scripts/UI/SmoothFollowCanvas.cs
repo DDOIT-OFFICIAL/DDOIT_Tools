@@ -4,10 +4,6 @@ namespace DDOIT.Tools.UI
 {
     /// <summary>
     /// 카메라 전방 일정 거리의 가상 지점을 부드럽게 추적하는 Canvas용 컴포넌트.
-    /// CenterEyeAnchor에 직접 붙이지 않고, 독립된 GameObject에 부착한다.
-    /// OVROverlayCanvas(default order=0)가 같은 frame Update에서 layer를 submit하므로,
-    /// 이 컴포넌트는 ExecutionOrder -100으로 먼저 실행 + Update phase에서 transform 갱신해
-    /// 같은 frame 안에 OVR layer가 새 pose를 사용하도록 보장 (1-frame stale 잔상 방지).
     /// </summary>
     [DefaultExecutionOrder(-100)]
     public class SmoothFollowCanvas : MonoBehaviour
@@ -23,10 +19,10 @@ namespace DDOIT.Tools.UI
         [SerializeField] private float _distance = 1.5f;
 
         [Header("보간")]
-        [Tooltip("위치 추적 속도 (낮을수록 부드러움)")]
+        [Tooltip("위치 추적 속도 (높을수록 빠름)")]
         [SerializeField, Range(1f, 20f)] private float _positionSpeed = 5f;
 
-        [Tooltip("회전 추적 속도 (낮을수록 부드러움)")]
+        [Tooltip("회전 추적 속도 (높을수록 빠름)")]
         [SerializeField, Range(1f, 20f)] private float _rotationSpeed = 3f;
 
         #endregion
@@ -34,11 +30,25 @@ namespace DDOIT.Tools.UI
         #region Public Methods
 
         /// <summary>
-        /// 추적 대상을 런타임에 변경한다.
+        /// Assigns the follow target. Use snapImmediately when opening a pooled panel.
         /// </summary>
-        public void SetTarget(Transform target)
+        public void SetTarget(Transform target, bool snapImmediately = false)
         {
             _target = target;
+
+            if (snapImmediately)
+                SnapToTarget();
+        }
+
+        /// <summary>
+        /// Moves immediately to the current target pose without smoothing.
+        /// </summary>
+        public void SnapToTarget()
+        {
+            if (!TryGetTargetPose(out Vector3 targetPosition, out Quaternion targetRotation))
+                return;
+
+            transform.SetPositionAndRotation(targetPosition, targetRotation);
         }
 
         #endregion
@@ -47,21 +57,33 @@ namespace DDOIT.Tools.UI
 
         private void Update()
         {
-            if (_target == null) return;
+            if (!TryGetTargetPose(out Vector3 targetPosition, out Quaternion targetRotation))
+                return;
 
-            // Yaw(좌우 회전)만 추출 — Roll(머리 기울임), Pitch(상하) 무시
+            float deltaTime = Time.unscaledDeltaTime;
+            transform.position = Vector3.Lerp(transform.position, targetPosition, _positionSpeed * deltaTime);
+            transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, _rotationSpeed * deltaTime);
+        }
+
+        #endregion
+
+        #region Private Methods
+
+        private bool TryGetTargetPose(out Vector3 targetPosition, out Quaternion targetRotation)
+        {
+            if (_target == null)
+            {
+                targetPosition = default;
+                targetRotation = default;
+                return false;
+            }
+
             float yaw = _target.eulerAngles.y;
             Vector3 flatForward = Quaternion.Euler(0f, yaw, 0f) * Vector3.forward;
 
-            // 위치: 눈높이 고정 (Y는 target.position.y) + 수평 전방으로 distance
-            Vector3 targetPosition = _target.position + flatForward * _distance;
-
-            // 회전: Yaw만 적용
-            Quaternion targetRotation = Quaternion.Euler(0f, yaw, 0f);
-
-            float dt = Time.unscaledDeltaTime;
-            transform.position = Vector3.Lerp(transform.position, targetPosition, _positionSpeed * dt);
-            transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, _rotationSpeed * dt);
+            targetPosition = _target.position + flatForward * _distance;
+            targetRotation = Quaternion.Euler(0f, yaw, 0f);
+            return true;
         }
 
         #endregion
