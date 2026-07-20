@@ -479,8 +479,8 @@ SoundManager.Instance.PlaySFX("ButtonClick");
 
 **핵심 클래스**:
 - `GameManager` — 앱 라이프사이클 관리. 씬 로딩 완료를 대기한 후 시나리오 시작 (`WaitAndStartScenario`)
-- `SceneFlowManager` — 씬 전환 흐름 제어
-- `UIManager` — UI 패널 풀링 및 표시/숨김 관리 (§4.7 참조)
+- `SceneManager` — Addressables 또는 경로 기반 콘텐츠 씬 전환. 전환 시작 시 활성 `UIPanel`을 모두 닫아 이전 콘텐츠 UI가 다음 씬에 남지 않게 한다.
+- `UIManager` — UI 패널 풀링 및 표시/숨김 관리. 중복 초기화와 Pool 상태 오염을 방어한다 (§4.7 참조)
 
 ---
 
@@ -666,10 +666,11 @@ UIManager (Singleton)
     └── SmoothFollowCanvas
 ```
 
-- **UIManager**: `OpenUI(UIData, UITheme)`로 패널을 열고 `CloseUI(UIPanel)`로 닫는다. 초기화 전 호출이나 프리팹 누락은 `null`을 반환하고 오류 로그를 남긴다. 풀이 비면 기존 활성 패널을 빼앗지 않고 새 패널을 동적으로 생성한다.
+- **UIManager**: `OpenUI(UIData, UITheme)`로 패널을 열고 `CloseUI(UIPanel)`로 닫는다. 초기화 전 호출이나 프리팹 누락은 `null`을 반환하고 오류 로그를 남긴다. `Initialize()` 중복 호출은 기존 Pool을 재생성하지 않고 무시한다. `CloseUI()`/`CloseAllUI()`는 초기화 전에도 안전하게 반환하며, 풀이 비면 기존 활성 패널을 빼앗지 않고 새 패널을 동적으로 생성한다.
 - **UIPanel**: 하나의 패널 프리팹 안에 모든 UI 요소를 가지고 있다. `UIData`의 bool 플래그에 따라 필요한 요소만 켜고, 값이 비어 있는 텍스트/이미지/영상 요소는 런타임에서 숨긴다.
 - **UINode**: 시나리오 흐름에서 `UIData`, `UITheme`, 배치 모드, 버튼 이벤트를 설정하는 노드다.
 - **SmoothFollowCanvas**: 비고정형 UI에서 CenterEyeAnchor 또는 `PlayerRig.HeadTransform`을 추적한다. Yaw(좌우 회전) 중심으로 따라가며 Pitch/Roll은 UI 안정성을 위해 직접 따라가지 않는다.
+- **SceneManager 연동**: 콘텐츠 씬 전환이 시작되면 `SceneManager`가 활성 `UIPanel`을 모두 닫는다. 씬 전환 중 유지해야 하는 별도 로딩 UI는 일반 `UIPanel` 풀과 분리해서 설계해야 한다.
 
 #### 4.7.2 UI 요소 플래그
 
@@ -785,7 +786,7 @@ UIManager.Instance.CloseUI(panel);
 - 현재 씬에서 `UIManager.DefaultTheme`을 찾을 수 있으면 Inspector는 실제 적용될 Theme 이름을 안내한다.
 - 현재 씬에 UIManager가 없으면 Inspector는 패키지 기본 Theme 에셋을 참고 이름으로 보여줄 수 있다. 단, 최종 런타임 Theme은 DDOIT 씬의 UIManager 설정이 결정한다.
 - UIManager 기본 Theme과 기본 Theme 에셋을 모두 찾지 못하는 경우에만 Theme 적용 누락 위험으로 본다.
-- 패널은 재사용 전에 프리팹 기본 색/머티리얼 상태로 되돌아간 뒤 새 Theme를 적용한다.
+- 패널은 재사용 전에 프리팹 기본 색/머티리얼 상태로 되돌아간 뒤 새 Theme를 적용한다. Theme 배경 머티리얼 인스턴스는 패널마다 하나만 만들고 재사용하며, 패널 파괴 시 정리한다.
 - `UIGlobalSettings`는 현재 런타임 레이아웃 권한자가 아니다. Tools Window에서 설정 값을 편집하고 필요 시 프리팹에 수동 적용하는 용도다.
 - UPM 소비 프로젝트에서는 Editor 도구가 `Assets/Settings/DDOIT`의 프로젝트 로컬 설정을 우선 찾고, 없으면 `Packages/com.ddoit.tools/Data`의 패키지 기본값을 사용한다.
 
@@ -947,7 +948,7 @@ public class DDOITSettings : ScriptableObject
 ```
 1. Unity에서 새 프로젝트 생성 (Unity 6, URP)
 2. Package Manager > Add package from git URL
-   https://github.com/DDOIT-OFFICIAL/DDOIT_Tools.git#v0.19.13
+   https://github.com/DDOIT-OFFICIAL/DDOIT_Tools.git#v0.19.14
 3. Unity 상단 메뉴에서 DDOIT Tools > Setup 실행
 4. 필수 패키지 설치/업데이트 실행
 5. Init Project 실행
@@ -1067,5 +1068,5 @@ MAJOR.MINOR.PATCH
 ---
 
 **문서 버전**: 0.4.0
-**DDOIT_Tools 패키지 버전**: v0.19.13
+**DDOIT_Tools 패키지 버전**: v0.19.14
 **최종 업데이트**: 2026-07-20

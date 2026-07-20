@@ -223,17 +223,13 @@ namespace DDOIT.Tools.UI
             ResetThemeVisualState();
             if (theme == null) return;
 
-            // 배경 그라디언트 (머티리얼 인스턴스 — 패널 전용)
-            Material sourceMaterial = _defaultBackgroundMaterial != null
-                ? _defaultBackgroundMaterial
-                : _backgroundImage != null ? _backgroundImage.material : null;
-            if (_backgroundImage != null && sourceMaterial != null)
+            // 배경 그라디언트 (머티리얼 인스턴스 - 패널 전용 재사용)
+            Material themeMaterial = GetOrCreateThemeMaterial();
+            if (_backgroundImage != null && themeMaterial != null)
             {
-                _bgMaterialInstance = new Material(sourceMaterial);
-
-                SetMaterialColor(_bgMaterialInstance, "_ColorTop", theme.backgroundColorTop);
-                SetMaterialColor(_bgMaterialInstance, "_ColorBottom", theme.backgroundColorBottom);
-                _backgroundImage.material = _bgMaterialInstance;
+                SetMaterialColor(themeMaterial, "_ColorTop", theme.backgroundColorTop);
+                SetMaterialColor(themeMaterial, "_ColorBottom", theme.backgroundColorBottom);
+                _backgroundImage.material = themeMaterial;
             }
 
             // 버튼 background는 단색 — gradient의 top 색상 사용
@@ -308,6 +304,7 @@ namespace DDOIT.Tools.UI
         private void OnDestroy()
         {
             ResetVideoState();
+            ReleaseThemeMaterialInstance();
         }
 
         #endregion
@@ -570,7 +567,6 @@ namespace DDOIT.Tools.UI
         private void ResetThemeVisualState()
         {
             CacheThemeDefaults();
-            ReleaseThemeMaterialInstance();
 
             if (_backgroundImage != null)
             {
@@ -594,6 +590,30 @@ namespace DDOIT.Tools.UI
             SetTextColor(_buttonLabelB, _defaultButtonLabelBColor);
 
             _overlayRenderer?.MarkDirty();
+        }
+
+        private Material GetOrCreateThemeMaterial()
+        {
+            if (_backgroundImage == null)
+                return null;
+
+            if (_bgMaterialInstance != null)
+                return _bgMaterialInstance;
+
+            Material sourceMaterial = _defaultBackgroundMaterial != null
+                ? _defaultBackgroundMaterial
+                : _backgroundImage.material;
+
+            if (sourceMaterial == null)
+                return null;
+
+            _bgMaterialInstance = new Material(sourceMaterial)
+            {
+                name = $"{name}_ThemeBackgroundMaterial",
+                hideFlags = HideFlags.DontSave
+            };
+
+            return _bgMaterialInstance;
         }
 
         private void ReleaseThemeMaterialInstance()

@@ -107,6 +107,7 @@ namespace DDOIT.Tools.Managers
         private IEnumerator AddressableLoadRoutine(AssetReference sceneReference, float fadeDuration)
         {
             IsLoading = true;
+            CloseActiveUIPanelsForSceneLoad();
             _onLoadStart?.Invoke();
 
             // 1. 암전
@@ -163,6 +164,7 @@ namespace DDOIT.Tools.Managers
         private IEnumerator DirectLoadRoutine(string scenePath)
         {
             IsLoading = true;
+            CloseActiveUIPanelsForSceneLoad();
 
             yield return UnloadCurrentScene();
 
@@ -216,6 +218,22 @@ namespace DDOIT.Tools.Managers
             }
 
             _isCurrentSceneAddressable = false;
+        }
+
+        #endregion
+
+        #region UI Cleanup
+
+        private void CloseActiveUIPanelsForSceneLoad()
+        {
+            if (!UIManager.HasInstance)
+                return;
+
+            UIManager uiManager = UIManager.Instance;
+            if (uiManager == null || !uiManager.IsReady || !uiManager.HasActiveUI)
+                return;
+
+            uiManager.CloseAllUI();
         }
 
         #endregion

@@ -51,11 +51,27 @@ namespace DDOIT.Tools.Managers
         /// </summary>
         public IEnumerator Initialize()
         {
-            _pool = new Queue<UIPanel>();
-            _activePanels = new List<UIPanel>();
-            _createdPanelCount = 0;
+            if (IsReady)
+            {
+                Debug.LogWarning("[UIManager] Initialize()가 이미 완료되어 중복 호출을 무시합니다.");
+                ValidatePoolState("Initialize duplicate");
+                yield break;
+            }
 
-            for (int i = 0; i < _poolSize; i++)
+            ResetRuntimeCollections();
+
+            if (_panelPrefab == null)
+            {
+                Debug.LogError("[UIManager] Panel 프리팹이 지정되지 않아 초기화할 수 없습니다.");
+                IsReady = false;
+                yield break;
+            }
+
+            int initialPoolSize = Mathf.Max(0, _poolSize);
+            if (_poolSize < 0)
+                Debug.LogWarning($"[UIManager] Pool Size가 음수입니다. 0으로 보정합니다. (설정값: {_poolSize})");
+
+            for (int i = 0; i < initialPoolSize; i++)
             {
                 UIPanel panel = CreatePooledPanel();
                 if (panel != null)
@@ -63,6 +79,7 @@ namespace DDOIT.Tools.Managers
             }
 
             IsReady = true;
+            ValidatePoolState("Initialize");
             yield break;
         }
 
@@ -120,21 +137,52 @@ namespace DDOIT.Tools.Managers
 
             panel.Show(data);
             panel.ApplyTheme(theme != null ? theme : _defaultTheme);
-            _activePanels.Add(panel);
+
+            if (!_activePanels.Contains(panel))
+                _activePanels.Add(panel);
+            else
+                Debug.LogError($"[UIManager] 활성 목록에 이미 포함된 UIPanel입니다: {panel.gameObject.name}");
+
+            ValidatePoolState("OpenUI");
             return panel;
         }
 
         /// <summary>
-        /// UI 패널을 닫는다. 숨김 애니메이션 후 풀에 반환한다.
+        /// UI 패널을 닫고 풀에 반환한다.
         /// </summary>
         public void CloseUI(UIPanel panel)
         {
-            if (panel == null || !panel.IsActive) return;
+            if (panel == null) return;
+
+            if (_pool == null || _activePanels == null)
+            {
+                if (panel.IsActive)
+                    panel.Hide();
+
+                return;
+            }
+
+            if (!_activePanels.Contains(panel))
+            {
+                if (panel.IsActive)
+                {
+                    Debug.LogWarning($"[UIManager] 추적되지 않는 UIPanel 닫기 요청을 받았습니다: {panel.gameObject.name}");
+                    panel.Hide();
+                }
+
+                ValidatePoolState("CloseUI unmanaged");
+                return;
+            }
+
+            if (!panel.IsActive)
+            {
+                ReturnPanelToPool(panel, "CloseUI inactive");
+                return;
+            }
 
             panel.Hide(() =>
             {
-                _activePanels.Remove(panel);
-                _pool.Enqueue(panel);
+                ReturnPanelToPool(panel, "CloseUI");
             });
         }
 
@@ -143,9 +191,14 @@ namespace DDOIT.Tools.Managers
         /// </summary>
         public void CloseAllUI()
         {
+            if (_activePanels == null || _activePanels.Count == 0)
+                return;
+
             var copy = new List<UIPanel>(_activePanels);
             foreach (var panel in copy)
                 CloseUI(panel);
+
+            ValidatePoolState("CloseAllUI");
         }
 
         #endregion
@@ -154,8 +207,23 @@ namespace DDOIT.Tools.Managers
 
         private UIPanel AcquirePanel()
         {
-            if (_pool.Count > 0)
-                return _pool.Dequeue();
+            while (_pool.Count > 0)
+            {
+                UIPanel panel = _pool.Dequeue();
+                if (panel == null)
+                {
+                    Debug.LogWarning("[UIManager] Pool에서 null UIPanel을 제거했습니다.");
+                    continue;
+                }
+
+                if (panel.IsActive || (_activePanels != null && _activePanels.Contains(panel)))
+                {
+                    Debug.LogError($"[UIManager] Pool 상태 오류: 활성 또는 추적 중인 UIPanel이 Pool에 포함되어 있습니다: {panel.gameObject.name}");
+                    continue;
+                }
+
+                return panel;
+            }
 
             UIPanel expandedPanel = CreatePooledPanel();
             if (expandedPanel != null)
@@ -166,6 +234,70 @@ namespace DDOIT.Tools.Managers
             }
 
             return expandedPanel;
+        }
+
+        private void ResetRuntimeCollections()
+        {
+            _pool = new Queue<UIPanel>();
+            _activePanels = new List<UIPanel>();
+            _createdPanelCount = 0;
+        }
+
+        private void ReturnPanelToPool(UIPanel panel, string context)
+        {
+            if (panel == null) return;
+
+            _activePanels?.Remove(panel);
+
+            if (_pool == null)
+                return;
+
+            if (_pool.Contains(panel))
+            {
+                Debug.LogWarning($"[UIManager] UIPanel이 이미 Pool에 포함되어 있어 중복 반환을 무시합니다: {panel.gameObject.name}");
+                ValidatePoolState(context);
+                return;
+            }
+
+            _pool.Enqueue(panel);
+            ValidatePoolState(context);
+        }
+
+        [System.Diagnostics.Conditional("UNITY_EDITOR")]
+        [System.Diagnostics.Conditional("DEVELOPMENT_BUILD")]
+        private void ValidatePoolState(string context)
+        {
+            if (_pool == null || _activePanels == null)
+                return;
+
+            var activeSet = new HashSet<UIPanel>();
+            foreach (UIPanel panel in _activePanels)
+            {
+                if (panel == null)
+                {
+                    Debug.LogError($"[UIManager] Pool 상태 오류({context}): 활성 목록에 null UIPanel이 있습니다.");
+                    continue;
+                }
+
+                if (!activeSet.Add(panel))
+                    Debug.LogError($"[UIManager] Pool 상태 오류({context}): 활성 목록에 중복 UIPanel이 있습니다: {panel.gameObject.name}");
+            }
+
+            var poolSet = new HashSet<UIPanel>();
+            foreach (UIPanel panel in _pool)
+            {
+                if (panel == null)
+                {
+                    Debug.LogError($"[UIManager] Pool 상태 오류({context}): Pool에 null UIPanel이 있습니다.");
+                    continue;
+                }
+
+                if (!poolSet.Add(panel))
+                    Debug.LogError($"[UIManager] Pool 상태 오류({context}): Pool에 중복 UIPanel이 있습니다: {panel.gameObject.name}");
+
+                if (activeSet.Contains(panel))
+                    Debug.LogError($"[UIManager] Pool 상태 오류({context}): 같은 UIPanel이 활성 목록과 Pool에 동시에 있습니다: {panel.gameObject.name}");
+            }
         }
 
         #endregion
