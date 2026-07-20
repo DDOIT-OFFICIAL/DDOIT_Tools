@@ -19,8 +19,6 @@ namespace DDOIT.Tools.Editor
     {
         #region Constants
 
-        private const string PANEL_PREFAB_PATH = "Assets/DDOIT_Tools/Prefabs/UIPanel.prefab";
-
         private static readonly string[] TAB_NAMES = { "Scene Setup", "UI Theme", "Settings" };
 
         #endregion
@@ -399,14 +397,8 @@ namespace DDOIT.Tools.Editor
 
         private void CreateDDOITSettings()
         {
-            // Assets/DDOIT_Tools/Data에 생성
-            string folder = "Assets/DDOIT_Tools/Data";
-            if (!AssetDatabase.IsValidFolder(folder))
-            {
-                if (!AssetDatabase.IsValidFolder("Assets/DDOIT_Tools"))
-                    AssetDatabase.CreateFolder("Assets", "DDOIT_Tools");
-                AssetDatabase.CreateFolder("Assets/DDOIT_Tools", "Data");
-            }
+            DDOITEditorAssetLocator.EnsureWritableSettingsFolder();
+            string folder = DDOITEditorAssetLocator.WritableSettingsFolder;
 
             string path = $"{folder}/DDOITSettings.asset";
             if (AssetDatabase.LoadAssetAtPath<DDOITSettings>(path) != null)
@@ -425,12 +417,7 @@ namespace DDOIT.Tools.Editor
 
         private void RefreshDDOITSettings()
         {
-            var guids = AssetDatabase.FindAssets("t:DDOITSettings");
-            if (guids.Length > 0)
-            {
-                var path = AssetDatabase.GUIDToAssetPath(guids[0]);
-                _ddoitSettings = AssetDatabase.LoadAssetAtPath<DDOITSettings>(path);
-            }
+            _ddoitSettings = DDOITEditorAssetLocator.FindDDOITSettings();
         }
 
         #endregion
@@ -445,10 +432,10 @@ namespace DDOIT.Tools.Editor
                 return;
             }
 
-            var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(PANEL_PREFAB_PATH);
+            var prefab = DDOITEditorAssetLocator.FindUIPanelPrefab(out _);
             if (prefab == null)
             {
-                Debug.LogError($"[DDOITToolsWindow] UIPanel 프리팹을 찾을 수 없습니다: {PANEL_PREFAB_PATH}");
+                Debug.LogError("[DDOITToolsWindow] UIPanel 프리팹을 찾을 수 없습니다.");
                 return;
             }
 
@@ -516,12 +503,14 @@ namespace DDOIT.Tools.Editor
 
         private void CreateGlobalSettings()
         {
+            DDOITEditorAssetLocator.EnsureWritableSettingsFolder();
+
             var path = EditorUtility.SaveFilePanelInProject(
                 "UIGlobalSettings 저장 위치",
                 "UIGlobalSettings",
                 "asset",
                 "UIGlobalSettings 에셋 저장 위치를 선택하세요.",
-                "Assets/DDOIT_Tools");
+                DDOITEditorAssetLocator.WritableSettingsFolder);
 
             if (string.IsNullOrEmpty(path)) return;
 
@@ -534,12 +523,14 @@ namespace DDOIT.Tools.Editor
 
         private void CreateNewTheme()
         {
+            DDOITEditorAssetLocator.EnsureWritableSettingsFolder();
+
             var path = EditorUtility.SaveFilePanelInProject(
                 "UI Theme 저장 위치",
                 "UITheme_New",
                 "asset",
                 "새 UITheme 에셋 저장 위치를 선택하세요.",
-                "Assets/DDOIT_Tools");
+                DDOITEditorAssetLocator.WritableSettingsFolder);
 
             if (string.IsNullOrEmpty(path)) return;
 
@@ -558,22 +549,12 @@ namespace DDOIT.Tools.Editor
 
         private void RefreshGlobalSettings()
         {
-            var guids = AssetDatabase.FindAssets("t:UIGlobalSettings");
-            if (guids.Length > 0)
-            {
-                var path = AssetDatabase.GUIDToAssetPath(guids[0]);
-                _globalSettings = AssetDatabase.LoadAssetAtPath<UIGlobalSettings>(path);
-            }
+            _globalSettings = DDOITEditorAssetLocator.FindUIGlobalSettings();
         }
 
         private void RefreshThemeList()
         {
-            var guids = AssetDatabase.FindAssets("t:UITheme");
-            _themes = guids
-                .Select(g => AssetDatabase.LoadAssetAtPath<UITheme>(AssetDatabase.GUIDToAssetPath(g)))
-                .Where(t => t != null)
-                .OrderBy(t => t.name)
-                .ToArray();
+            _themes = DDOITEditorAssetLocator.FindUIThemes();
 
             _themeNames = _themes.Select(t => t.name).ToArray();
 
