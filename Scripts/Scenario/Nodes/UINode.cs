@@ -127,11 +127,17 @@ namespace DDOIT.Tools.Scenario.Nodes
 
         private void ClosePanel()
         {
-            if (_activePanel != null && UIManager.HasInstance)
-            {
-                UIManager.Instance.CloseUI(_activePanel);
-                _activePanel = null;
-            }
+            UIPanel panel = _activePanel;
+            _activePanel = null;
+
+            if (panel == null || !UIManager.HasInstance)
+                return;
+
+            UIManager manager = UIManager.Instance;
+            if (manager == null)
+                return;
+
+            manager.CloseUI(panel);
         }
 
         private void LogOpenFailure(string reason)

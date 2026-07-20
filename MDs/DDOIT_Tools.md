@@ -343,7 +343,7 @@ ScenarioManager.StartSequence()
 | **WalkingStickNode** | `PlayerRig.EnableWalkingStick()` / `DisableWalkingStick()` 호출. 활성화 시점의 HMD 높이로 stick 길이 자동 결정 | — (즉시 완료, `_onEnd` 이벤트) |
 | **ToggleNode** | GameObject / Component / ParticleSystem / IToggleable 스크립트 On/Off | — (즉시 완료, `_onEnd` 이벤트) |
 | **AnimatorNode** | Animator의 Trigger/Bool/Int/Float 파라미터 설정 | — (즉시 완료, `_onEnd` 이벤트) |
-| **UINode** | UIManager를 통한 UI 패널 표시 | O (버튼 클릭 시 충족, B1/B2 타입만) |
+| **UINode** | UIManager를 통한 UI 패널 표시 | O (버튼 클릭 시 충족) |
 | **TriggerConditionNode** | 특정 태그 객체의 트리거 감지 (Enter/Exit/Stay) | O (전용 조건 노드) |
 | **TimerConditionNode** | 지정 시간 경과 | O (전용 조건 노드) |
 
@@ -400,7 +400,7 @@ namespace DDOIT.Tools
 | **ToggleNodeEditor** | 모드별(GameObject/Component/Particle/Script) 대상 필드, Activate 토글 |
 | **AnimatorNodeEditor** | 파라미터 타입별 입력 필드(Trigger/Bool/Int/Float) |
 | **TriggerConditionNodeEditor** | 외부 Collider 설정, Collider 타입 버튼 (Box/Sphere/Capsule), 감지 모드(Enter/Exit/Stay) |
-| **UINodeEditor** | UIType별 조건부 필드, 버튼 이벤트 섹션, 빈 필드 자동 숨김 안내 |
+| **UINodeEditor** | UI 요소 플래그별 조건부 필드, 버튼 이벤트 섹션, 작성 누락/분기 경고 |
 | **SoundNodeEditor** | 사운드 이름 드롭다운, 오디오 미리듣기 (Play/Stop), 미선택 경고 |
 | **TimerConditionNodeEditor** | 대기 시간 설정, 0 이하 경고 |
 | **ConditionGroupDrawer** | ScenarioNode의 `_conditionGroup` 필드를 그룹 번호 버튼 UI로 표시 |
@@ -653,36 +653,40 @@ Player Transform 갱신
 #### 4.7.1 아키텍처
 
 ```
-UIManager (Singleton)        ← Queue<UIPanel> 풀 관리
-├── UIPanel (Canvas)         ← 풀링 대상. World Space + InSceneOverlayCanvasRenderer
-│   ├── Title (TMP)
-│   ├── Context (TMP)
-│   ├── ContextSub (TMP)
-│   ├── Image / ImageSub
-│   ├── Video (VideoPlayer)
-│   └── ButtonA / ButtonB
-└── SmoothFollowCanvas       ← 비고정형 UI의 카메라 추적
+UIManager (Singleton)
+├── Queue<UIPanel> pool
+├── List<UIPanel> activePanels
+└── UIPanel prefab
+    ├── World Space Canvas
+    ├── InSceneOverlayCanvasRenderer
+    ├── Title / Context / ContextSub (TMP)
+    ├── ImageA / ImageSub (Image)
+    ├── VideoSurface (RawImage) + VideoPlayer
+    ├── ButtonA / ButtonB
+    └── SmoothFollowCanvas
 ```
 
-- **UIManager**: `OpenUI(UIData)` → 풀에서 UIPanel 꺼내 표시. `CloseUI(UIPanel)` → 풀 반환. 풀이 비면 기존 활성 패널을 빼앗지 않고 새 패널을 동적으로 생성.
-- **UIPanel**: 모든 UI 요소를 포함한 단일 Canvas. UIType에 따라 필요한 요소만 `SetActive(true)`. 빈 데이터(null Sprite, 빈 string)는 자동 숨김. 표시/숨김 시 EaseOutBack 스케일 애니메이션 재생.
-- **SmoothFollowCanvas**: CenterEyeAnchor 기준 Yaw(좌우 회전)만 추적. Pitch/Roll 무시하여 VR 멀미 방지. 눈높이 유지.
+- **UIManager**: `OpenUI(UIData, UITheme)`로 패널을 열고 `CloseUI(UIPanel)`로 닫는다. 초기화 전 호출이나 프리팹 누락은 `null`을 반환하고 오류 로그를 남긴다. 풀이 비면 기존 활성 패널을 빼앗지 않고 새 패널을 동적으로 생성한다.
+- **UIPanel**: 하나의 패널 프리팹 안에 모든 UI 요소를 가지고 있다. `UIData`의 bool 플래그에 따라 필요한 요소만 켜고, 값이 비어 있는 텍스트/이미지/영상 요소는 런타임에서 숨긴다.
+- **UINode**: 시나리오 흐름에서 `UIData`, `UITheme`, 배치 모드, 버튼 이벤트를 설정하는 노드다.
+- **SmoothFollowCanvas**: 비고정형 UI에서 CenterEyeAnchor 또는 `PlayerRig.HeadTransform`을 추적한다. Yaw(좌우 회전) 중심으로 따라가며 Pitch/Roll은 UI 안정성을 위해 직접 따라가지 않는다.
 
-#### 4.7.2 UIType (레이아웃 유형)
+#### 4.7.2 UI 요소 플래그
 
-| UIType | 구성 | 설명 |
+현재 코드에는 `UIType` enum이 없다. UI 구성은 `UIData` 내부의 bool 플래그로 결정한다.
+
+| 플래그 | 데이터 필드 | 런타임 동작 |
 |---|---|---|
-| T1 | Title | 제목만 |
-| C1 | Context | 본문만 |
-| T1C1 | Title + Context | 제목 + 본문 |
-| T1C2 | Title + Context + ContextSub | 제목 + 본문 2개 |
-| T1C1P1 | Title + Context + Image | 제목 + 본문 + 이미지 |
-| T1C1P2 | Title + Context + Image + ImageSub | 제목 + 본문 + 이미지 2개 |
-| T1C1V1 | Title + Context + Video | 제목 + 본문 + 비디오 |
-| T1C1B1 | Title + Context + ButtonA | 제목 + 본문 + 버튼 1개 |
-| T1C1B2 | Title + Context + ButtonA + ButtonB | 제목 + 본문 + 버튼 2개 |
+| `useTitle` | `title`, `titleIcon` | 제목 텍스트와 제목 아이콘 영역 사용 |
+| `useContext` | `context` | 본문 텍스트 사용 |
+| `useContextSub` | `contextSub` | 하단 본문 텍스트 사용 |
+| `useImageA` | `image` | 첫 번째 이미지 사용 |
+| `useImageSub` | `imageSub` | 두 번째 이미지 사용 |
+| `useVideo` | `video` | 비디오 영역 사용 |
+| `useButtonA` | `buttonLabelA`, `_onButtonA` | 버튼 A 표시 및 클릭 이벤트 연결 |
+| `useButtonB` | `buttonLabelB`, `_onButtonB` | 버튼 B 표시 및 클릭 이벤트 연결 |
 
-> T=Title, C=Context, P=Picture, V=Video, B=Button. 빈 텍스트/이미지 필드는 자동으로 숨겨짐.
+플래그가 켜져 있어도 실제 데이터가 비어 있으면 해당 요소는 자동으로 숨겨진다. 예를 들어 `useImageA=true`인데 `image=null`이면 ImageA는 표시되지 않는다.
 
 #### 4.7.3 UIData (콘텐츠 데이터)
 
@@ -690,32 +694,58 @@ UIManager (Singleton)        ← Queue<UIPanel> 풀 관리
 [System.Serializable]
 public struct UIData
 {
-    public UIType type;
+    public bool useTitle;
+    public bool useContext;
+    public bool useImageA;
+    public bool useImageSub;
+    public bool useVideo;
+    public bool useButtonA;
+    public bool useButtonB;
+    public bool useContextSub;
+
     public string title;
+    public Sprite titleIcon;
     public string context;
-    public string contextSub;
     public Sprite image;
     public Sprite imageSub;
     public VideoClip video;
     public string buttonLabelA;
     public string buttonLabelB;
+    public string contextSub;
 }
 ```
 
+`UINode`에서는 별도 `_titleIcon` 필드가 Inspector에 노출된다. 런타임에서는 `UINode.OnInit()`이 `UIData`를 복사한 뒤 `data.titleIcon = _titleIcon`으로 주입한다. 제목 Bold 옵션이 켜져 있으면 제목 문자열을 `<b>...</b>`로 감싼 뒤 패널에 전달한다.
+
 #### 4.7.4 배치 모드
 
-| 모드 | isFixed | 설명 |
+| 모드 | `_isFixed` | `UILookAtMode` | 설명 |
 |---|---|---|
-| **고정형** | true | 지정 Transform 위치에 고정. `lookAtPlayer=true` 시 플레이어를 바라봄 |
-| **추적형** | false | SmoothFollowCanvas 활성화. CenterEyeAnchor 기준 Yaw만 추적 |
+| **월드 고정** | true | `None` | UINode Transform의 위치/회전을 그대로 사용 |
+| **월드 고정 + 1회 바라보기** | true | `LookOnce` | 패널을 열 때 플레이어를 한 번 바라본 뒤 고정 |
+| **월드 고정 + 계속 바라보기** | true | `LookAlways` | 패널 위치는 고정하고 회전만 플레이어를 계속 추적 |
+| **플레이어 추적** | false | 무시 | `SmoothFollowCanvas`가 CenterEyeAnchor 또는 HeadTransform을 따라감 |
 
 #### 4.7.5 UINode (시나리오 노드)
 
 UINode는 시나리오 흐름에서 UI를 표시하는 ScenarioNode:
-- `OnInit()`: UIManager.OpenUI → SetPlacement → 버튼 이벤트 연결
-- `OnRelease()`: 패널 닫기
-- B1/B2 타입에서 `IsStepCondition=true`이면 버튼 클릭 시 Step 조건 충족
-- 버튼별 UnityEvent (`_onButtonA`, `_onButtonB`)로 커스텀 동작 할당 가능
+
+1. `OnInit()`에서 `UIManager` 존재 여부를 확인한다.
+2. `UIData`를 복사하고 제목 Bold/Title Icon을 반영한다.
+3. `UIManager.Instance.OpenUI(data, _theme)`로 패널을 연다.
+4. `SetPlacement()`로 고정형/추적형 배치를 적용한다.
+5. 버튼이 켜져 있으면 `UIPanel.OnButtonClicked`에 연결한다.
+6. `OnRelease()` 또는 `OnDisable()`에서 열린 패널을 `UIManager.CloseUI()`로 반환한다.
+
+`UINode`가 Step 조건 노드로 쓰이면 버튼 클릭 시 `SetConditionMet()`을 호출한다. 버튼 UnityEvent에는 일반 로직뿐 아니라 부모 Step의 `MarkConditionGroup1` ~ `MarkConditionGroup7`을 연결할 수 있어 분기형 UI를 만들 수 있다.
+
+작성 실수를 줄이기 위해 `UINodeEditor`는 다음 경고를 표시한다.
+
+- 활성화된 UI 요소가 하나도 없음
+- 켜진 텍스트/이미지/영상 요소에 실제 데이터가 없음
+- 버튼 라벨이 비어 있음
+- 버튼 이벤트가 없거나 Step 조건 완료 경로가 불명확함
+- UINode의 조건 그룹과 버튼 이벤트의 `MarkConditionGroupN` 연결이 충돌할 가능성
 
 #### 4.7.6 사용 예시
 
@@ -723,25 +753,59 @@ UINode는 시나리오 흐름에서 UI를 표시하는 ScenarioNode:
 // 코드에서 직접 UI 열기
 var data = new UIData
 {
-    type = UIType.T1C1B1,
+    useTitle = true,
+    useContext = true,
+    useButtonA = true,
     title = "확인",
     context = "작업을 완료했습니까?",
     buttonLabelA = "예"
 };
-UIManager.Instance.OpenUI(data);
+
+UIPanel panel = UIManager.Instance.OpenUI(data);
+
+// 직접 OpenUI를 호출한 코드는 반환된 패널을 보관하고,
+// 더 이상 필요 없을 때 반드시 CloseUI로 반환해야 한다.
+UIManager.Instance.CloseUI(panel);
 ```
 
-시나리오에서는 UINode를 Step 하위에 배치하고 인스펙터에서 UIData를 설정.
+시나리오에서는 보통 직접 코드 호출보다 UINode를 Step 하위에 배치하고 Inspector에서 `UIData`, Theme, 배치, 버튼 이벤트를 설정한다.
 
-#### 4.7.7 프리팹 구성
+#### 4.7.7 Theme와 Global Settings
 
-- `UIPanel.prefab`: World Space Canvas + `InSceneOverlayCanvasRenderer` (RenderTexture 기반 in-scene overlay UI)
-- Interaction: `PointableCanvas` + `PokeInteractable` + `RayInteractable` share `Surface/ClippedPlaneSurface`; controller/hand rays from `OVRInteractionComprehensive` can select UI buttons.
-- Runtime rendering: source Canvas hierarchy is moved to Layer 30 (`DDOIT UI Render Source`) and rendered by an internal camera into a RenderTexture; the visible display mesh stays on Layer 0 and uses `ZTest Always` / render queue 4500.
-- Interaction visuals: hand/controller/ray renderers are raised above the UI mesh at runtime so rays and hands remain visible over the panel.
-- Editor prefab children: Layer 3 (Overlay UI)
+- `UITheme`은 배경 상단/하단 색, edge 색, 텍스트 색을 정의한다.
+- `UINode._theme`이 비어 있으면 `UIManager.DefaultTheme`이 적용된다.
+- 패널은 재사용 전에 프리팹 기본 색/머티리얼 상태로 되돌아간 뒤 새 Theme를 적용한다.
+- `UIGlobalSettings`는 현재 런타임 레이아웃 권한자가 아니다. Tools Window에서 설정 값을 편집하고 필요 시 프리팹에 수동 적용하는 용도다.
+- UPM 소비 프로젝트에서는 Editor 도구가 `Assets/Settings/DDOIT`의 프로젝트 로컬 설정을 우선 찾고, 없으면 `Packages/com.ddoit.tools/Data`의 패키지 기본값을 사용한다.
+
+#### 4.7.8 Video
+
+`UIPanel`은 `VideoClip`을 직접 `RawImage`에 넣지 않는다. 패널별 Runtime `RenderTexture`를 만들고 다음 흐름으로 연결한다.
+
+```text
+VideoClip -> VideoPlayer.targetTexture -> RenderTexture -> RawImage.texture
+```
+
+영상 크기를 알 수 있으면 `VideoClip.width/height` 기준으로 RenderTexture를 만들고, 알 수 없으면 1280x720을 사용한다. 너무 큰 영상은 가장 긴 변이 2048을 넘지 않도록 제한한다. 패널이 닫히거나 비활성화되면 VideoPlayer, RawImage texture, RenderTexture를 정리한다.
+
+#### 4.7.9 렌더링과 입력
+
+- `UIPanel.prefab`: World Space Canvas + `InSceneOverlayCanvasRenderer`
+- Interaction: `PointableCanvas` + `PokeInteractable` + `RayInteractable`
+- Poke와 Ray는 같은 `Surface/ClippedPlaneSurface`를 공유한다.
+- Controller/hand ray는 `OVRInteractionComprehensive`의 ray interactor를 통해 UI 버튼을 선택할 수 있다.
+- Runtime rendering: 원본 Canvas 계층은 Layer 30 (`DDOIT UI Render Source`)로 이동되고 내부 카메라가 RenderTexture로 렌더링한다.
+- 표시용 Mesh는 Layer 0에 남고 `ZTest Always`, render queue 4500으로 월드 지오메트리에 잘리지 않게 표시된다.
+- 손/컨트롤러/ray renderer는 런타임에서 UI mesh보다 위에 보이도록 보정된다.
+- Editor prefab children: Layer 3 (`Overlay UI`)
 - RectTransform.localScale: (0.0005, 0.0005, 0.0005)
 - CanvasScaler.dynamicPixelsPerUnit: 10
+
+#### 4.7.10 Addressables 미디어 정책
+
+현재 `UIData`의 이미지/영상은 직접 `Sprite`/`VideoClip` 참조를 사용한다. 이 방식은 단순하고 안정적이므로 기본 정책으로 유지한다.
+
+대형 이미지, 여러 씬에서 공유되는 영상, 원격 업데이트가 필요한 미디어가 실제 요구사항으로 커질 경우에만 선택적 Addressables 참조를 추가 검토한다. 기존 직접 참조 필드를 제거하는 전면 전환은 기존 UINode 직렬화 데이터와 비동기 수명 관리에 영향을 주므로 현재는 보류한다.
 
 ---
 
@@ -857,7 +921,7 @@ public class DDOITSettings : ScriptableObject
 ```
 1. Unity에서 새 프로젝트 생성 (Unity 6, URP)
 2. Package Manager > Add package from git URL
-   https://github.com/DDOIT-OFFICIAL/DDOIT_Tools.git#v0.19.10
+   https://github.com/DDOIT-OFFICIAL/DDOIT_Tools.git#v0.19.11
 3. Unity 상단 메뉴에서 DDOIT Tools > Setup 실행
 4. 필수 패키지 설치/업데이트 실행
 5. Init Project 실행
@@ -977,5 +1041,5 @@ MAJOR.MINOR.PATCH
 ---
 
 **문서 버전**: 0.4.0
-**DDOIT_Tools 패키지 버전**: v0.19.10
+**DDOIT_Tools 패키지 버전**: v0.19.11
 **최종 업데이트**: 2026-07-20

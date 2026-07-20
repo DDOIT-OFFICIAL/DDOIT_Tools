@@ -243,7 +243,9 @@ namespace DDOIT.Tools.UI
             _cameraTransform.gameObject.layer = _sourceLayer;
 
             _renderCamera.enabled = false;
-            _renderCamera.stereoTargetEye = StereoTargetEyeMask.None;
+            if (UnityEngine.Rendering.GraphicsSettings.currentRenderPipeline == null)
+                _renderCamera.stereoTargetEye = StereoTargetEyeMask.None;
+
             _renderCamera.clearFlags = CameraClearFlags.SolidColor;
             _renderCamera.backgroundColor = Color.clear;
             _renderCamera.orthographic = true;
@@ -413,19 +415,19 @@ namespace DDOIT.Tools.UI
             if (_renderCamera != null)
                 _renderCamera.targetTexture = null;
 
-            DestroyObject(_renderTexture);
-            DestroyObject(_displayMaterial);
-            DestroyObject(_displayMesh);
+            DestroyRuntimeObject(_renderTexture);
+            DestroyRuntimeObject(_displayMaterial);
+            DestroyRuntimeObject(_displayMesh);
 
             _renderTexture = null;
             _displayMaterial = null;
             _displayMesh = null;
 
             if (_displayTransform != null)
-                DestroyObject(_displayTransform.gameObject);
+                DestroyRuntimeObject(_displayTransform.gameObject);
 
             if (_cameraTransform != null)
-                DestroyObject(_cameraTransform.gameObject);
+                DestroyRuntimeObject(_cameraTransform.gameObject);
 
             _displayTransform = null;
             _cameraTransform = null;
@@ -434,7 +436,7 @@ namespace DDOIT.Tools.UI
             _renderCamera = null;
         }
 
-        private static void DestroyObject(Object obj)
+        private static void DestroyRuntimeObject(Object obj)
         {
             if (obj == null)
                 return;
