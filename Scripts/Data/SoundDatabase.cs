@@ -40,6 +40,13 @@ namespace DDOIT.Tools.Data
             BuildCache();
         }
 
+#if UNITY_EDITOR
+        private void OnValidate()
+        {
+            BuildCache();
+        }
+#endif
+
         /// <summary>
         /// Dictionary 캐시를 빌드한다. OnEnable에서 자동 호출되며,
         /// 런타임 중 데이터 변경 시 수동 호출 가능.

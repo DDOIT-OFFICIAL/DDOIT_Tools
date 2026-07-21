@@ -349,6 +349,14 @@ ScenarioManager.StartSequence()
 
 > **IToggleable 인터페이스**: `Go()` / `Stop()` 두 메서드를 구현하면 ToggleNode의 Script 모드에서 해당 스크립트를 On/Off할 수 있다.
 
+**SoundNode 재생 정책**:
+
+- `SoundNode`는 `SoundManager`가 존재하고 초기화된 상태에서만 사운드 재생을 시도한다.
+- 사운드 이름이 비어 있거나, `SoundDatabase`에서 찾을 수 없거나, 실제 `AudioClip` 재생에 실패하면 Error 로그를 남기고 조건을 완료하지 않는다.
+- 조건 그룹에 속한 `SoundNode`는 일반 사운드 재생이 끝났을 때 조건을 충족한다.
+- Loop 사운드는 자연 종료 시점이 없으므로 조건 그룹 자동 완료용으로 사용하지 않는다.
+- `Step 종료 시 정지` 옵션을 켜면 Step 종료, 노드 Release, 비활성화 시 해당 노드가 시작한 사운드를 정지한다. 기본값은 기존 동작 호환을 위해 꺼져 있다.
+
 #### 4.1.5 커스텀 노드 만들기
 
 ```csharp
@@ -401,7 +409,7 @@ namespace DDOIT.Tools
 | **AnimatorNodeEditor** | 파라미터 타입별 입력 필드(Trigger/Bool/Int/Float) |
 | **TriggerConditionNodeEditor** | 외부 Collider 설정, Collider 타입 버튼 (Box/Sphere/Capsule), 감지 모드(Enter/Exit/Stay) |
 | **UINodeEditor** | UI 요소 플래그별 조건부 필드, Theme 기본값 안내, 버튼 이벤트 섹션, 작성 누락/분기 경고 |
-| **SoundNodeEditor** | 사운드 이름 드롭다운, 오디오 미리듣기 (Play/Stop), 미선택 경고 |
+| **SoundNodeEditor** | 사운드 이름 드롭다운, Step 종료 시 정지 옵션, 오디오 미리듣기, 미선택/누락/Loop 조건 경고 |
 | **TimerConditionNodeEditor** | 대기 시간 설정, 0 이하 경고 |
 | **ConditionGroupDrawer** | ScenarioNode의 `_conditionGroup` 필드를 그룹 번호 버튼 UI로 표시 |
 
@@ -970,7 +978,7 @@ public class DDOITSettings : ScriptableObject
 ```
 1. Unity에서 새 프로젝트 생성 (Unity 6, URP)
 2. Package Manager > Add package from git URL
-   https://github.com/DDOIT-OFFICIAL/DDOIT_Tools.git#v0.19.17
+   https://github.com/DDOIT-OFFICIAL/DDOIT_Tools.git#v0.19.18
 3. Unity 상단 메뉴에서 DDOIT Tools > Setup 실행
 4. 필수 패키지 설치/업데이트 실행
 5. Init Project 실행
@@ -1090,5 +1098,5 @@ MAJOR.MINOR.PATCH
 ---
 
 **문서 버전**: 0.4.0
-**DDOIT_Tools 패키지 버전**: v0.19.17
-**최종 업데이트**: 2026-07-21
+**DDOIT_Tools 패키지 버전**: v0.19.18
+**최종 업데이트**: 2026-07-22

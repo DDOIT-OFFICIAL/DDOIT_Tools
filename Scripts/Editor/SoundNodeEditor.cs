@@ -1,24 +1,33 @@
 using UnityEditor;
 using UnityEngine;
 
-using DDOIT.Tools.Scenario.Nodes;
 using DDOIT.Tools.Data;
+using DDOIT.Tools.Scenario.Nodes;
+
 namespace DDOIT.Tools.Editor
 {
     [CustomEditor(typeof(SoundNode))]
     public class SoundNodeEditor : UnityEditor.Editor
     {
+        #region Private Fields
+
         private SerializedProperty _conditionGroup;
         private SerializedProperty _soundName;
+        private SerializedProperty _stopOnRelease;
         private SerializedProperty _onEnd;
 
         private AudioClip _previewClip;
         private bool _isPlaying;
 
+        #endregion
+
+        #region Unity Lifecycle
+
         private void OnEnable()
         {
             _conditionGroup = serializedObject.FindProperty("_conditionGroup");
             _soundName = serializedObject.FindProperty("_soundName");
+            _stopOnRelease = serializedObject.FindProperty("_stopOnRelease");
             _onEnd = serializedObject.FindProperty("_onEnd");
         }
 
@@ -26,6 +35,10 @@ namespace DDOIT.Tools.Editor
         {
             StopPreview();
         }
+
+        #endregion
+
+        #region Inspector
 
         public override void OnInspectorGUI()
         {
@@ -36,6 +49,7 @@ namespace DDOIT.Tools.Editor
 
             EditorGUILayout.LabelField("사운드 설정", EditorStyles.boldLabel);
             EditorGUILayout.PropertyField(_soundName, new GUIContent("사운드 이름"));
+            EditorGUILayout.PropertyField(_stopOnRelease, new GUIContent("Step 종료 시 정지"));
 
             if (string.IsNullOrEmpty(_soundName.stringValue))
             {
@@ -43,7 +57,7 @@ namespace DDOIT.Tools.Editor
             }
             else
             {
-                DrawPreviewButtons();
+                DrawSoundInfoAndPreview();
             }
 
             EditorGUILayout.Space(4);
@@ -52,20 +66,50 @@ namespace DDOIT.Tools.Editor
             serializedObject.ApplyModifiedProperties();
         }
 
-        private void DrawPreviewButtons()
+        private void DrawSoundInfoAndPreview()
         {
-            // 현재 사운드 이름에 해당하는 AudioClip 찾기
-            var clip = FindClip(_soundName.stringValue);
+            SoundDatabase.SoundData data = FindSoundData(_soundName.stringValue);
 
-            if (clip == null)
+            if (data == null)
             {
                 EditorGUILayout.HelpBox(
-                    $"'{_soundName.stringValue}' 클립을 찾을 수 없습니다. SoundDatabase를 확인하세요.",
+                    $"'{_soundName.stringValue}' 사운드를 찾을 수 없습니다. SoundDatabase를 확인하세요.",
                     MessageType.Warning);
                 return;
             }
 
-            // 클립이 변경되면 기존 재생 중지
+            if (data.clip == null)
+            {
+                EditorGUILayout.HelpBox(
+                    $"'{_soundName.stringValue}' 사운드는 등록되어 있지만 AudioClip이 비어 있습니다.",
+                    MessageType.Warning);
+                return;
+            }
+
+            DrawAuthoringWarnings(data);
+            DrawPreviewButtons(data.clip);
+        }
+
+        private void DrawAuthoringWarnings(SoundDatabase.SoundData data)
+        {
+            if (_conditionGroup.intValue > 0 && data.loop)
+            {
+                EditorGUILayout.HelpBox(
+                    "Loop 사운드는 자연 종료 시점이 없으므로 Step 조건을 자동 완료할 수 없습니다. " +
+                    "조건 완료가 필요하면 loop가 아닌 사운드를 사용하거나 다른 조건 노드/이벤트로 완료를 처리하세요.",
+                    MessageType.Error);
+            }
+
+            if (!_stopOnRelease.boolValue && data.loop)
+            {
+                EditorGUILayout.HelpBox(
+                    "Step 종료 시 정지가 꺼져 있으므로 이 loop 사운드는 Step이 끝난 뒤에도 계속 재생될 수 있습니다.",
+                    MessageType.Info);
+            }
+        }
+
+        private void DrawPreviewButtons(AudioClip clip)
+        {
             if (_previewClip != clip)
             {
                 StopPreview();
@@ -74,7 +118,6 @@ namespace DDOIT.Tools.Editor
 
             EditorGUILayout.BeginHorizontal();
 
-            // 재생 중이면 초록색 표시
             bool wasEnabled = GUI.enabled;
             if (_isPlaying)
                 GUI.backgroundColor = new Color(0.5f, 1f, 0.5f);
@@ -96,7 +139,6 @@ namespace DDOIT.Tools.Editor
 
             EditorGUILayout.EndHorizontal();
 
-            // 재생 중이면 Inspector 지속 갱신 (버튼 상태 업데이트)
             if (_isPlaying)
             {
                 if (!IsPreviewPlaying())
@@ -106,23 +148,26 @@ namespace DDOIT.Tools.Editor
             }
         }
 
-        private static AudioClip FindClip(string soundName)
+        private static SoundDatabase.SoundData FindSoundData(string soundName)
         {
             if (string.IsNullOrEmpty(soundName)) return null;
 
-            var guids = AssetDatabase.FindAssets("t:SoundDatabase");
-            foreach (var guid in guids)
+            string[] guids = AssetDatabase.FindAssets("t:SoundDatabase");
+            foreach (string guid in guids)
             {
-                var path = AssetDatabase.GUIDToAssetPath(guid);
-                var db = AssetDatabase.LoadAssetAtPath<SoundDatabase>(path);
+                string path = AssetDatabase.GUIDToAssetPath(guid);
+                SoundDatabase db = AssetDatabase.LoadAssetAtPath<SoundDatabase>(path);
                 if (db == null) continue;
 
-                var clip = db.GetClip(soundName);
-                if (clip != null) return clip;
+                db.BuildCache();
+                if (db.TryGetSoundData(soundName, out SoundDatabase.SoundData data))
+                    return data;
             }
 
             return null;
         }
+
+        #endregion
 
         #region Editor Audio Preview
 
@@ -135,10 +180,10 @@ namespace DDOIT.Tools.Editor
         {
             StopClipInternal();
 
-            var audioUtil = GetAudioUtilClass();
+            System.Type audioUtil = GetAudioUtilClass();
             if (audioUtil == null) return;
 
-            var playMethod = audioUtil.GetMethod(
+            System.Reflection.MethodInfo playMethod = audioUtil.GetMethod(
                 "PlayPreviewClip",
                 System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.Public,
                 null,
@@ -150,10 +195,10 @@ namespace DDOIT.Tools.Editor
 
         private static void StopClipInternal()
         {
-            var audioUtil = GetAudioUtilClass();
+            System.Type audioUtil = GetAudioUtilClass();
             if (audioUtil == null) return;
 
-            var stopMethod = audioUtil.GetMethod(
+            System.Reflection.MethodInfo stopMethod = audioUtil.GetMethod(
                 "StopAllPreviewClips",
                 System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.Public);
 
@@ -162,10 +207,10 @@ namespace DDOIT.Tools.Editor
 
         private static bool IsPreviewPlaying()
         {
-            var audioUtil = GetAudioUtilClass();
+            System.Type audioUtil = GetAudioUtilClass();
             if (audioUtil == null) return false;
 
-            var method = audioUtil.GetMethod(
+            System.Reflection.MethodInfo method = audioUtil.GetMethod(
                 "IsPreviewClipPlaying",
                 System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.Public);
 
