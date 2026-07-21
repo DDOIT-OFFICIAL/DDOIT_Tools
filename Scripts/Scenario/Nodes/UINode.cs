@@ -63,17 +63,18 @@ namespace DDOIT.Tools.Scenario.Nodes
             _selectedButtonIndex = -1;
             _hasProcessedButtonSelection = false;
 
+            UIData data = BuildRuntimeData();
+            if (!data.HasVisibleContent)
+            {
+                LogOpenFailure("UIData has no visible content.");
+                return;
+            }
+
             if (!UIManager.HasInstance)
             {
                 LogOpenFailure("UIManager instance not found.");
                 return;
             }
-
-            // 볼드 래핑 + 아이콘
-            var data = _uiData;
-            if (_titleBold && !string.IsNullOrEmpty(data.title))
-                data.title = $"<b>{data.title}</b>";
-            data.titleIcon = _titleIcon;
 
             _activePanel = UIManager.Instance.OpenUI(data, _theme);
             if (_activePanel == null)
@@ -110,6 +111,16 @@ namespace DDOIT.Tools.Scenario.Nodes
         #endregion
 
         #region Private Methods
+
+        private UIData BuildRuntimeData()
+        {
+            UIData data = _uiData;
+            if (_titleBold && !string.IsNullOrWhiteSpace(data.title))
+                data.title = $"<b>{data.title}</b>";
+
+            data.titleIcon = _titleIcon;
+            return data;
+        }
 
         private void OnButtonClicked(int index)
         {

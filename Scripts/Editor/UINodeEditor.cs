@@ -12,6 +12,18 @@ namespace DDOIT.Tools.Editor
     [CustomEditor(typeof(UINode))]
     public class UINodeEditor : UnityEditor.Editor
     {
+        private const float PANEL_LAYOUT_REFERENCE_HEIGHT = 1080f;
+        private const float CONTENT_VERTICAL_PADDING = 80f;
+        private const float CONTENT_SPACING = 20f;
+        private const float TITLE_ROW_HEIGHT = 60f;
+        private const float TITLE_CONTEXT_SPLITTER_HEIGHT = 2f;
+        private const float IMAGE_HEIGHT = 200f;
+        private const float VIDEO_HEIGHT = 300f;
+        private const float BUTTON_ROW_HEIGHT = 80f;
+        private const float TEXT_MIN_HEIGHT = 80f;
+        private const float TEXT_LINE_HEIGHT = 38f;
+        private const int TEXT_CHARS_PER_LINE = 24;
+
         // Base
         private SerializedProperty _conditionGroup;
 
@@ -338,28 +350,20 @@ namespace DDOIT.Tools.Editor
         {
             EditorGUILayout.Space(4);
             DrawContentWarnings();
+            DrawLayoutCapacityWarnings();
             DrawButtonAuthoringWarnings();
             DrawStepCompletionWarnings();
         }
 
         private void DrawContentWarnings()
         {
-            bool hasEnabledElement =
-                _useTitle.boolValue ||
-                _useContext.boolValue ||
-                _useImageA.boolValue ||
-                _useImageSub.boolValue ||
-                _useVideo.boolValue ||
-                _useButtonA.boolValue ||
-                _useButtonB.boolValue ||
-                _useContextSub.boolValue;
-
-            if (!hasEnabledElement)
+            if (!HasVisibleContent())
             {
-                EditorGUILayout.HelpBox(
-                    "활성화된 UI 요소가 없습니다. 런타임에서는 빈 패널처럼 보일 수 있습니다.",
-                    MessageType.Warning);
-                return;
+                string message = HasEnabledElement()
+                    ? "UI 요소가 켜져 있지만 실제 표시할 텍스트, 이미지, 비디오, 버튼이 없습니다. 런타임에서는 패널을 열지 않고 오류를 기록합니다."
+                    : "활성화된 UI 요소가 없습니다. 런타임에서는 패널을 열지 않고 오류를 기록합니다.";
+
+                EditorGUILayout.HelpBox(message, MessageType.Error);
             }
 
             if (!_useTitle.boolValue && _titleIcon.objectReferenceValue != null)
@@ -369,49 +373,203 @@ namespace DDOIT.Tools.Editor
                     MessageType.Warning);
             }
 
-            if (_useTitle.boolValue &&
-                string.IsNullOrWhiteSpace(_uiDataTitle.stringValue) &&
-                _titleIcon.objectReferenceValue == null)
+            if (_useTitle.boolValue && !HasVisibleTitle())
             {
                 EditorGUILayout.HelpBox(
-                    "Title 요소가 켜져 있지만 제목 텍스트와 제목 아이콘이 모두 비어 있습니다. 런타임에서 제목 영역이 비어 보일 수 있습니다.",
+                    "Title 요소가 켜져 있지만 실제 표시할 제목 텍스트나 제목 아이콘이 없습니다. 런타임에서 제목 영역은 숨겨집니다.",
                     MessageType.Warning);
             }
 
-            if (_useContext.boolValue && string.IsNullOrWhiteSpace(_uiDataContext.stringValue))
+            if (_useContext.boolValue && !HasVisibleContext())
             {
                 EditorGUILayout.HelpBox(
-                    "Context 요소가 켜져 있지만 본문 텍스트가 비어 있습니다. 런타임에서 해당 요소는 숨겨집니다.",
+                    "Context 요소가 켜져 있지만 실제 표시할 본문 텍스트가 없습니다. 런타임에서 해당 요소는 숨겨집니다.",
                     MessageType.Warning);
             }
 
-            if (_useContextSub.boolValue && string.IsNullOrWhiteSpace(_uiDataContextSub.stringValue))
+            if (_useContextSub.boolValue && !HasVisibleContextSub())
             {
                 EditorGUILayout.HelpBox(
-                    "Context Sub 요소가 켜져 있지만 하단 본문 텍스트가 비어 있습니다. 런타임에서 해당 요소는 숨겨집니다.",
+                    "Context Sub 요소가 켜져 있지만 실제 표시할 하단 본문 텍스트가 없습니다. 런타임에서 해당 요소는 숨겨집니다.",
                     MessageType.Warning);
             }
 
-            if (_useImageA.boolValue && _uiDataImage.objectReferenceValue == null)
+            if (_useImageA.boolValue && !HasVisibleImageA())
             {
                 EditorGUILayout.HelpBox(
-                    "Image 요소가 켜져 있지만 Sprite가 지정되지 않았습니다. 런타임에서 해당 요소는 숨겨집니다.",
+                    "Image 요소가 켜져 있지만 실제 표시할 Sprite가 지정되지 않았습니다. 런타임에서 해당 요소는 숨겨집니다.",
                     MessageType.Warning);
             }
 
-            if (_useImageSub.boolValue && _uiDataImageSub.objectReferenceValue == null)
+            if (_useImageSub.boolValue && !HasVisibleImageSub())
             {
                 EditorGUILayout.HelpBox(
-                    "Image 2 요소가 켜져 있지만 Sprite가 지정되지 않았습니다. 런타임에서 해당 요소는 숨겨집니다.",
+                    "Image 2 요소가 켜져 있지만 실제 표시할 Sprite가 지정되지 않았습니다. 런타임에서 해당 요소는 숨겨집니다.",
                     MessageType.Warning);
             }
 
-            if (_useVideo.boolValue && _uiDataVideo.objectReferenceValue == null)
+            if (_useVideo.boolValue && !HasVisibleVideo())
             {
                 EditorGUILayout.HelpBox(
-                    "Video 요소가 켜져 있지만 VideoClip이 지정되지 않았습니다. 런타임에서 해당 요소는 숨겨집니다.",
+                    "Video 요소가 켜져 있지만 실제 표시할 VideoClip이 지정되지 않았습니다. 런타임에서 해당 요소는 숨겨집니다.",
                     MessageType.Warning);
             }
+        }
+
+        private bool HasEnabledElement()
+        {
+            return
+                _useTitle.boolValue ||
+                _useContext.boolValue ||
+                _useImageA.boolValue ||
+                _useImageSub.boolValue ||
+                _useVideo.boolValue ||
+                _useButtonA.boolValue ||
+                _useButtonB.boolValue ||
+                _useContextSub.boolValue;
+        }
+
+        private bool HasEnabledNonTitleElement()
+        {
+            return
+                _useContext.boolValue ||
+                _useImageA.boolValue ||
+                _useImageSub.boolValue ||
+                _useVideo.boolValue ||
+                _useButtonA.boolValue ||
+                _useButtonB.boolValue ||
+                _useContextSub.boolValue;
+        }
+
+        private bool HasVisibleTitle()
+        {
+            return _useTitle.boolValue &&
+                   (!string.IsNullOrWhiteSpace(_uiDataTitle.stringValue) ||
+                    _titleIcon.objectReferenceValue != null);
+        }
+
+        private bool HasVisibleContext()
+        {
+            return _useContext.boolValue &&
+                   !string.IsNullOrWhiteSpace(_uiDataContext.stringValue);
+        }
+
+        private bool HasVisibleImageA()
+        {
+            return _useImageA.boolValue &&
+                   _uiDataImage.objectReferenceValue != null;
+        }
+
+        private bool HasVisibleImageSub()
+        {
+            return _useImageSub.boolValue &&
+                   _uiDataImageSub.objectReferenceValue != null;
+        }
+
+        private bool HasVisibleVideo()
+        {
+            return _useVideo.boolValue &&
+                   _uiDataVideo.objectReferenceValue != null;
+        }
+
+        private bool HasVisibleButtonA()
+        {
+            return _useButtonA.boolValue;
+        }
+
+        private bool HasVisibleButtonB()
+        {
+            return _useButtonB.boolValue;
+        }
+
+        private bool HasVisibleContextSub()
+        {
+            return _useContextSub.boolValue &&
+                   !string.IsNullOrWhiteSpace(_uiDataContextSub.stringValue);
+        }
+
+        private bool HasVisibleContent()
+        {
+            return
+                HasVisibleTitle() ||
+                HasVisibleContext() ||
+                HasVisibleImageA() ||
+                HasVisibleImageSub() ||
+                HasVisibleVideo() ||
+                HasVisibleButtonA() ||
+                HasVisibleButtonB() ||
+                HasVisibleContextSub();
+        }
+
+        private void DrawLayoutCapacityWarnings()
+        {
+            if (!HasVisibleContent()) return;
+
+            float estimatedHeight = EstimatePanelContentHeight();
+            if (estimatedHeight <= PANEL_LAYOUT_REFERENCE_HEIGHT) return;
+
+            EditorGUILayout.HelpBox(
+                $"현재 UI 조합의 예상 최소 높이가 UIPanel 기준 높이({PANEL_LAYOUT_REFERENCE_HEIGHT:0}px)를 넘을 수 있습니다. " +
+                $"추정 높이: {estimatedHeight:0}px. 긴 본문/하단 본문, 이미지 2개, 비디오, 버튼을 한 패널에 모두 넣기보다 Step을 나누거나 미디어 수를 줄이는 구성을 권장합니다. " +
+                "이 경고는 작성 보조용이며 런타임 실행을 차단하지 않습니다.",
+                MessageType.Warning);
+        }
+
+        private float EstimatePanelContentHeight()
+        {
+            var elementHeights = new List<float>();
+
+            if (_useTitle.boolValue)
+            {
+                elementHeights.Add(TITLE_ROW_HEIGHT);
+
+                if (HasEnabledNonTitleElement())
+                    elementHeights.Add(TITLE_CONTEXT_SPLITTER_HEIGHT);
+            }
+
+            if (HasVisibleContext())
+                elementHeights.Add(EstimateTextHeight(_uiDataContext.stringValue));
+
+            if (HasVisibleImageA())
+                elementHeights.Add(IMAGE_HEIGHT);
+
+            if (HasVisibleImageSub())
+                elementHeights.Add(IMAGE_HEIGHT);
+
+            if (HasVisibleVideo())
+                elementHeights.Add(VIDEO_HEIGHT);
+
+            if (HasVisibleButtonA() || HasVisibleButtonB())
+                elementHeights.Add(BUTTON_ROW_HEIGHT);
+
+            if (HasVisibleContextSub())
+                elementHeights.Add(EstimateTextHeight(_uiDataContextSub.stringValue));
+
+            if (elementHeights.Count == 0)
+                return 0f;
+
+            float totalHeight = CONTENT_VERTICAL_PADDING;
+            for (int i = 0; i < elementHeights.Count; i++)
+                totalHeight += elementHeights[i];
+
+            totalHeight += CONTENT_SPACING * (elementHeights.Count - 1);
+            return totalHeight;
+        }
+
+        private static float EstimateTextHeight(string text)
+        {
+            if (string.IsNullOrWhiteSpace(text))
+                return 0f;
+
+            string[] lines = text.Replace("\r\n", "\n").Replace('\r', '\n').Split('\n');
+            int estimatedLines = 0;
+            for (int i = 0; i < lines.Length; i++)
+            {
+                int lineLength = Mathf.Max(1, lines[i].Length);
+                estimatedLines += Mathf.CeilToInt(lineLength / (float)TEXT_CHARS_PER_LINE);
+            }
+
+            return Mathf.Max(TEXT_MIN_HEIGHT, estimatedLines * TEXT_LINE_HEIGHT);
         }
 
         private void DrawButtonAuthoringWarnings()
@@ -423,14 +581,14 @@ namespace DDOIT.Tools.Editor
             if (hasButtonA && string.IsNullOrWhiteSpace(_uiDataButtonLabelA.stringValue))
             {
                 EditorGUILayout.HelpBox(
-                    "버튼 A가 켜져 있지만 라벨이 비어 있습니다. 버튼은 표시되지만 텍스트가 보이지 않습니다.",
+                    "버튼 A가 켜져 있지만 라벨이 비어 있습니다. 버튼 자체는 표시되므로 빈 UI로 차단되지는 않지만, 사용자가 의미를 알기 어렵습니다.",
                     MessageType.Warning);
             }
 
             if (hasButtonB && string.IsNullOrWhiteSpace(_uiDataButtonLabelB.stringValue))
             {
                 EditorGUILayout.HelpBox(
-                    "버튼 B가 켜져 있지만 라벨이 비어 있습니다. 버튼은 표시되지만 텍스트가 보이지 않습니다.",
+                    "버튼 B가 켜져 있지만 라벨이 비어 있습니다. 버튼 자체는 표시되므로 빈 UI로 차단되지는 않지만, 사용자가 의미를 알기 어렵습니다.",
                     MessageType.Warning);
             }
 

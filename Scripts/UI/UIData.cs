@@ -35,5 +35,46 @@ namespace DDOIT.Tools.UI
         public bool HasNonTitleElement =>
             useContext || useImageA || useImageSub || useVideo ||
             useButtonA || useButtonB || useContextSub;
+
+        /// <summary>Title 요소가 런타임에서 실제로 표시될 수 있는지.</summary>
+        public bool HasVisibleTitle =>
+            useTitle && (!string.IsNullOrWhiteSpace(title) || titleIcon != null);
+
+        /// <summary>Context 요소가 런타임에서 실제로 표시될 수 있는지.</summary>
+        public bool HasVisibleContext =>
+            useContext && !string.IsNullOrWhiteSpace(context);
+
+        /// <summary>Image 요소가 런타임에서 실제로 표시될 수 있는지.</summary>
+        public bool HasVisibleImageA =>
+            useImageA && image != null;
+
+        /// <summary>Image 2 요소가 런타임에서 실제로 표시될 수 있는지.</summary>
+        public bool HasVisibleImageSub =>
+            useImageSub && imageSub != null;
+
+        /// <summary>Video 요소가 런타임에서 실제로 표시될 수 있는지.</summary>
+        public bool HasVisibleVideo =>
+            useVideo && video != null;
+
+        /// <summary>Button A 요소가 런타임에서 실제로 표시될 수 있는지.</summary>
+        public bool HasVisibleButtonA => useButtonA;
+
+        /// <summary>Button B 요소가 런타임에서 실제로 표시될 수 있는지.</summary>
+        public bool HasVisibleButtonB => useButtonB;
+
+        /// <summary>Context Sub 요소가 런타임에서 실제로 표시될 수 있는지.</summary>
+        public bool HasVisibleContextSub =>
+            useContextSub && !string.IsNullOrWhiteSpace(contextSub);
+
+        /// <summary>런타임에서 실제로 표시될 콘텐츠가 하나라도 있는지.</summary>
+        public bool HasVisibleContent =>
+            HasVisibleTitle ||
+            HasVisibleContext ||
+            HasVisibleImageA ||
+            HasVisibleImageSub ||
+            HasVisibleVideo ||
+            HasVisibleButtonA ||
+            HasVisibleButtonB ||
+            HasVisibleContextSub;
     }
 }

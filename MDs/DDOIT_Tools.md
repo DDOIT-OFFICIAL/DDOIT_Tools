@@ -668,7 +668,7 @@ UIManager (Singleton)
 
 - **UIManager**: `OpenUI(UIData, UITheme)`로 패널을 열고 `CloseUI(UIPanel)`로 닫는다. 초기화 전 호출이나 프리팹 누락은 `null`을 반환하고 오류 로그를 남긴다. `Initialize()` 중복 호출은 기존 Pool을 재생성하지 않고 무시한다. `CloseUI()`/`CloseAllUI()`는 초기화 전에도 안전하게 반환하며, 풀이 비면 기존 활성 패널을 빼앗지 않고 새 패널을 동적으로 생성한다.
 - **UIPanel**: 하나의 패널 프리팹 안에 모든 UI 요소를 가지고 있다. `UIData`의 bool 플래그에 따라 필요한 요소만 켜고, 값이 비어 있는 텍스트/이미지/영상 요소는 런타임에서 숨긴다.
-- **UINode**: 시나리오 흐름에서 `UIData`, `UITheme`, 배치 모드, 버튼 이벤트를 설정하는 노드다.
+- **UINode**: 시나리오 흐름에서 `UIData`, `UITheme`, 배치 모드, 버튼 이벤트를 설정하는 노드다. 실제 표시할 콘텐츠가 하나도 없으면 런타임에서 패널을 열지 않고 오류를 기록한다.
 - **SmoothFollowCanvas**: 비고정형 UI에서 CenterEyeAnchor 또는 `PlayerRig.HeadTransform`을 추적한다. Yaw(좌우 회전) 중심으로 따라가며 Pitch/Roll은 UI 안정성을 위해 직접 따라가지 않는다.
 - **SceneManager 연동**: 콘텐츠 씬 전환이 시작되면 `SceneManager`가 활성 `UIPanel`을 모두 닫는다. 씬 전환 중 유지해야 하는 별도 로딩 UI는 일반 `UIPanel` 풀과 분리해서 설계해야 한다.
 
@@ -687,7 +687,7 @@ UIManager (Singleton)
 | `useButtonA` | `buttonLabelA`, `_onButtonA` | 버튼 A 표시 및 클릭 이벤트 연결 |
 | `useButtonB` | `buttonLabelB`, `_onButtonB` | 버튼 B 표시 및 클릭 이벤트 연결 |
 
-플래그가 켜져 있어도 실제 데이터가 비어 있으면 해당 요소는 자동으로 숨겨진다. 예를 들어 `useImageA=true`인데 `image=null`이면 ImageA는 표시되지 않는다.
+플래그가 켜져 있어도 실제 데이터가 비어 있으면 텍스트/이미지/영상 요소는 자동으로 숨겨진다. 예를 들어 `useImageA=true`인데 `image=null`이면 ImageA는 표시되지 않는다. 버튼은 예외다. `useButtonA=true`이면 `buttonLabelA`가 비어 있어도 버튼 오브젝트 자체는 표시된다.
 
 #### 4.7.3 UIData (콘텐츠 데이터)
 
@@ -713,10 +713,28 @@ public struct UIData
     public string buttonLabelA;
     public string buttonLabelB;
     public string contextSub;
+
+    public bool HasVisibleTitle =>
+        useTitle && (!string.IsNullOrWhiteSpace(title) || titleIcon != null);
+    public bool HasVisibleContext =>
+        useContext && !string.IsNullOrWhiteSpace(context);
+    public bool HasVisibleImageA => useImageA && image != null;
+    public bool HasVisibleImageSub => useImageSub && imageSub != null;
+    public bool HasVisibleVideo => useVideo && video != null;
+    public bool HasVisibleButtonA => useButtonA;
+    public bool HasVisibleButtonB => useButtonB;
+    public bool HasVisibleContextSub =>
+        useContextSub && !string.IsNullOrWhiteSpace(contextSub);
+    public bool HasVisibleContent =>
+        HasVisibleTitle || HasVisibleContext || HasVisibleImageA ||
+        HasVisibleImageSub || HasVisibleVideo || HasVisibleButtonA ||
+        HasVisibleButtonB || HasVisibleContextSub;
 }
 ```
 
 `UINode`에서는 별도 `_titleIcon` 필드가 Inspector에 노출된다. 런타임에서는 `UINode.OnInit()`이 `UIData`를 복사한 뒤 `data.titleIcon = _titleIcon`으로 주입한다. 제목 Bold 옵션이 켜져 있으면 제목 문자열을 `<b>...</b>`로 감싼 뒤 패널에 전달한다.
+
+`HasVisibleContent`는 런타임에서 패널을 열어도 되는지 판단하는 공통 기준이다. Title은 제목 텍스트 또는 제목 아이콘 중 하나가 있어야 보이는 요소로 인정된다. Context/ContextSub는 공백이 아닌 문자열이 있어야 하며, Image/Video는 실제 Asset 참조가 있어야 한다. Button A/B는 라벨이 비어 있어도 버튼 자체가 표시되므로 보이는 요소로 인정하지만, 라벨 누락은 작성 경고로 남긴다.
 
 #### 4.7.4 배치 모드
 
@@ -746,14 +764,16 @@ UINode 버튼은 기본적으로 **1회 선택**으로 동작한다. 한 번 클
 
 작성 실수를 줄이기 위해 `UINodeEditor`는 다음 경고를 표시한다.
 
-- 활성화된 UI 요소가 하나도 없음
-- 켜진 텍스트/이미지/영상 요소에 실제 데이터가 없음
-- 버튼 라벨이 비어 있음
+- 활성화된 UI 요소가 하나도 없거나, 실제 표시할 콘텐츠가 없음
+- 켜진 Title/텍스트/이미지/영상 요소에 실제 표시 값이 없음
+- Title Icon이 지정되어 있지만 Title 요소가 꺼져 있음
+- 버튼 라벨이 비어 있음. 단, 버튼 자체는 보이므로 빈 UI 차단 조건은 아님
+- 예상 패널 높이가 `UIPanel` 기준 높이 1080px을 넘을 가능성. 긴 텍스트, 이미지 2개, 비디오, 버튼을 한 패널에 과밀하게 넣은 경우 작성 보조 경고를 표시함
 - 버튼 이벤트가 없거나 Step 조건 완료 경로가 불명확함
 - UINode의 조건 그룹과 버튼 이벤트의 `MarkConditionGroupN` 연결이 충돌할 가능성
 - Theme이 `Default`일 때 실제 적용 기준을 안내하고, 기본 Theme을 찾지 못하면 경고함
 
-초보 개발자는 `UINodeEditor`의 경고를 "즉시 고장"으로 해석하기보다 "실행하면 의도와 다르게 보일 가능성"으로 해석하면 된다. 예를 들어 `useImageA`가 켜져 있는데 `image`가 비어 있으면 런타임에서 ImageA 영역은 숨겨진다. 이 동작 자체는 안전하지만, 작성자가 이미지를 넣었다고 착각한 경우를 잡기 위해 Inspector가 경고한다.
+초보 개발자는 `UINodeEditor`의 경고를 "즉시 고장"으로 해석하기보다 "실행하면 의도와 다르게 보일 가능성"으로 해석하면 된다. 예를 들어 `useImageA`가 켜져 있는데 `image`가 비어 있으면 런타임에서 ImageA 영역은 숨겨진다. 단, 전체 UIData 기준으로 실제 표시할 제목/본문/이미지/영상/버튼이 하나도 없으면 `UINode`는 패널을 열지 않는다. 버튼은 라벨이 비어 있어도 버튼 오브젝트 자체가 표시되므로 빈 UI로 보지 않는다. 대신 라벨이 비어 있으면 사용자가 버튼 의미를 알기 어려우므로 Inspector 경고가 표시된다.
 
 #### 4.7.6 사용 예시
 
@@ -797,13 +817,15 @@ UINode를 새로 만들 때는 다음 순서로 확인하면 된다.
 1. Step 하위에 UINode를 만든다.
 2. 필요한 UI 요소 버튼만 켠다. 예: 제목과 본문만 필요하면 `Title`, `Context`만 켠다.
 3. 켠 요소의 실제 데이터를 입력한다. 예: `Image`를 켰으면 Sprite를 넣고, `Video`를 켰으면 VideoClip을 넣는다.
-4. Theme을 직접 고르지 않을 경우 `Default`로 둔다. 이 경우 DDOIT 씬의 UIManager 기본 Theme이 적용된다.
-5. 버튼을 켰다면 라벨을 입력한다. 버튼은 기본 1회 선택이므로 같은 패널에서 반복 클릭을 받아야 하는 용도로 사용하지 않는다.
-6. 버튼 클릭으로 Step이 끝나야 하면 다음 중 하나를 명확히 설정한다.
+4. 실제 표시할 콘텐츠가 하나 이상 있는지 확인한다. 제목은 텍스트나 제목 아이콘이 있어야 하고, 텍스트/이미지/영상 요소는 실제 값이 있어야 한다. 버튼은 켜져 있으면 표시 콘텐츠로 인정되지만, 라벨은 별도로 입력해야 한다.
+5. Theme을 직접 고르지 않을 경우 `Default`로 둔다. 이 경우 DDOIT 씬의 UIManager 기본 Theme이 적용된다.
+6. 긴 본문, 하단 본문, 이미지 2개, 비디오, 버튼을 한 UINode에 모두 넣으면 패널 높이가 과밀해질 수 있다. `UINodeEditor`의 높이 경고가 뜨면 Step을 나누거나 미디어 수를 줄인다.
+7. 버튼을 켰다면 라벨을 입력한다. 버튼은 기본 1회 선택이므로 같은 패널에서 반복 클릭을 받아야 하는 용도로 사용하지 않는다.
+8. 버튼 클릭으로 Step이 끝나야 하면 다음 중 하나를 명확히 설정한다.
    - UINode 자체를 조건 그룹에 넣어 어느 버튼이든 클릭 시 조건 충족
    - 버튼 이벤트에서 부모 Step의 `EndTrigger()` 호출
    - 버튼 이벤트에서 부모 Step의 `MarkConditionGroup1()` ~ `MarkConditionGroup7()` 호출
-7. 분기형 UI라면 UINode 자체 조건 그룹과 버튼 이벤트 marker를 동시에 섞지 않는 편이 안전하다. 버튼 A/B가 서로 다른 분기로 가야 하면 UINode 조건 그룹은 `없음`으로 두고 버튼 이벤트에서 각각 `MarkConditionGroupN()`만 호출하는 구성이 가장 명확하다.
+9. 분기형 UI라면 UINode 자체 조건 그룹과 버튼 이벤트 marker를 동시에 섞지 않는 편이 안전하다. 버튼 A/B가 서로 다른 분기로 가야 하면 UINode 조건 그룹은 `없음`으로 두고 버튼 이벤트에서 각각 `MarkConditionGroupN()`만 호출하는 구성이 가장 명확하다.
 
 #### 4.7.9 Video
 
@@ -948,7 +970,7 @@ public class DDOITSettings : ScriptableObject
 ```
 1. Unity에서 새 프로젝트 생성 (Unity 6, URP)
 2. Package Manager > Add package from git URL
-   https://github.com/DDOIT-OFFICIAL/DDOIT_Tools.git#v0.19.14
+   https://github.com/DDOIT-OFFICIAL/DDOIT_Tools.git#v0.19.15
 3. Unity 상단 메뉴에서 DDOIT Tools > Setup 실행
 4. 필수 패키지 설치/업데이트 실행
 5. Init Project 실행
@@ -1068,5 +1090,5 @@ MAJOR.MINOR.PATCH
 ---
 
 **문서 버전**: 0.4.0
-**DDOIT_Tools 패키지 버전**: v0.19.14
-**최종 업데이트**: 2026-07-20
+**DDOIT_Tools 패키지 버전**: v0.19.15
+**최종 업데이트**: 2026-07-21
