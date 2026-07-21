@@ -1,7 +1,9 @@
 {
   "name": "DDOIT.Tools.Setup",
   "rootNamespace": "DDOIT.Tools.Setup",
-  "references": [],
+  "references": [
+    "Unity.Addressables.Editor"
+  ],
   "includePlatforms": [
     "Editor"
   ],

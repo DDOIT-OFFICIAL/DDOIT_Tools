@@ -357,6 +357,14 @@ ScenarioManager.StartSequence()
 - Loop 사운드는 자연 종료 시점이 없으므로 조건 그룹 자동 완료용으로 사용하지 않는다.
 - `Step 종료 시 정지` 옵션을 켜면 Step 종료, 노드 Release, 비활성화 시 해당 노드가 시작한 사운드를 정지한다. 기본값은 기존 동작 호환을 위해 꺼져 있다.
 
+**Global SoundDatabase 정책**:
+
+- `GlobalSDB.asset`은 기본 UI 효과음을 제공하는 패키지 내장 SoundDatabase이다.
+- 기본 UI mp3 파일은 `Assets/DDOIT_Tools/Audio/` 또는 UPM 소비 프로젝트의 `Packages/com.ddoit.tools/Audio/` 안에 함께 존재해야 한다.
+- UPM 소비 프로젝트에서 `Init Project`를 실행하면 Setup이 `Packages/com.ddoit.tools/Prefabs/GlobalSDB.asset`을 Addressables `DDOIT` 그룹에 `DDOIT/GlobalSDB` 주소로 등록한다.
+- 새 프로젝트에서 Addressables Groups 창을 한 번도 열지 않았더라도 `Init Project`가 Addressables 설정과 `DDOIT` 그룹을 필요 시 생성한다.
+- 이 방식은 `GlobalSDB.asset`을 `Assets/` 하위로 복제하지 않는다. 패키지 내부 기본 DB를 그대로 사용하며, 프로젝트별 사운드는 씬 전용 `SoundDatabase`가 우선한다.
+
 #### 4.1.5 커스텀 노드 만들기
 
 ```csharp
@@ -978,7 +986,7 @@ public class DDOITSettings : ScriptableObject
 ```
 1. Unity에서 새 프로젝트 생성 (Unity 6, URP)
 2. Package Manager > Add package from git URL
-   https://github.com/DDOIT-OFFICIAL/DDOIT_Tools.git#v0.19.18
+   https://github.com/DDOIT-OFFICIAL/DDOIT_Tools.git#v0.19.19
 3. Unity 상단 메뉴에서 DDOIT Tools > Setup 실행
 4. 필수 패키지 설치/업데이트 실행
 5. Init Project 실행
@@ -1098,5 +1106,5 @@ MAJOR.MINOR.PATCH
 ---
 
 **문서 버전**: 0.4.0
-**DDOIT_Tools 패키지 버전**: v0.19.18
+**DDOIT_Tools 패키지 버전**: v0.19.19
 **최종 업데이트**: 2026-07-22

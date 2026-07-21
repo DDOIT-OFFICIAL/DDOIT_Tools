@@ -7,6 +7,9 @@ using System.Runtime.Serialization;
 using System.Runtime.Serialization.Json;
 using System.Text;
 using UnityEditor;
+using UnityEditor.AddressableAssets;
+using UnityEditor.AddressableAssets.Settings;
+using UnityEditor.AddressableAssets.Settings.GroupSchemas;
 using UnityEditor.PackageManager;
 using UnityEditor.PackageManager.Requests;
 using UnityEngine;
@@ -86,6 +89,10 @@ namespace DDOIT.Tools.Setup
         private const string PACKAGE_DATA_PATH_DEV = "Assets/DDOIT_Tools/Data";
         private const string PACKAGE_DATA_PATH_UPM = "Packages/com.ddoit.tools/Data";
         private const string DDOIT_SCENE_PATH = "Assets/01. Scenes/DDOIT/DDOIT.unity";
+        private const string DDOIT_ADDRESSABLES_GROUP_NAME = "DDOIT";
+        private const string GLOBAL_SOUND_DATABASE_ADDRESS = "DDOIT/GlobalSDB";
+        private const string GLOBAL_SOUND_DATABASE_PATH_DEV = "Assets/DDOIT_Tools/Prefabs/GlobalSDB.asset";
+        private const string GLOBAL_SOUND_DATABASE_PATH_UPM = "Packages/com.ddoit.tools/Prefabs/GlobalSDB.asset";
         private const string OVR_MANAGER_TYPE_NAME = "OVRManager";
         private const string OVR_CONTROLLER_DRIVEN_HAND_POSES_FIELD = "controllerDrivenHandPosesType";
         private const int OVR_CONTROLLER_DRIVEN_HAND_POSES_NATURAL_ENUM_INDEX = 2;
@@ -3188,6 +3195,13 @@ namespace DDOIT.Tools.Setup
             CopyAgentDocsToProjectRoot();
 
             AssetDatabase.Refresh();
+            var addressableWarnings = new List<string>();
+            int addressableAppliedCount = EnsureGlobalSoundDatabaseAddressable(addressableWarnings);
+            foreach (var warning in addressableWarnings)
+                Debug.LogWarning($"[DDOITSetupWindow] {warning}");
+            if (addressableAppliedCount > 0)
+                Debug.Log($"[DDOITSetupWindow] Global SoundDatabase Addressables entry updated: {addressableAppliedCount}");
+
             var rigWarnings = new List<string>();
             int rigAppliedCount = ApplyDdoitOvrRigDefaults(rigWarnings);
             foreach (var warning in rigWarnings)
@@ -3195,6 +3209,99 @@ namespace DDOIT.Tools.Setup
 
             int folderCount = PROJECT_FOLDERS.Length + PROJECT_SUBFOLDERS.Length;
             Debug.Log($"[DDOITSetupWindow] 프로젝트 초기화 완료 (폴더 {folderCount}개, 씬 {copiedCount}개 복사)");
+        }
+
+        private static int EnsureGlobalSoundDatabaseAddressable(List<string> warnings)
+        {
+            string assetPath = FindGlobalSoundDatabasePath();
+            if (string.IsNullOrEmpty(assetPath))
+            {
+                warnings.Add("GlobalSDB.asset was not found in the DDOIT Tools source or package.");
+                return 0;
+            }
+
+            string guid = AssetDatabase.AssetPathToGUID(assetPath);
+            if (string.IsNullOrEmpty(guid))
+            {
+                warnings.Add($"GlobalSDB.asset has no valid GUID: {assetPath}");
+                return 0;
+            }
+
+            AddressableAssetSettings settings = AddressableAssetSettingsDefaultObject.GetSettings(true);
+            if (settings == null)
+            {
+                warnings.Add("Addressables settings could not be created. Install Addressables and retry Init Project.");
+                return 0;
+            }
+
+            int appliedCount = 0;
+            AddressableAssetGroup group = settings.FindGroup(DDOIT_ADDRESSABLES_GROUP_NAME);
+            if (group == null)
+            {
+                group = settings.CreateGroup(
+                    DDOIT_ADDRESSABLES_GROUP_NAME,
+                    false,
+                    false,
+                    true,
+                    null,
+                    typeof(ContentUpdateGroupSchema),
+                    typeof(BundledAssetGroupSchema));
+
+                if (group != null)
+                    appliedCount++;
+            }
+
+            if (group == null)
+            {
+                warnings.Add($"Addressables group could not be created: {DDOIT_ADDRESSABLES_GROUP_NAME}");
+                return appliedCount;
+            }
+
+            if (!group.SchemaTypes.Contains(typeof(ContentUpdateGroupSchema)))
+            {
+                group.AddSchema<ContentUpdateGroupSchema>();
+                appliedCount++;
+            }
+
+            if (!group.SchemaTypes.Contains(typeof(BundledAssetGroupSchema)))
+            {
+                group.AddSchema<BundledAssetGroupSchema>();
+                appliedCount++;
+            }
+
+            AddressableAssetEntry existingEntry = settings.FindAssetEntry(guid);
+            bool needsMove = existingEntry == null || existingEntry.parentGroup != group;
+
+            AddressableAssetEntry entry = settings.CreateOrMoveEntry(guid, group, false, true);
+            if (entry == null)
+            {
+                warnings.Add($"GlobalSDB.asset could not be registered as Addressable: {assetPath}");
+                return appliedCount;
+            }
+
+            if (needsMove)
+                appliedCount++;
+
+            if (entry.address != GLOBAL_SOUND_DATABASE_ADDRESS)
+            {
+                entry.address = GLOBAL_SOUND_DATABASE_ADDRESS;
+                settings.SetDirty(AddressableAssetSettings.ModificationEvent.EntryModified, entry, true, false);
+                appliedCount++;
+            }
+
+            AssetDatabase.SaveAssets();
+            return appliedCount;
+        }
+
+        private static string FindGlobalSoundDatabasePath()
+        {
+            if (AssetDatabase.LoadAssetAtPath<ScriptableObject>(GLOBAL_SOUND_DATABASE_PATH_DEV) != null)
+                return GLOBAL_SOUND_DATABASE_PATH_DEV;
+
+            if (AssetDatabase.LoadAssetAtPath<ScriptableObject>(GLOBAL_SOUND_DATABASE_PATH_UPM) != null)
+                return GLOBAL_SOUND_DATABASE_PATH_UPM;
+
+            return null;
         }
 
         private static void EnsureAssetFolder(string assetPath)

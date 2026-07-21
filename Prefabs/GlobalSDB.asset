@@ -21,11 +21,6 @@ MonoBehaviour:
     loop: 0
     soundType: 2
   - soundName: UI_SFX_Open2
-    clip: {fileID: 8300000, guid: e09ad30cd94834b4bb22482bf5f45c22, type: 3}
-    defaultVolume: 0.838
-    loop: 0
-    soundType: 2
-  - soundName: UI_SFX_Open3
     clip: {fileID: 8300000, guid: b8221a6ad3805934da36a58591d32acd, type: 3}
     defaultVolume: 1
     loop: 0
