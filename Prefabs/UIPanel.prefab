@@ -295,6 +295,8 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::DDOIT.Tools.UIPanel
   _designPanel: {fileID: 9179225573192628413}
+  _titleRow: {fileID: 1929633451360032631}
+  _buttonRow: {fileID: 7701754330751525076}
   _titleIcon: {fileID: 660607723884036308}
   _titleText: {fileID: 9202650832074737246}
   _contextText: {fileID: 3065442651594802913}

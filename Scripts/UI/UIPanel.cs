@@ -25,6 +25,10 @@ namespace DDOIT.Tools.UI
         [Tooltip("레이아웃 갱신 대상 비주얼 컨테이너")]
         [SerializeField] private RectTransform _designPanel;
 
+        [Header("레이아웃 행")]
+        [SerializeField] private GameObject _titleRow;
+        [SerializeField] private GameObject _buttonRow;
+
         [Header("콘텐츠 요소")]
         [SerializeField] private Image _titleIcon;
         [SerializeField] private TMP_Text _titleText;
@@ -128,6 +132,7 @@ namespace DDOIT.Tools.UI
             BindData(data);
             HideEmptyElements(data);
             SetupButtons(data);
+            UpdateLayoutRows();
 
             // 레이아웃 강제 갱신
             LayoutRebuilder.ForceRebuildLayoutImmediate(_designPanel);
@@ -322,8 +327,7 @@ namespace DDOIT.Tools.UI
             SetElementActive(_buttonB, data.useButtonB);
             SetElementActive(_contextSubText, data.useContextSub);
 
-            // Splitter: Title이 켜진 상태에서 다른 요소가 하나라도 있으면 활성화
-            SetGameObjectActive(_titleContextSplitter, data.useTitle && data.HasNonTitleElement);
+            SetGameObjectActive(_titleContextSplitter, false);
         }
 
         private static void SetElementActive(Component element, bool active)
@@ -343,13 +347,13 @@ namespace DDOIT.Tools.UI
         /// </summary>
         private void HideEmptyElements(UIData data)
         {
-            if (_titleText != null && _titleText.gameObject.activeSelf && string.IsNullOrEmpty(data.title))
+            if (_titleText != null && _titleText.gameObject.activeSelf && string.IsNullOrWhiteSpace(data.title))
                 _titleText.gameObject.SetActive(false);
 
-            if (_contextText != null && _contextText.gameObject.activeSelf && string.IsNullOrEmpty(data.context))
+            if (_contextText != null && _contextText.gameObject.activeSelf && string.IsNullOrWhiteSpace(data.context))
                 _contextText.gameObject.SetActive(false);
 
-            if (_contextSubText != null && _contextSubText.gameObject.activeSelf && string.IsNullOrEmpty(data.contextSub))
+            if (_contextSubText != null && _contextSubText.gameObject.activeSelf && string.IsNullOrWhiteSpace(data.contextSub))
                 _contextSubText.gameObject.SetActive(false);
 
             if (_imageA != null && _imageA.gameObject.activeSelf && data.image == null)
@@ -371,7 +375,7 @@ namespace DDOIT.Tools.UI
             // Title Icon
             if (_titleIcon != null)
             {
-                bool hasIcon = data.titleIcon != null;
+                bool hasIcon = data.useTitle && data.titleIcon != null;
                 _titleIcon.gameObject.SetActive(hasIcon);
                 if (hasIcon)
                     _titleIcon.sprite = data.titleIcon;
@@ -399,6 +403,48 @@ namespace DDOIT.Tools.UI
         {
             SetupButton(_buttonA, _buttonLabelA, data.buttonLabelA, data.useButtonA, 0);
             SetupButton(_buttonB, _buttonLabelB, data.buttonLabelB, data.useButtonB, 1);
+        }
+
+        private void UpdateLayoutRows()
+        {
+            bool hasVisibleTitle = IsElementActive(_titleText) || IsElementActive(_titleIcon);
+            bool hasVisibleButton = IsElementActive(_buttonA) || IsElementActive(_buttonB);
+            bool hasVisibleNonTitleElement = HasVisibleNonTitleElement();
+
+            SetGameObjectActive(ResolveLayoutRow(_titleRow, _titleText, _titleIcon), hasVisibleTitle);
+            SetGameObjectActive(ResolveLayoutRow(_buttonRow, _buttonA, _buttonB), hasVisibleButton);
+            SetGameObjectActive(_titleContextSplitter, hasVisibleTitle && hasVisibleNonTitleElement);
+        }
+
+        private bool HasVisibleNonTitleElement()
+        {
+            return
+                IsElementActive(_contextText) ||
+                IsElementActive(_imageA) ||
+                IsElementActive(_imageSub) ||
+                IsElementActive(_videoSurface) ||
+                IsElementActive(_buttonA) ||
+                IsElementActive(_buttonB) ||
+                IsElementActive(_contextSubText);
+        }
+
+        private static bool IsElementActive(Component element)
+        {
+            return element != null && element.gameObject.activeSelf;
+        }
+
+        private static GameObject ResolveLayoutRow(GameObject explicitRow, Component primary, Component secondary)
+        {
+            if (explicitRow != null)
+                return explicitRow;
+
+            if (primary != null && primary.transform.parent != null)
+                return primary.transform.parent.gameObject;
+
+            if (secondary != null && secondary.transform.parent != null)
+                return secondary.transform.parent.gameObject;
+
+            return null;
         }
 
         private void SetupButton(Button button, TMP_Text label, string labelText, bool enabled, int index)

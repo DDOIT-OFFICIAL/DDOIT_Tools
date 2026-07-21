@@ -429,16 +429,16 @@ namespace DDOIT.Tools.Editor
                 _useContextSub.boolValue;
         }
 
-        private bool HasEnabledNonTitleElement()
+        private bool HasVisibleNonTitleElement()
         {
             return
-                _useContext.boolValue ||
-                _useImageA.boolValue ||
-                _useImageSub.boolValue ||
-                _useVideo.boolValue ||
-                _useButtonA.boolValue ||
-                _useButtonB.boolValue ||
-                _useContextSub.boolValue;
+                HasVisibleContext() ||
+                HasVisibleImageA() ||
+                HasVisibleImageSub() ||
+                HasVisibleVideo() ||
+                HasVisibleButtonA() ||
+                HasVisibleButtonB() ||
+                HasVisibleContextSub();
         }
 
         private bool HasVisibleTitle()
@@ -519,11 +519,11 @@ namespace DDOIT.Tools.Editor
         {
             var elementHeights = new List<float>();
 
-            if (_useTitle.boolValue)
+            if (HasVisibleTitle())
             {
                 elementHeights.Add(TITLE_ROW_HEIGHT);
 
-                if (HasEnabledNonTitleElement())
+                if (HasVisibleNonTitleElement())
                     elementHeights.Add(TITLE_CONTEXT_SPLITTER_HEIGHT);
             }
 

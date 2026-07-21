@@ -667,7 +667,7 @@ UIManager (Singleton)
 ```
 
 - **UIManager**: `OpenUI(UIData, UITheme)`로 패널을 열고 `CloseUI(UIPanel)`로 닫는다. 초기화 전 호출이나 프리팹 누락은 `null`을 반환하고 오류 로그를 남긴다. `Initialize()` 중복 호출은 기존 Pool을 재생성하지 않고 무시한다. `CloseUI()`/`CloseAllUI()`는 초기화 전에도 안전하게 반환하며, 풀이 비면 기존 활성 패널을 빼앗지 않고 새 패널을 동적으로 생성한다.
-- **UIPanel**: 하나의 패널 프리팹 안에 모든 UI 요소를 가지고 있다. `UIData`의 bool 플래그에 따라 필요한 요소만 켜고, 값이 비어 있는 텍스트/이미지/영상 요소는 런타임에서 숨긴다.
+- **UIPanel**: 하나의 패널 프리팹 안에 모든 UI 요소를 가지고 있다. `UIData`의 bool 플래그에 따라 필요한 요소만 켜고, 값이 비어 있는 텍스트/이미지/영상 요소는 런타임에서 숨긴다. 실제 표시 요소가 없는 TitleRow/ButtonRow는 부모 Row까지 꺼서 빈 레이아웃 공간을 남기지 않는다.
 - **UINode**: 시나리오 흐름에서 `UIData`, `UITheme`, 배치 모드, 버튼 이벤트를 설정하는 노드다. 실제 표시할 콘텐츠가 하나도 없으면 런타임에서 패널을 열지 않고 오류를 기록한다.
 - **SmoothFollowCanvas**: 비고정형 UI에서 CenterEyeAnchor 또는 `PlayerRig.HeadTransform`을 추적한다. Yaw(좌우 회전) 중심으로 따라가며 Pitch/Roll은 UI 안정성을 위해 직접 따라가지 않는다.
 - **SceneManager 연동**: 콘텐츠 씬 전환이 시작되면 `SceneManager`가 활성 `UIPanel`을 모두 닫는다. 씬 전환 중 유지해야 하는 별도 로딩 UI는 일반 `UIPanel` 풀과 분리해서 설계해야 한다.
@@ -687,7 +687,7 @@ UIManager (Singleton)
 | `useButtonA` | `buttonLabelA`, `_onButtonA` | 버튼 A 표시 및 클릭 이벤트 연결 |
 | `useButtonB` | `buttonLabelB`, `_onButtonB` | 버튼 B 표시 및 클릭 이벤트 연결 |
 
-플래그가 켜져 있어도 실제 데이터가 비어 있으면 텍스트/이미지/영상 요소는 자동으로 숨겨진다. 예를 들어 `useImageA=true`인데 `image=null`이면 ImageA는 표시되지 않는다. 버튼은 예외다. `useButtonA=true`이면 `buttonLabelA`가 비어 있어도 버튼 오브젝트 자체는 표시된다.
+플래그가 켜져 있어도 실제 데이터가 비어 있으면 텍스트/이미지/영상 요소는 자동으로 숨겨진다. 예를 들어 `useImageA=true`인데 `image=null`이면 ImageA는 표시되지 않는다. 버튼은 예외다. `useButtonA=true`이면 `buttonLabelA`가 비어 있어도 버튼 오브젝트 자체는 표시된다. Title Icon은 `useTitle=true`일 때만 표시되며, TitleRow와 ButtonRow는 실제 표시 요소가 있을 때만 레이아웃에 남는다.
 
 #### 4.7.3 UIData (콘텐츠 데이터)
 
@@ -970,7 +970,7 @@ public class DDOITSettings : ScriptableObject
 ```
 1. Unity에서 새 프로젝트 생성 (Unity 6, URP)
 2. Package Manager > Add package from git URL
-   https://github.com/DDOIT-OFFICIAL/DDOIT_Tools.git#v0.19.15
+   https://github.com/DDOIT-OFFICIAL/DDOIT_Tools.git#v0.19.16
 3. Unity 상단 메뉴에서 DDOIT Tools > Setup 실행
 4. 필수 패키지 설치/업데이트 실행
 5. Init Project 실행
@@ -1090,5 +1090,5 @@ MAJOR.MINOR.PATCH
 ---
 
 **문서 버전**: 0.4.0
-**DDOIT_Tools 패키지 버전**: v0.19.15
+**DDOIT_Tools 패키지 버전**: v0.19.16
 **최종 업데이트**: 2026-07-21
