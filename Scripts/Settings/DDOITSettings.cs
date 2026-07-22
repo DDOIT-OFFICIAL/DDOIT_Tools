@@ -50,7 +50,6 @@ namespace DDOIT.Tools.Settings
 
         #region Scenario Settings
 
-        public float defaultStepWait = 0.5f;
         public float teleportFadeDuration = 1f;
 
         #endregion

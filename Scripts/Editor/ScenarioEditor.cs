@@ -176,7 +176,7 @@ namespace DDOIT.Tools.Editor
                     string targetName = defaultScenario != null
                         ? $"Scenario: {defaultScenario.gameObject.name}"
                         : $"Step: {defaultStep.gameObject.name}";
-                    DrawBranchArrow($"  ↳ 자동 → {targetName}", new Color(0.6f, 0.6f, 0.6f));
+                    DrawBranchArrow($"  ↳ EndTrigger → {targetName}", new Color(0.6f, 0.6f, 0.6f));
                 }
             }
             else

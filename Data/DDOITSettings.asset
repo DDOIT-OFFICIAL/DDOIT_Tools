@@ -12,5 +12,4 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 808d326c35b506341ad63f6bf2f5b209, type: 3}
   m_Name: DDOITSettings
   m_EditorClassIdentifier: Assembly-CSharp::DDOIT.Tools.DDOITSettings
-  defaultStepWait: 0.5
   teleportFadeDuration: 1

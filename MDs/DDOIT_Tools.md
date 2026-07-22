@@ -297,7 +297,7 @@ ScenarioManager          ← 진입점. 시퀀스 시작/종료
 
 - **ScenarioManager**: `StartSequence()`로 Entry Scenario를 시작. 모든 Scenario를 초기화.
 - **Scenario**: 하위 Step을 순차 실행. `_nextScenario`로 다음 시나리오 연결. 모든 Step 완료 시 `EndTrigger()`.
-- **Step**: 하위 Node를 활성화하고 `Init()` 호출. **조건 그룹 시스템**으로 분기 가능 (§4.1.7). 조건 그룹이 0개이면 `DDOITSettings.defaultStepWait` 대기 후 자동 진행.
+- **Step**: 하위 Node를 활성화하고 `Init()` 호출. **조건 그룹 시스템**으로 분기 가능 (§4.1.7). 조건 그룹이 0개이면 자동 진행하지 않고 `Step.EndTrigger()` 호출 전까지 대기.
 - **ScenarioNode**: 모든 노드의 추상 베이스 클래스. 각 노드는 `ConditionGroup`(int) 프로퍼티로 그룹 소속을 가짐 (0 = 미소속).
 
 #### 4.1.2 실행 흐름
@@ -443,7 +443,8 @@ Step_RoomA (_conditionGroupCount = 2)
 └── [그룹 2] TriggerConditionNode (포털 B 통과) → _groupTargetSteps[1] = Step_Cave
 ```
 
-조건 그룹이 0개면 `DDOITSettings.defaultStepWait`(기본 0.5초) 대기 후 자동 진행.
+조건 그룹이 0개면 자동 진행하지 않는다. 해당 Step은 `Step.EndTrigger()`가 직접 호출될 때까지 대기한다.
+따라서 시나리오 제작자는 Step을 다음으로 넘겨야 하는 지점에 조건 그룹을 지정하거나, UnityEvent/스크립트에서 `EndTrigger()`를 명시적으로 호출해야 한다.
 
 **외부 marker (UINode 버튼 분기, v0.18.0+)**:
 
@@ -962,7 +963,7 @@ Assets/DDOIT_Tools/Fonts/
 |---|---|
 | **Scene Setup** | Init Scene 자동 생성 (Stage / InitTr / GameManager / ScenarioManager + Scenario_01) |
 | **UI Theme** | `UIGlobalSettings`/`UITheme` 에셋 편집 + UIPanel에 일괄 적용 |
-| **Settings** | `DDOITSettings` SO 편집 (defaultStepWait, teleportFadeDuration 등) |
+| **Settings** | `DDOITSettings` SO 편집 (teleportFadeDuration 등) |
 
 #### 4.11.2 DDOITSettings
 
@@ -971,7 +972,6 @@ Assets/DDOIT_Tools/Fonts/
 ```csharp
 public class DDOITSettings : ScriptableObject
 {
-    public float defaultStepWait = 0.5f;      // 조건 그룹 없는 Step의 기본 대기 시간
     public float teleportFadeDuration = 1f;   // TeleportNode 페이드 총 소요 시간
 }
 ```
@@ -986,7 +986,7 @@ public class DDOITSettings : ScriptableObject
 ```
 1. Unity에서 새 프로젝트 생성 (Unity 6, URP)
 2. Package Manager > Add package from git URL
-   https://github.com/DDOIT-OFFICIAL/DDOIT_Tools.git#v0.19.19
+   https://github.com/DDOIT-OFFICIAL/DDOIT_Tools.git#v0.19.20
 3. Unity 상단 메뉴에서 DDOIT Tools > Setup 실행
 4. 필수 패키지 설치/업데이트 실행
 5. Init Project 실행
@@ -1106,5 +1106,5 @@ MAJOR.MINOR.PATCH
 ---
 
 **문서 버전**: 0.4.0
-**DDOIT_Tools 패키지 버전**: v0.19.19
+**DDOIT_Tools 패키지 버전**: v0.19.20
 **최종 업데이트**: 2026-07-22

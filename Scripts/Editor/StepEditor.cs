@@ -111,7 +111,7 @@ namespace DDOIT.Tools.Editor
             // 조건 없음
             if (groupCount == 0)
             {
-                EditorGUILayout.HelpBox("조건 그룹 없음 → 기본 대기 후 자동 진행", MessageType.None);
+                EditorGUILayout.HelpBox("조건 그룹 없음 → Step.EndTrigger() 호출 전까지 대기", MessageType.Warning);
                 DrawTargetDropdown("완료 시 이동", _defaultTargetStep, _defaultTargetScenario);
             }
             else
@@ -433,7 +433,7 @@ namespace DDOIT.Tools.Editor
 
             if (grouped.Count == 0)
             {
-                EditorGUILayout.HelpBox("조건 없음 → 기본 대기 후 자동 진행", MessageType.None);
+                EditorGUILayout.HelpBox("조건 없음 → Step.EndTrigger() 호출 전까지 대기", MessageType.Warning);
             }
             else
             {

@@ -379,8 +379,6 @@ namespace DDOIT.Tools.Editor
 
             // ── 시나리오 ──
             EditorGUILayout.LabelField("시나리오", EditorStyles.boldLabel);
-            EditorGUILayout.PropertyField(so.FindProperty("defaultStepWait"),
-                new GUIContent("Step 기본 대기 시간 (초)", "조건 그룹이 없는 Step의 자동 진행 대기 시간"));
             EditorGUILayout.PropertyField(so.FindProperty("teleportFadeDuration"),
                 new GUIContent("텔레포트 페이드 시간 (초)", "TeleportNode의 페이드 전환 총 시간"));
 

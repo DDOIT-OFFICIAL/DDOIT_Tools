@@ -1,9 +1,7 @@
-using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Events;
 
-using DDOIT.Tools.Settings;
 namespace DDOIT.Tools.Scenario
 {
     /// <summary>
@@ -12,13 +10,10 @@ namespace DDOIT.Tools.Scenario
     /// 그룹 내 모든 노드가 충족되면(AND) 해당 그룹이 완료된다.
     /// 그룹 중 하나라도 완료되면(OR) Step이 종료된다.
     /// 각 그룹은 완료 시 이동할 Step 또는 Scenario를 지정할 수 있다.
-    /// 조건 그룹이 0개이면 기본 대기 후 자동 진행한다.
+    /// 조건 그룹이 0개이면 Step.EndTrigger()가 호출될 때까지 대기한다.
     /// </summary>
     public class Step : MonoBehaviour
     {
-        private static float DefaultStepWait =>
-            DDOITSettings.Instance != null ? DDOITSettings.Instance.defaultStepWait : 0.5f;
-
         #region Serialized Fields
 
         [SerializeField] private bool _skip;
@@ -49,7 +44,6 @@ namespace DDOIT.Tools.Scenario
         private ScenarioNode[] _nodes;
         private Dictionary<int, List<ScenarioNode>> _conditionGroups;
         private int _completedGroupIndex;
-        private Coroutine _defaultWaitCoroutine;
         private bool _isInitializing;
         private bool _endRequestedDuringInitialization;
 
@@ -122,12 +116,11 @@ namespace DDOIT.Tools.Scenario
                 return;
             }
 
-            // 조건 노드도 외부 marker도 없으면 기본 대기 후 자동 진행
+            // 조건 노드도 외부 marker도 없으면 자동 진행하지 않는다.
             if (_conditionGroups.Count == 0 && _expectedExternalMarkers.Count == 0)
             {
                 if (ScenarioManager.DebugMode)
-                    Debug.Log($"[Step] '{gameObject.name}' 조건 없음 → {DefaultStepWait}초 대기 후 자동 진행");
-                _defaultWaitCoroutine = StartCoroutine(DefaultWait());
+                    Debug.Log($"[Step] '{gameObject.name}' has no conditions and will wait until EndTrigger() is called.");
             }
         }
 
@@ -282,12 +275,6 @@ namespace DDOIT.Tools.Scenario
 
             if (ScenarioManager.DebugMode) Debug.Log($"[Step] '{gameObject.name}' 종료");
 
-            if (_defaultWaitCoroutine != null)
-            {
-                StopCoroutine(_defaultWaitCoroutine);
-                _defaultWaitCoroutine = null;
-            }
-
             if (_nodes != null)
             {
                 foreach (var node in _nodes)
@@ -312,17 +299,9 @@ namespace DDOIT.Tools.Scenario
 
         #region Private Methods
 
-        private IEnumerator DefaultWait()
-        {
-            yield return new WaitForSeconds(DefaultStepWait);
-            _defaultWaitCoroutine = null;
-            _completedGroupIndex = 0;
-            EndTrigger();
-        }
-
         private Step ResolveTargetStep()
         {
-            if (_completedGroupIndex == 0)
+            if (_completedGroupIndex <= 0)
                 return _defaultTargetStep;
 
             if (_completedGroupIndex > 0 &&
@@ -337,7 +316,7 @@ namespace DDOIT.Tools.Scenario
 
         private Scenario ResolveTargetScenario()
         {
-            if (_completedGroupIndex == 0)
+            if (_completedGroupIndex <= 0)
                 return _defaultTargetScenario;
 
             if (_completedGroupIndex > 0 &&
