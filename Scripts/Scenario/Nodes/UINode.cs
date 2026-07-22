@@ -30,6 +30,8 @@ namespace DDOIT.Tools.Scenario.Nodes
 
         [SerializeField] private UnityEvent _onButtonA;
         [SerializeField] private UnityEvent _onButtonB;
+        [SerializeField] private int _buttonAConditionGroup;
+        [SerializeField] private int _buttonBConditionGroup;
 
         [SerializeField] private UnityEvent _onEnd;
 
@@ -48,11 +50,19 @@ namespace DDOIT.Tools.Scenario.Nodes
         /// <summary>선택된 버튼 인덱스 (0=A, 1=B, -1=미선택).</summary>
         public int SelectedButtonIndex => _selectedButtonIndex;
 
-        /// <summary>버튼 A 클릭 이벤트. Step.MarkConditionGroupN을 등록하여 분기 가능.</summary>
+        /// <summary>버튼 A 클릭 이벤트. 조건 분기는 UINodeEditor의 버튼 조건 드롭다운 사용을 권장.</summary>
         public UnityEvent OnButtonA => _onButtonA;
 
-        /// <summary>버튼 B 클릭 이벤트. Step.MarkConditionGroupN을 등록하여 분기 가능.</summary>
+        /// <summary>버튼 B 클릭 이벤트. 조건 분기는 UINodeEditor의 버튼 조건 드롭다운 사용을 권장.</summary>
         public UnityEvent OnButtonB => _onButtonB;
+
+        /// <summary>버튼 클릭 후 실행되는 공통 이벤트. 조건 분기는 UINodeEditor의 버튼 조건 드롭다운 사용을 권장.</summary>
+        public UnityEvent OnEnd => _onEnd;
+
+        public bool UsesButtonA => _uiData.useButtonA;
+        public bool UsesButtonB => _uiData.useButtonB;
+        public int ButtonAConditionGroup => _buttonAConditionGroup;
+        public int ButtonBConditionGroup => _buttonBConditionGroup;
 
         #endregion
 
@@ -144,13 +154,27 @@ namespace DDOIT.Tools.Scenario.Nodes
             if (!CanContinueButtonSelection())
                 return;
 
-            if (IsStepCondition)
-                SetConditionMet();
+            ReportButtonCondition(index);
         }
 
         private bool CanContinueButtonSelection()
         {
             return _activePanel != null && _activePanel.IsActive;
+        }
+
+        private void ReportButtonCondition(int buttonIndex)
+        {
+            int conditionGroup = buttonIndex == 0 ? _buttonAConditionGroup : _buttonBConditionGroup;
+            if (conditionGroup <= 0)
+                return;
+
+            if (ParentStep == null)
+            {
+                Debug.LogWarning($"[UINode] '{gameObject.name}' 버튼 조건을 보고할 상위 Step을 찾을 수 없습니다.");
+                return;
+            }
+
+            ParentStep.MarkConditionGroup(conditionGroup);
         }
 
         private void ClosePanel()

@@ -269,8 +269,31 @@ namespace DDOIT.Tools.Editor
             var grouped = new Dictionary<int, List<ScenarioNode>>();
             var ungrouped = new List<ScenarioNode>();
 
+            // 외부 marker callsite 수집 (Scene scan)
+            var externalMarkers = ((Step)target).CollectExternalMarkerCallsites();
+            var externalByGroup = new Dictionary<int, List<(DDOIT.Tools.Scenario.Nodes.UINode node, int buttonIndex, int group)>>();
+            var externalMarkerNodes = new HashSet<UINode>();
+            foreach (var ext in externalMarkers)
+            {
+                if (!externalByGroup.ContainsKey(ext.group))
+                    externalByGroup[ext.group] = new List<(DDOIT.Tools.Scenario.Nodes.UINode, int, int)>();
+                externalByGroup[ext.group].Add(ext);
+
+                if (ext.node != null)
+                    externalMarkerNodes.Add(ext.node);
+            }
+
             foreach (var node in nodes)
             {
+                if (node is UINode uiNode)
+                {
+                    if (externalMarkerNodes.Contains(uiNode))
+                        continue;
+
+                    ungrouped.Add(node);
+                    continue;
+                }
+
                 int g = node.ConditionGroup;
                 if (g <= 0)
                     ungrouped.Add(node);
@@ -280,16 +303,6 @@ namespace DDOIT.Tools.Editor
                         grouped[g] = new List<ScenarioNode>();
                     grouped[g].Add(node);
                 }
-            }
-
-            // 외부 marker callsite 수집 (Scene scan)
-            var externalMarkers = ((Step)target).CollectExternalMarkerCallsites();
-            var externalByGroup = new Dictionary<int, List<(DDOIT.Tools.Scenario.Nodes.UINode node, int buttonIndex, int group)>>();
-            foreach (var ext in externalMarkers)
-            {
-                if (!externalByGroup.ContainsKey(ext.group))
-                    externalByGroup[ext.group] = new List<(DDOIT.Tools.Scenario.Nodes.UINode, int, int)>();
-                externalByGroup[ext.group].Add(ext);
             }
 
             EditorGUILayout.LabelField($"노드 목록 ({nodes.Length}개)", EditorStyles.boldLabel);
@@ -348,6 +361,16 @@ namespace DDOIT.Tools.Editor
                         MessageType.Warning);
                 }
             }
+
+            foreach (var kvp in externalByGroup)
+            {
+                if (kvp.Key > groupCount)
+                {
+                    EditorGUILayout.HelpBox(
+                        $"그룹 {kvp.Key}에 연결된 UINode 버튼 조건 또는 외부 marker가 있지만 그룹 수({groupCount})를 초과합니다.",
+                        MessageType.Warning);
+                }
+            }
         }
 
         private static void DrawExternalMarkerRow(DDOIT.Tools.Scenario.Nodes.UINode node, int buttonIndex, Color groupColor)
@@ -359,7 +382,7 @@ namespace DDOIT.Tools.Editor
             EditorGUILayout.LabelField("◆", GUILayout.Width(14));
             GUI.contentColor = prevColor;
 
-            string buttonLabel = buttonIndex == 0 ? "버튼 A" : "버튼 B";
+            string buttonLabel = buttonIndex == 0 ? "버튼 A" : buttonIndex == 1 ? "버튼 B" : "공통";
             if (GUILayout.Button($"{node.gameObject.name} ▸ {buttonLabel}", EditorStyles.label))
             {
                 Selection.activeGameObject = node.gameObject;
@@ -368,7 +391,7 @@ namespace DDOIT.Tools.Editor
 
             var prevContentColor = GUI.contentColor;
             GUI.contentColor = new Color(0.9f, 0.7f, 0.3f);
-            EditorGUILayout.LabelField("UINode (외부)", EditorStyles.miniLabel, GUILayout.Width(130));
+            EditorGUILayout.LabelField("UINode 버튼 marker", EditorStyles.miniLabel, GUILayout.Width(130));
             GUI.contentColor = prevContentColor;
 
             EditorGUILayout.EndHorizontal();
@@ -377,17 +400,18 @@ namespace DDOIT.Tools.Editor
         private static void DrawNodeRow(ScenarioNode node, Color groupColor)
         {
             string typeName = node.GetType().Name;
+            bool isConditionNode = node.IsStepCondition && !(node is UINode);
 
             EditorGUILayout.BeginHorizontal();
 
-            if (Application.isPlaying && node.IsStepCondition)
+            if (Application.isPlaying && isConditionNode)
             {
                 var prevColor = GUI.contentColor;
                 GUI.contentColor = node.IsConditionMet ? Color.green : Color.yellow;
                 EditorGUILayout.LabelField(node.IsConditionMet ? "✓" : "○", GUILayout.Width(14));
                 GUI.contentColor = prevColor;
             }
-            else if (node.IsStepCondition)
+            else if (isConditionNode)
             {
                 var prevColor = GUI.contentColor;
                 GUI.contentColor = groupColor;
@@ -421,9 +445,13 @@ namespace DDOIT.Tools.Editor
         {
             EditorGUILayout.LabelField("런타임 상태", EditorStyles.boldLabel);
 
+            var step = (Step)target;
             var grouped = new Dictionary<int, List<ScenarioNode>>();
             foreach (var node in nodes)
             {
+                if (node is UINode)
+                    continue;
+
                 int g = node.ConditionGroup;
                 if (g <= 0) continue;
                 if (!grouped.ContainsKey(g))
@@ -431,7 +459,13 @@ namespace DDOIT.Tools.Editor
                 grouped[g].Add(node);
             }
 
-            if (grouped.Count == 0)
+            var externalGroups = step.CollectExternalMarkerCallsites()
+                .Where(ext => ext.group >= 1 && ext.group <= groupCount)
+                .Select(ext => ext.group)
+                .Distinct()
+                .ToList();
+
+            if (grouped.Count == 0 && externalGroups.Count == 0)
             {
                 EditorGUILayout.HelpBox("조건 없음 → Step.EndTrigger() 호출 전까지 대기", MessageType.Warning);
             }
@@ -439,23 +473,38 @@ namespace DDOIT.Tools.Editor
             {
                 for (int g = 1; g <= groupCount; g++)
                 {
-                    if (!grouped.ContainsKey(g)) continue;
+                    bool hasNodes = grouped.ContainsKey(g);
+                    bool hasExternalMarker = externalGroups.Contains(g);
+                    if (!hasNodes && !hasExternalMarker) continue;
 
                     int met = 0;
-                    int total = grouped[g].Count;
-                    foreach (var node in grouped[g])
+                    int total = hasNodes ? grouped[g].Count : 0;
+                    if (hasNodes)
                     {
-                        if (node.IsConditionMet) met++;
+                        foreach (var node in grouped[g])
+                        {
+                            if (node.IsConditionMet) met++;
+                        }
                     }
 
-                    string status = met == total ? "완료" : $"{met}/{total}";
-                    var msgType = met == total ? MessageType.Info : MessageType.Warning;
+                    bool nodesComplete = !hasNodes || met == total;
+                    bool externalComplete = !hasExternalMarker || step.IsExternalMarkerReceived(g);
+                    bool groupComplete = nodesComplete && externalComplete;
+
+                    var parts = new List<string>();
+                    if (hasNodes)
+                        parts.Add($"노드 {met}/{total}");
+                    if (hasExternalMarker)
+                        parts.Add(step.IsExternalMarkerReceived(g) ? "버튼 marker 완료" : "버튼 marker 대기");
+
+                    string status = groupComplete ? "완료" : string.Join(", ", parts);
+                    var msgType = groupComplete ? MessageType.Info : MessageType.Warning;
                     EditorGUILayout.HelpBox($"그룹 {g}: {status}", msgType);
                 }
             }
 
             if (GUILayout.Button("현재 Step 강제 종료"))
-                ((Step)target).EndTrigger();
+                step.EndTrigger();
 
             Repaint();
         }

@@ -63,6 +63,8 @@ namespace DDOIT.Tools.Editor
         // Button Events
         private SerializedProperty _onButtonA;
         private SerializedProperty _onButtonB;
+        private SerializedProperty _buttonAConditionGroup;
+        private SerializedProperty _buttonBConditionGroup;
         private SerializedProperty _onEnd;
 
         private void OnEnable()
@@ -97,6 +99,8 @@ namespace DDOIT.Tools.Editor
 
             _onButtonA = serializedObject.FindProperty("_onButtonA");
             _onButtonB = serializedObject.FindProperty("_onButtonB");
+            _buttonAConditionGroup = serializedObject.FindProperty("_buttonAConditionGroup");
+            _buttonBConditionGroup = serializedObject.FindProperty("_buttonBConditionGroup");
             _onEnd = serializedObject.FindProperty("_onEnd");
 
             RefreshThemeList();
@@ -107,9 +111,7 @@ namespace DDOIT.Tools.Editor
         {
             serializedObject.Update();
 
-            // Base
-            ConditionGroupDrawer.Draw(_conditionGroup, (MonoBehaviour)target);
-            EditorGUILayout.Space(4);
+            ClearLegacyConditionGroup();
 
             // Theme
             DrawThemeDropdown();
@@ -139,6 +141,18 @@ namespace DDOIT.Tools.Editor
             DrawWarnings();
 
             serializedObject.ApplyModifiedProperties();
+        }
+
+        private void ClearLegacyConditionGroup()
+        {
+            if (_conditionGroup == null || _conditionGroup.intValue <= 0)
+                return;
+
+            _conditionGroup.intValue = 0;
+            EditorGUILayout.HelpBox(
+                "UINode 자체 조건 그룹은 사용하지 않습니다. 버튼 조건 드롭다운으로 조건 그룹을 지정하세요.",
+                MessageType.Info);
+            EditorGUILayout.Space(4);
         }
 
         private void DrawThemeDropdown()
@@ -298,12 +312,73 @@ namespace DDOIT.Tools.Editor
         private void DrawButtonEventSection()
         {
             EditorGUILayout.LabelField("버튼 이벤트", EditorStyles.boldLabel);
+            var parentStep = ((UINode)target).GetComponentInParent<Step>(true);
+
+            ResetDisabledButtonConditionGroups();
 
             if (_useButtonA.boolValue)
+            {
+                DrawButtonConditionDropdown("버튼 A 조건", _buttonAConditionGroup, parentStep);
                 EditorGUILayout.PropertyField(_onButtonA, new GUIContent("버튼 A 클릭"));
+            }
 
             if (_useButtonB.boolValue)
+            {
+                DrawButtonConditionDropdown("버튼 B 조건", _buttonBConditionGroup, parentStep);
                 EditorGUILayout.PropertyField(_onButtonB, new GUIContent("버튼 B 클릭"));
+            }
+        }
+
+        private void ResetDisabledButtonConditionGroups()
+        {
+            if (!_useButtonA.boolValue && _buttonAConditionGroup.intValue != 0)
+                _buttonAConditionGroup.intValue = 0;
+
+            if (!_useButtonB.boolValue && _buttonBConditionGroup.intValue != 0)
+                _buttonBConditionGroup.intValue = 0;
+        }
+
+        private static void DrawButtonConditionDropdown(string label, SerializedProperty property, Step parentStep)
+        {
+            int groupCount = parentStep != null ? parentStep.ConditionGroupCount : 0;
+            if (property.intValue < 0)
+                property.intValue = 0;
+
+            if (parentStep == null)
+            {
+                property.intValue = 0;
+                using (new EditorGUI.DisabledScope(true))
+                    EditorGUILayout.Popup(label, 0, new[] { "없음" });
+                EditorGUILayout.HelpBox(
+                    "상위 Step을 찾을 수 없습니다. 버튼 조건은 Step 하위에 배치된 UINode에서만 설정할 수 있습니다.",
+                    MessageType.None);
+                return;
+            }
+
+            if (property.intValue > groupCount)
+            {
+                EditorGUILayout.HelpBox(
+                    $"{label}이 조건 그룹 {property.intValue}을 사용하도록 저장되어 있지만, 상위 Step의 활성 조건 그룹은 {groupCount}개입니다. 없음으로 보정합니다.",
+                    MessageType.Warning);
+                property.intValue = 0;
+            }
+
+            var options = new string[groupCount + 1];
+            options[0] = "없음";
+            for (int i = 1; i <= groupCount; i++)
+                options[i] = $"조건 그룹 {i}";
+
+            if (groupCount == 0)
+            {
+                using (new EditorGUI.DisabledScope(true))
+                    EditorGUILayout.Popup(label, 0, options);
+                EditorGUILayout.HelpBox(
+                    "상위 Step에 활성 조건 그룹이 없습니다. 조건을 사용하려면 Step 인스펙터에서 조건 그룹 수를 먼저 늘리세요.",
+                    MessageType.None);
+                return;
+            }
+
+            property.intValue = EditorGUILayout.Popup(label, property.intValue, options);
         }
 
         private void DrawPlacementSection()
@@ -592,16 +667,20 @@ namespace DDOIT.Tools.Editor
                     MessageType.Warning);
             }
 
-            if (_conditionGroup.intValue > 0) return;
-
-            if (hasButtonA && !HasActivePersistentCall(_onButtonA) && !HasActivePersistentCall(_onEnd))
+            if (hasButtonA &&
+                _buttonAConditionGroup.intValue <= 0 &&
+                !HasActivePersistentCall(_onButtonA) &&
+                !HasActivePersistentCall(_onEnd))
             {
                 EditorGUILayout.HelpBox(
                     "버튼 A는 표시되지만 클릭 이벤트가 없습니다. 이 UINode도 Step 조건이 아니므로 버튼 A 클릭만으로는 아무 동작도 일어나지 않습니다.",
                     MessageType.Warning);
             }
 
-            if (hasButtonB && !HasActivePersistentCall(_onButtonB) && !HasActivePersistentCall(_onEnd))
+            if (hasButtonB &&
+                _buttonBConditionGroup.intValue <= 0 &&
+                !HasActivePersistentCall(_onButtonB) &&
+                !HasActivePersistentCall(_onEnd))
             {
                 EditorGUILayout.HelpBox(
                     "버튼 B는 표시되지만 클릭 이벤트가 없습니다. 이 UINode도 Step 조건이 아니므로 버튼 B 클릭만으로는 아무 동작도 일어나지 않습니다.",
@@ -614,96 +693,77 @@ namespace DDOIT.Tools.Editor
             bool hasButtons = _useButtonA.boolValue || _useButtonB.boolValue;
             var uiNode = (UINode)target;
             Step parentStep = uiNode.GetComponentInParent<Step>(true);
-            int conditionGroup = _conditionGroup.intValue;
+            bool hasButtonCondition =
+                (_useButtonA.boolValue && _buttonAConditionGroup.intValue > 0) ||
+                (_useButtonB.boolValue && _buttonBConditionGroup.intValue > 0);
 
-            if (conditionGroup > 0)
+            if (parentStep == null)
             {
-                if (parentStep == null)
-                {
+                if (hasButtonCondition)
                     EditorGUILayout.HelpBox(
-                        "조건 그룹이 지정되어 있지만 상위 Step을 찾을 수 없습니다. 런타임에서 조건 완료를 보고할 대상이 없습니다.",
+                        "버튼 조건 그룹이 지정되어 있지만 상위 Step을 찾을 수 없습니다.",
                         MessageType.Warning);
-                }
-                else if (conditionGroup > parentStep.ConditionGroupCount)
-                {
-                    EditorGUILayout.HelpBox(
-                        $"조건 그룹 {conditionGroup}은 상위 Step의 그룹 수({parentStep.ConditionGroupCount})를 초과합니다. 런타임에서 이 조건은 Step 완료에 사용되지 않습니다.",
-                        MessageType.Warning);
-                }
-
-                if (hasButtons)
-                {
-                    EditorGUILayout.HelpBox(
-                        "버튼 클릭 시 이 UINode의 Step 조건이 충족됩니다.",
-                        MessageType.Info);
-
-                    if (parentStep != null)
-                        DrawExternalMarkerConflictWarnings(parentStep, conditionGroup);
-                }
-                else
-                {
-                    EditorGUILayout.HelpBox(
-                        "버튼이 없는 UI를 Step 조건으로 사용하면 조건이 자동 충족되지 않습니다.\n" +
-                        "다른 노드나 외부 로직에서 Step을 종료해야 합니다.",
-                        MessageType.Warning);
-                }
-
                 return;
             }
 
-            if (!hasButtons || parentStep == null || parentStep.ConditionGroupCount <= 0)
-                return;
-
-            bool buttonCompletesParentStep =
-                HasParentStepCompletionCall(_onButtonA, parentStep) ||
-                HasParentStepCompletionCall(_onButtonB, parentStep) ||
-                HasParentStepCompletionCall(_onEnd, parentStep);
-
-            if (!buttonCompletesParentStep)
+            if (hasButtonCondition)
             {
-                EditorGUILayout.HelpBox(
-                    "이 UINode는 Step 조건이 아니며, 버튼 이벤트도 상위 Step의 EndTrigger 또는 MarkConditionGroupN을 호출하지 않습니다.\n" +
-                    "이 UI만으로는 현재 Step이 완료되지 않습니다.",
-                    MessageType.Warning);
-                return;
-            }
+                var buttonConditions = new List<string>();
+                if (_useButtonA.boolValue && _buttonAConditionGroup.intValue > 0)
+                    buttonConditions.Add($"A -> 조건 그룹 {_buttonAConditionGroup.intValue}");
+                if (_useButtonB.boolValue && _buttonBConditionGroup.intValue > 0)
+                    buttonConditions.Add($"B -> 조건 그룹 {_buttonBConditionGroup.intValue}");
 
-            var markerGroups = CollectParentStepMarkerGroups(parentStep);
-            if (markerGroups.Count > 0)
-            {
                 EditorGUILayout.HelpBox(
-                    $"버튼 이벤트가 상위 Step의 외부 marker 그룹 {string.Join(", ", markerGroups)}을 충족합니다.",
+                    $"버튼 조건: {string.Join(", ", buttonConditions)}",
                     MessageType.Info);
             }
-        }
 
-        private void DrawExternalMarkerConflictWarnings(Step parentStep, int conditionGroup)
-        {
-            var markerGroups = CollectParentStepMarkerGroups(parentStep);
-            foreach (int group in markerGroups)
+            var legacyMarkerGroups = CollectParentStepMarkerGroups(parentStep);
+            if (legacyMarkerGroups.Count > 0)
+            {
+                EditorGUILayout.HelpBox(
+                    $"버튼/공통 UnityEvent에 MarkConditionGroupN 수동 연결이 남아 있습니다: {string.Join(", ", legacyMarkerGroups)}. 앞으로는 버튼 조건 드롭다운 사용을 권장합니다.",
+                    MessageType.Warning);
+            }
+
+            foreach (int group in legacyMarkerGroups)
             {
                 if (group > parentStep.ConditionGroupCount)
                 {
                     EditorGUILayout.HelpBox(
-                        $"버튼 이벤트가 MarkConditionGroup{group}을 호출하지만 상위 Step의 그룹 수는 {parentStep.ConditionGroupCount}입니다. 이 marker는 무시됩니다.",
+                        $"버튼 UnityEvent가 MarkConditionGroup{group}을 호출하지만 상위 Step의 활성 조건 그룹 수는 {parentStep.ConditionGroupCount}개입니다. 이 marker는 런타임에서 무시됩니다.",
                         MessageType.Warning);
                 }
-                else if (group != conditionGroup)
-                {
-                    EditorGUILayout.HelpBox(
-                        $"이 UINode 자체는 그룹 {conditionGroup} 조건인데, 버튼 이벤트는 그룹 {group} marker도 호출합니다. 두 그룹이 동시에 충족되어 의도한 분기보다 낮은 번호 그룹이 먼저 처리될 수 있습니다.\n" +
-                        "버튼별 분기를 의도했다면 UINode의 조건 그룹을 '없음'으로 두고 버튼 이벤트에서 MarkConditionGroupN만 호출하는 구성을 권장합니다.",
-                        MessageType.Warning);
-                }
+            }
+
+            if (!hasButtons)
+                return;
+
+            bool buttonCompletesParentStep =
+                hasButtonCondition ||
+                (_useButtonA.boolValue && HasParentStepCompletionCall(_onButtonA, parentStep)) ||
+                (_useButtonB.boolValue && HasParentStepCompletionCall(_onButtonB, parentStep)) ||
+                (hasButtons && HasParentStepCompletionCall(_onEnd, parentStep));
+
+            if (!buttonCompletesParentStep)
+            {
+                EditorGUILayout.HelpBox(
+                    "이 UINode 버튼은 조건 그룹도 만족시키지 않고, 상위 Step의 EndTrigger도 호출하지 않습니다.\n" +
+                    "조건 그룹이 없는 Step은 자동 진행하지 않으므로, 이 UI만으로는 현재 Step이 종료되지 않을 수 있습니다.",
+                    MessageType.Warning);
             }
         }
 
         private List<int> CollectParentStepMarkerGroups(Step parentStep)
         {
             var groups = new List<int>();
-            CollectParentStepMarkerGroups(_onButtonA, parentStep, groups);
-            CollectParentStepMarkerGroups(_onButtonB, parentStep, groups);
-            CollectParentStepMarkerGroups(_onEnd, parentStep, groups);
+            if (_useButtonA.boolValue)
+                CollectParentStepMarkerGroups(_onButtonA, parentStep, groups);
+            if (_useButtonB.boolValue)
+                CollectParentStepMarkerGroups(_onButtonB, parentStep, groups);
+            if (_useButtonA.boolValue || _useButtonB.boolValue)
+                CollectParentStepMarkerGroups(_onEnd, parentStep, groups);
             return groups.Distinct().OrderBy(group => group).ToList();
         }
 

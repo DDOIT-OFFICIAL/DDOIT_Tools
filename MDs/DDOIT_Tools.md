@@ -343,7 +343,7 @@ ScenarioManager.StartSequence()
 | **WalkingStickNode** | `PlayerRig.EnableWalkingStick()` / `DisableWalkingStick()` 호출. 활성화 시점의 HMD 높이로 stick 길이 자동 결정 | — (즉시 완료, `_onEnd` 이벤트) |
 | **ToggleNode** | GameObject / Component / ParticleSystem / IToggleable 스크립트 On/Off | — (즉시 완료, `_onEnd` 이벤트) |
 | **AnimatorNode** | Animator의 Trigger/Bool/Int/Float 파라미터 설정 | — (즉시 완료, `_onEnd` 이벤트) |
-| **UINode** | UIManager를 통한 UI 패널 표시 | O (버튼 클릭 시 충족) |
+| **UINode** | UIManager를 통한 UI 패널 표시 | O (버튼 조건 드롭다운으로 충족) |
 | **TriggerConditionNode** | 특정 태그 객체의 트리거 감지 (Enter/Exit/Stay) | O (전용 조건 노드) |
 | **TimerConditionNode** | 지정 시간 경과 | O (전용 조건 노드) |
 
@@ -409,14 +409,14 @@ namespace DDOIT.Tools
 |---|---|
 | **ScenarioManagerEditor** | 흐름 미리보기 + **Scenario 분기 시각화**, 시나리오 목록, 런타임 상태 표시 |
 | **ScenarioEditor** | Step 목록 + **분기 트리 시각화**, 자동 넘버링, 조건 노드 수/진행 표시 |
-| **StepEditor** | 노드 목록, **메모 편집**, 조건 충족 상태 (✓/○), 노드 추가 버튼 (9종) |
+| **StepEditor** | 노드 목록, **메모 편집**, 조건 충족 상태 (✓/○), UINode 버튼 marker 표시, 노드 추가 버튼 (9종) |
 | **TransformNodeEditor** | Translate/Rotate/Scale 독립 토글, 모드별(Duration/Speed/Instant) 필드 표시 |
 | **TeleportNodeEditor** | 목적지 Transform 설정, `_onEnd` 이벤트 |
 | **WalkingStickNodeEditor** | 활성화 toggle, 동작 안내 HelpBox, `_onEnd` 이벤트 |
 | **ToggleNodeEditor** | 모드별(GameObject/Component/Particle/Script) 대상 필드, Activate 토글 |
 | **AnimatorNodeEditor** | 파라미터 타입별 입력 필드(Trigger/Bool/Int/Float) |
 | **TriggerConditionNodeEditor** | 외부 Collider 설정, Collider 타입 버튼 (Box/Sphere/Capsule), 감지 모드(Enter/Exit/Stay) |
-| **UINodeEditor** | UI 요소 플래그별 조건부 필드, Theme 기본값 안내, 버튼 이벤트 섹션, 작성 누락/분기 경고 |
+| **UINodeEditor** | UI 요소 플래그별 조건부 필드, 버튼 조건 드롭다운, Theme 기본값 안내, 버튼 이벤트 섹션, 작성 누락/분기 경고 |
 | **SoundNodeEditor** | 사운드 이름 드롭다운, Step 종료 시 정지 옵션, 오디오 미리듣기, 미선택/누락/Loop 조건 경고 |
 | **TimerConditionNodeEditor** | 대기 시간 설정, 0 이하 경고 |
 | **ConditionGroupDrawer** | ScenarioNode의 `_conditionGroup` 필드를 그룹 번호 버튼 UI로 표시 |
@@ -446,24 +446,25 @@ Step_RoomA (_conditionGroupCount = 2)
 조건 그룹이 0개면 자동 진행하지 않는다. 해당 Step은 `Step.EndTrigger()`가 직접 호출될 때까지 대기한다.
 따라서 시나리오 제작자는 Step을 다음으로 넘겨야 하는 지점에 조건 그룹을 지정하거나, UnityEvent/스크립트에서 `EndTrigger()`를 명시적으로 호출해야 한다.
 
-**외부 marker (UINode 버튼 분기, v0.18.0+)**:
+**UINode 버튼 marker**:
 
-Step에 매개변수 없는 그룹 충족 메서드 7개(`MarkConditionGroup1` ~ `MarkConditionGroup7`)가 노출된다. UINode의 `_onButtonA` / `_onButtonB` UnityEvent 슬롯에서 Step을 target으로 끌어다 놓고 해당 메서드를 선택하면, 버튼 클릭 시 그룹 충족 marker가 Step에 보고된다.
+UINode 버튼으로 Step을 완료하거나 분기하려면 UINode 인스펙터의 `버튼 A 조건` / `버튼 B 조건` 드롭다운을 사용한다. 드롭다운에는 상위 Step에서 활성화한 조건 그룹만 표시된다. UINode 인스펙터는 조건 그룹 수를 늘리지 않으므로, 필요한 그룹은 Step 인스펙터에서 먼저 만든다.
 
 - 그룹 내 노드 + 외부 marker는 **AND**로 검사 (모두 충족 시 그룹 완료)
-- 그룹에 노드가 없고 외부 marker만 있으면 외부 marker 단독으로 충족
+- 그룹에 노드가 없고 UINode 버튼 marker만 있으면 버튼 클릭만으로 해당 그룹이 충족
 - StepEditor가 자동 가시화: 그룹 row에 `◆ UINode 'X' ▸ 버튼 A`처럼 표시 (Scene scan 기반)
+- 기존 호환을 위해 `MarkConditionGroup1` ~ `MarkConditionGroup7` 메서드는 유지된다. 다만 새 UI 분기는 UnityEvent 수동 연결보다 버튼 조건 드롭다운 사용을 권장한다.
 
 **예시 (UI 분기 시나리오)**:
 ```
 Step_Question (_conditionGroupCount = 2)
-├── [그룹 1] UINode (질문 패널) ─┐
-│                                ├── _onButtonA → Step.MarkConditionGroup1()
-│                                └── _onButtonB → Step.MarkConditionGroup2()
+├── UINode (질문 패널)
+│   ├── 버튼 A 조건 = 조건 그룹 1
+│   └── 버튼 B 조건 = 조건 그룹 2
 ├── _groupTargetSteps[0] = Step_AnswerA
 └── _groupTargetSteps[1] = Step_AnswerB
 ```
-UINode 자체의 `_conditionGroup`은 그대로 두면 "어느 버튼이든 충족하는 공통 그룹"으로 동작.
+UINode 자체의 `_conditionGroup`은 새 작성 방식에서 사용하지 않는다. UINode 조건은 버튼별 드롭다운으로 지정한다.
 
 #### 4.1.8 Step 메모 및 분기 시각화
 
@@ -775,9 +776,9 @@ UINode는 시나리오 흐름에서 UI를 표시하는 ScenarioNode:
 5. 버튼이 켜져 있으면 `UIPanel.OnButtonClicked`에 연결한다.
 6. `OnRelease()` 또는 `OnDisable()`에서 열린 패널을 `UIManager.CloseUI()`로 반환한다.
 
-`UINode`가 Step 조건 노드로 쓰이면 버튼 클릭 시 `SetConditionMet()`을 호출한다. 버튼 UnityEvent에는 일반 로직뿐 아니라 부모 Step의 `MarkConditionGroup1` ~ `MarkConditionGroup7`을 연결할 수 있어 분기형 UI를 만들 수 있다.
+`UINode`는 버튼별 조건 드롭다운으로 Step 조건 marker를 보고한다. 예를 들어 `버튼 A 조건 = 조건 그룹 1`, `버튼 B 조건 = 조건 그룹 2`로 설정하면 A/B 선택에 따라 서로 다른 조건 그룹이 충족되고 Step 분기 대상도 달라질 수 있다. 버튼 UnityEvent에는 일반 로직을 연결하고, 조건 분기는 드롭다운으로 관리하는 방식을 권장한다.
 
-UINode 버튼은 기본적으로 **1회 선택**으로 동작한다. 한 번 클릭되면 UIPanel이 A/B 버튼을 즉시 비활성화하고, 같은 패널에서 추가 클릭 이벤트를 다시 발생시키지 않는다. 버튼별 UnityEvent 실행 중 Step이 종료되어 UINode가 Release되면 남은 공통 `_onEnd`와 자체 조건 충족 처리는 실행하지 않는다.
+UINode 버튼은 기본적으로 **1회 선택**으로 동작한다. 한 번 클릭되면 UIPanel이 A/B 버튼을 즉시 비활성화하고, 같은 패널에서 추가 클릭 이벤트를 다시 발생시키지 않는다. 버튼별 UnityEvent 실행 중 Step이 종료되어 UINode가 Release되면 남은 공통 `_onEnd`와 버튼 조건 marker 보고는 실행하지 않는다.
 
 작성 실수를 줄이기 위해 `UINodeEditor`는 다음 경고를 표시한다.
 
@@ -786,8 +787,8 @@ UINode 버튼은 기본적으로 **1회 선택**으로 동작한다. 한 번 클
 - Title Icon이 지정되어 있지만 Title 요소가 꺼져 있음
 - 버튼 라벨이 비어 있음. 단, 버튼 자체는 보이므로 빈 UI 차단 조건은 아님
 - 예상 패널 높이가 `UIPanel` 기준 높이 1080px을 넘을 가능성. 긴 텍스트, 이미지 2개, 비디오, 버튼을 한 패널에 과밀하게 넣은 경우 작성 보조 경고를 표시함
-- 버튼 이벤트가 없거나 Step 조건 완료 경로가 불명확함
-- UINode의 조건 그룹과 버튼 이벤트의 `MarkConditionGroupN` 연결이 충돌할 가능성
+- 버튼 이벤트나 버튼 조건이 없어 Step 완료 경로가 불명확함
+- 버튼/공통 UnityEvent에 legacy `MarkConditionGroupN` 수동 연결이 남아 있음
 - Theme이 `Default`일 때 실제 적용 기준을 안내하고, 기본 Theme을 찾지 못하면 경고함
 
 초보 개발자는 `UINodeEditor`의 경고를 "즉시 고장"으로 해석하기보다 "실행하면 의도와 다르게 보일 가능성"으로 해석하면 된다. 예를 들어 `useImageA`가 켜져 있는데 `image`가 비어 있으면 런타임에서 ImageA 영역은 숨겨진다. 단, 전체 UIData 기준으로 실제 표시할 제목/본문/이미지/영상/버튼이 하나도 없으면 `UINode`는 패널을 열지 않는다. 버튼은 라벨이 비어 있어도 버튼 오브젝트 자체가 표시되므로 빈 UI로 보지 않는다. 대신 라벨이 비어 있으면 사용자가 버튼 의미를 알기 어려우므로 Inspector 경고가 표시된다.
@@ -838,11 +839,8 @@ UINode를 새로 만들 때는 다음 순서로 확인하면 된다.
 5. Theme을 직접 고르지 않을 경우 `Default`로 둔다. 이 경우 DDOIT 씬의 UIManager 기본 Theme이 적용된다.
 6. 긴 본문, 하단 본문, 이미지 2개, 비디오, 버튼을 한 UINode에 모두 넣으면 패널 높이가 과밀해질 수 있다. `UINodeEditor`의 높이 경고가 뜨면 Step을 나누거나 미디어 수를 줄인다.
 7. 버튼을 켰다면 라벨을 입력한다. 버튼은 기본 1회 선택이므로 같은 패널에서 반복 클릭을 받아야 하는 용도로 사용하지 않는다.
-8. 버튼 클릭으로 Step이 끝나야 하면 다음 중 하나를 명확히 설정한다.
-   - UINode 자체를 조건 그룹에 넣어 어느 버튼이든 클릭 시 조건 충족
-   - 버튼 이벤트에서 부모 Step의 `EndTrigger()` 호출
-   - 버튼 이벤트에서 부모 Step의 `MarkConditionGroup1()` ~ `MarkConditionGroup7()` 호출
-9. 분기형 UI라면 UINode 자체 조건 그룹과 버튼 이벤트 marker를 동시에 섞지 않는 편이 안전하다. 버튼 A/B가 서로 다른 분기로 가야 하면 UINode 조건 그룹은 `없음`으로 두고 버튼 이벤트에서 각각 `MarkConditionGroupN()`만 호출하는 구성이 가장 명확하다.
+8. 버튼 클릭으로 Step이 끝나거나 분기되어야 하면 Step 인스펙터에서 조건 그룹 수를 먼저 늘린 뒤, UINode 인스펙터의 `버튼 A 조건` / `버튼 B 조건` 드롭다운에서 필요한 그룹을 선택한다.
+9. 단순히 현재 Step만 끝내면 되는 버튼이라면 버튼/공통 UnityEvent에서 부모 Step의 `EndTrigger()`를 호출해도 된다. 분기형 UI라면 `EndTrigger()`보다 버튼 조건 드롭다운을 사용하는 구성이 가장 명확하다.
 
 #### 4.7.9 Video
 

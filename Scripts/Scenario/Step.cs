@@ -47,7 +47,7 @@ namespace DDOIT.Tools.Scenario
         private bool _isInitializing;
         private bool _endRequestedDuringInitialization;
 
-        // 외부 marker (UINode 등의 UnityEvent에서 MarkConditionGroupN 호출)
+        // 외부 marker (UINode 버튼 조건 또는 legacy UnityEvent에서 MarkConditionGroupN 호출)
         private HashSet<int> _expectedExternalMarkers = new HashSet<int>();
         private HashSet<int> _receivedExternalMarkers = new HashSet<int>();
 
@@ -72,6 +72,9 @@ namespace DDOIT.Tools.Scenario
             _conditionGroups = new Dictionary<int, List<ScenarioNode>>();
             foreach (var node in _nodes)
             {
+                if (node is DDOIT.Tools.Scenario.Nodes.UINode)
+                    continue;
+
                 int group = node.ConditionGroup;
                 if (group <= 0) continue;
 
@@ -81,7 +84,7 @@ namespace DDOIT.Tools.Scenario
                 _conditionGroups[group].Add(node);
             }
 
-            // 외부 marker expected 수집 (UINode 등의 UnityEvent → MarkConditionGroupN)
+            // 외부 marker expected 수집 (UINode 버튼 조건 + legacy UnityEvent → MarkConditionGroupN)
             _expectedExternalMarkers.Clear();
             _receivedExternalMarkers.Clear();
             DetectExternalMarkers();
@@ -135,13 +138,23 @@ namespace DDOIT.Tools.Scenario
         }
 
         // ── 외부 marker 충족 메서드 (UnityEvent 등에서 호출) ──
-        public void MarkConditionGroup1() => MarkConditionGroupMet(1);
-        public void MarkConditionGroup2() => MarkConditionGroupMet(2);
-        public void MarkConditionGroup3() => MarkConditionGroupMet(3);
-        public void MarkConditionGroup4() => MarkConditionGroupMet(4);
-        public void MarkConditionGroup5() => MarkConditionGroupMet(5);
-        public void MarkConditionGroup6() => MarkConditionGroupMet(6);
-        public void MarkConditionGroup7() => MarkConditionGroupMet(7);
+        public void MarkConditionGroup1() => MarkConditionGroup(1);
+        public void MarkConditionGroup2() => MarkConditionGroup(2);
+        public void MarkConditionGroup3() => MarkConditionGroup(3);
+        public void MarkConditionGroup4() => MarkConditionGroup(4);
+        public void MarkConditionGroup5() => MarkConditionGroup(5);
+        public void MarkConditionGroup6() => MarkConditionGroup(6);
+        public void MarkConditionGroup7() => MarkConditionGroup(7);
+
+        public void MarkConditionGroup(int group)
+        {
+            MarkConditionGroupMet(group);
+        }
+
+        public bool IsExternalMarkerReceived(int group)
+        {
+            return _receivedExternalMarkers != null && _receivedExternalMarkers.Contains(group);
+        }
 
         private void MarkConditionGroupMet(int group)
         {
@@ -195,15 +208,36 @@ namespace DDOIT.Tools.Scenario
 
         private void DetectExternalMarkers()
         {
-            // Scene 내 모든 UINode를 scan하여, 자기에게 MarkConditionGroupN 호출하는 callsite를 detect
+            // Scene 내 모든 UINode를 scan하여 버튼 조건과 legacy MarkConditionGroupN callsite를 detect
             var allUINodes = UnityEngine.Object.FindObjectsByType<DDOIT.Tools.Scenario.Nodes.UINode>(
                 FindObjectsInactive.Include, FindObjectsSortMode.None);
 
             foreach (var ui in allUINodes)
             {
-                ScanUnityEventForExternalMarkers(ui.OnButtonA);
-                ScanUnityEventForExternalMarkers(ui.OnButtonB);
+                if (ui.GetComponentInParent<Step>(true) == this)
+                {
+                    AddButtonConditionMarker(ui, 0);
+                    AddButtonConditionMarker(ui, 1);
+                }
+
+                if (ui.UsesButtonA)
+                    ScanUnityEventForExternalMarkers(ui.OnButtonA);
+                if (ui.UsesButtonB)
+                    ScanUnityEventForExternalMarkers(ui.OnButtonB);
+                if (ui.UsesButtonA || ui.UsesButtonB)
+                    ScanUnityEventForExternalMarkers(ui.OnEnd);
             }
+        }
+
+        private void AddButtonConditionMarker(DDOIT.Tools.Scenario.Nodes.UINode ui, int buttonIndex)
+        {
+            int group = buttonIndex == 0 ? ui.ButtonAConditionGroup : ui.ButtonBConditionGroup;
+            bool buttonEnabled = buttonIndex == 0 ? ui.UsesButtonA : ui.UsesButtonB;
+
+            if (!buttonEnabled || group <= 0)
+                return;
+
+            _expectedExternalMarkers.Add(group);
         }
 
         private void ScanUnityEventForExternalMarkers(UnityEvent ev)
@@ -234,10 +268,34 @@ namespace DDOIT.Tools.Scenario
 
             foreach (var ui in allUINodes)
             {
-                CollectFrom(ui.OnButtonA, ui, 0, result);
-                CollectFrom(ui.OnButtonB, ui, 1, result);
+                if (ui.GetComponentInParent<Step>(true) == this)
+                {
+                    AddButtonConditionCallsite(ui, 0, result);
+                    AddButtonConditionCallsite(ui, 1, result);
+                }
+
+                if (ui.UsesButtonA)
+                    CollectFrom(ui.OnButtonA, ui, 0, result);
+                if (ui.UsesButtonB)
+                    CollectFrom(ui.OnButtonB, ui, 1, result);
+                if (ui.UsesButtonA || ui.UsesButtonB)
+                    CollectFrom(ui.OnEnd, ui, 2, result);
             }
             return result;
+        }
+
+        private void AddButtonConditionCallsite(
+            DDOIT.Tools.Scenario.Nodes.UINode node,
+            int buttonIndex,
+            List<(DDOIT.Tools.Scenario.Nodes.UINode node, int buttonIndex, int group)> result)
+        {
+            int group = buttonIndex == 0 ? node.ButtonAConditionGroup : node.ButtonBConditionGroup;
+            bool buttonEnabled = buttonIndex == 0 ? node.UsesButtonA : node.UsesButtonB;
+
+            if (!buttonEnabled || group <= 0)
+                return;
+
+            AddExternalMarkerCallsite(node, buttonIndex, group, result);
         }
 
         private void CollectFrom(UnityEvent ev, DDOIT.Tools.Scenario.Nodes.UINode node, int buttonIndex,
@@ -253,11 +311,26 @@ namespace DDOIT.Tools.Scenario
                 {
                     if (methodName == $"MarkConditionGroup{g}")
                     {
-                        result.Add((node, buttonIndex, g));
+                        AddExternalMarkerCallsite(node, buttonIndex, g, result);
                         break;
                     }
                 }
             }
+        }
+
+        private static void AddExternalMarkerCallsite(
+            DDOIT.Tools.Scenario.Nodes.UINode node,
+            int buttonIndex,
+            int group,
+            List<(DDOIT.Tools.Scenario.Nodes.UINode node, int buttonIndex, int group)> result)
+        {
+            foreach (var item in result)
+            {
+                if (item.node == node && item.buttonIndex == buttonIndex && item.group == group)
+                    return;
+            }
+
+            result.Add((node, buttonIndex, group));
         }
 
         public void EndTrigger()
