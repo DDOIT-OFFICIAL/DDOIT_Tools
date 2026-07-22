@@ -361,6 +361,16 @@ ScenarioManager.StartSequence()
 - Loop 사운드는 자연 종료 시점이 없으므로 조건 그룹 자동 완료용으로 사용하지 않는다.
 - `Step 종료 시 정지` 옵션을 켜면 Step 종료, 노드 Release, 비활성화 시 해당 노드가 시작한 사운드를 정지한다. 기본값은 기존 동작 호환을 위해 꺼져 있다.
 
+**TransformNode 실행 정책**:
+
+- `TransformNode`는 이동, 회전, 스케일 항목을 각각 독립 코루틴으로 실행한다.
+- 조건 그룹에 속한 `TransformNode`는 활성화된 이동/회전/스케일 항목이 모두 완료되면 조건을 충족한다.
+- `Release()` 또는 `OnDisable()`이 호출되면 실행 중인 코루틴을 모두 중단하고, 이후 늦은 `_onEnd` 호출이나 조건 완료 보고가 발생하지 않도록 막는다.
+- 회전의 `Vector3` 목표 방식은 signed relative Euler로 동작한다. `(0, 180, 0)`은 +Y 방향, `(0, -180, 0)`은 -Y 방향으로 회전하며, 360도 이상의 누적 회전도 입력값 그대로 반영한다.
+- 회전의 `Transform` 목표 방식은 Quaternion Shortest로 고정한다. 최종 자세를 목표 Transform과 같게 맞추는 용도이며, 180도 회전의 방향은 보장하지 않는다.
+- 목표 Transform이 없거나 항목별 목표 Transform이 누락된 경우 warning을 남긴다. 항목별 목표 누락, 0 이하 duration, 0 이하 speed는 기존 호환을 위해 해당 항목 완료로 처리한다.
+- 외부 스크립트와 Play Mode 인스펙터는 `IsRunning`, `IsReleased`, `TranslateProgress`, `RotateProgress`, `ScaleProgress`, 각 항목 Done 상태를 확인할 수 있다.
+
 **TimerConditionNode 정책**:
 
 - `TimerConditionNode`는 `Countdown`과 `CountUp` 모드를 가진다.
@@ -442,7 +452,7 @@ namespace DDOIT.Tools
 | **ScenarioManagerEditor** | 흐름 미리보기 + **Scenario 분기 시각화**, 시나리오 목록, 런타임 상태 표시 |
 | **ScenarioEditor** | Step 목록 + **분기 트리 시각화**, 자동 넘버링, 조건 노드 수/진행 표시 |
 | **StepEditor** | 노드 목록, **메모 편집**, 조건 충족 상태 (✓/○), 실행 제외 노드 표시, UINode 버튼 marker 표시, 노드 추가 버튼 (9종) |
-| **TransformNodeEditor** | Translate/Rotate/Scale 독립 토글, 모드별(Duration/Speed/Instant) 필드 표시 |
+| **TransformNodeEditor** | Translate/Rotate/Scale 독립 토글, 모드별(Duration/Speed/Instant) 필드 표시, 작성 경고, Play Mode 진행률/Release 상태 표시 |
 | **TeleportNodeEditor** | 목적지 Transform 설정, `_onEnd` 이벤트 |
 | **WalkingStickNodeEditor** | 활성화 toggle, 동작 안내 HelpBox, `_onEnd` 이벤트 |
 | **ToggleNodeEditor** | 모드별(GameObject/Component/Particle/Script) 대상 필드, Activate 토글 |
@@ -1019,7 +1029,7 @@ public class DDOITSettings : ScriptableObject
 ```
 1. Unity에서 새 프로젝트 생성 (Unity 6, URP)
 2. Package Manager > Add package from git URL
-   https://github.com/DDOIT-OFFICIAL/DDOIT_Tools.git#v0.19.24
+   https://github.com/DDOIT-OFFICIAL/DDOIT_Tools.git#v0.19.25
 3. Unity 상단 메뉴에서 DDOIT Tools > Setup 실행
 4. 필수 패키지 설치/업데이트 실행
 5. Init Project 실행
@@ -1139,5 +1149,5 @@ MAJOR.MINOR.PATCH
 ---
 
 **문서 버전**: 0.4.0
-**DDOIT_Tools 패키지 버전**: v0.19.24
+**DDOIT_Tools 패키지 버전**: v0.19.25
 **최종 업데이트**: 2026-07-22
