@@ -7,6 +7,7 @@ using DDOIT.Tools.Scenario.Nodes;
 namespace DDOIT.Tools.Editor
 {
     [CustomEditor(typeof(SoundNode))]
+    [CanEditMultipleObjects]
     public class SoundNodeEditor : UnityEditor.Editor
     {
         #region Private Fields
@@ -44,6 +45,12 @@ namespace DDOIT.Tools.Editor
         {
             serializedObject.Update();
 
+            if (ConditionGroupDrawer.DrawMultiObjectExecutionOnly(serializedObject))
+                return;
+
+            bool executionDisabled = ConditionGroupDrawer.DrawExecutionToggle(serializedObject, (MonoBehaviour)target);
+            EditorGUILayout.Space(4);
+
             ConditionGroupDrawer.Draw(_conditionGroup, (MonoBehaviour)target);
             EditorGUILayout.Space(4);
 
@@ -53,7 +60,8 @@ namespace DDOIT.Tools.Editor
 
             if (string.IsNullOrEmpty(_soundName.stringValue))
             {
-                EditorGUILayout.HelpBox("사운드가 선택되지 않았습니다.", MessageType.Warning);
+                if (!executionDisabled)
+                    EditorGUILayout.HelpBox("사운드가 선택되지 않았습니다.", MessageType.Warning);
             }
             else
             {

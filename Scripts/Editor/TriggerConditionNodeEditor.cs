@@ -5,6 +5,7 @@ using DDOIT.Tools.Scenario.Nodes;
 namespace DDOIT.Tools.Editor
 {
     [CustomEditor(typeof(TriggerConditionNode))]
+    [CanEditMultipleObjects]
     public class TriggerConditionNodeEditor : UnityEditor.Editor
     {
         private SerializedProperty _conditionGroup;
@@ -28,6 +29,12 @@ namespace DDOIT.Tools.Editor
         {
             serializedObject.Update();
 
+            if (ConditionGroupDrawer.DrawMultiObjectExecutionOnly(serializedObject))
+                return;
+
+            bool executionDisabled = ConditionGroupDrawer.DrawExecutionToggle(serializedObject, (MonoBehaviour)target);
+            EditorGUILayout.Space(4);
+
             ConditionGroupDrawer.Draw(_conditionGroup, (MonoBehaviour)target);
             EditorGUILayout.Space(4);
 
@@ -43,7 +50,7 @@ namespace DDOIT.Tools.Editor
             {
                 EditorGUI.indentLevel++;
                 EditorGUILayout.PropertyField(_stayDuration, new GUIContent("체류 시간 (초)"));
-                if (_stayDuration.floatValue <= 0f)
+                if (!executionDisabled && _stayDuration.floatValue <= 0f)
                     EditorGUILayout.HelpBox("체류 시간이 0 이하이면 진입 즉시 충족됩니다.", MessageType.Warning);
                 EditorGUI.indentLevel--;
             }

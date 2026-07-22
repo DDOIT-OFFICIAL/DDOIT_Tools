@@ -42,6 +42,7 @@ namespace DDOIT.Tools.Scenario
 
         private Scenario _parentScenario;
         private ScenarioNode[] _nodes;
+        private ScenarioNode[] _runtimeNodes;
         private Dictionary<int, List<ScenarioNode>> _conditionGroups;
         private int _completedGroupIndex;
         private bool _isInitializing;
@@ -67,11 +68,17 @@ namespace DDOIT.Tools.Scenario
 
             _parentScenario = GetComponentInParent<Scenario>();
             _nodes = GetComponentsInChildren<ScenarioNode>(true);
+            var runtimeNodes = new List<ScenarioNode>();
 
             // 그룹별 조건 노드 수집
             _conditionGroups = new Dictionary<int, List<ScenarioNode>>();
             foreach (var node in _nodes)
             {
+                if (node.IsExecutionDisabled)
+                    continue;
+
+                runtimeNodes.Add(node);
+
                 if (node is DDOIT.Tools.Scenario.Nodes.UINode)
                     continue;
 
@@ -83,6 +90,7 @@ namespace DDOIT.Tools.Scenario
 
                 _conditionGroups[group].Add(node);
             }
+            _runtimeNodes = runtimeNodes.ToArray();
 
             // 외부 marker expected 수집 (UINode 버튼 조건 + legacy UnityEvent → MarkConditionGroupN)
             _expectedExternalMarkers.Clear();
@@ -94,7 +102,8 @@ namespace DDOIT.Tools.Scenario
                 int totalConditions = 0;
                 foreach (var g in _conditionGroups.Values)
                     totalConditions += g.Count;
-                Debug.Log($"[Step] '{gameObject.name}' 시작 (Node {_nodes.Length}개, 조건 그룹 {_conditionGroups.Count}개, 조건 노드 {totalConditions}개, 외부 marker {_expectedExternalMarkers.Count}개)");
+                int disabledNodes = _nodes.Length - _runtimeNodes.Length;
+                Debug.Log($"[Step] '{gameObject.name}' 시작 (Node {_runtimeNodes.Length}/{_nodes.Length}개, 실행 제외 {disabledNodes}개, 조건 그룹 {_conditionGroups.Count}개, 조건 노드 {totalConditions}개, 외부 marker {_expectedExternalMarkers.Count}개)");
             }
 
             _isInitializing = true;
@@ -102,7 +111,7 @@ namespace DDOIT.Tools.Scenario
             {
                 _onStart?.Invoke();
 
-                foreach (var node in _nodes)
+                foreach (var node in _runtimeNodes)
                 {
                     node.gameObject.SetActive(true);
                     node.Init();
@@ -214,6 +223,9 @@ namespace DDOIT.Tools.Scenario
 
             foreach (var ui in allUINodes)
             {
+                if (ui.IsExecutionDisabled)
+                    continue;
+
                 if (ui.GetComponentInParent<Step>(true) == this)
                 {
                     AddButtonConditionMarker(ui, 0);
@@ -268,6 +280,9 @@ namespace DDOIT.Tools.Scenario
 
             foreach (var ui in allUINodes)
             {
+                if (ui.IsExecutionDisabled)
+                    continue;
+
                 if (ui.GetComponentInParent<Step>(true) == this)
                 {
                     AddButtonConditionCallsite(ui, 0, result);
@@ -348,9 +363,9 @@ namespace DDOIT.Tools.Scenario
 
             if (ScenarioManager.DebugMode) Debug.Log($"[Step] '{gameObject.name}' 종료");
 
-            if (_nodes != null)
+            if (_runtimeNodes != null)
             {
-                foreach (var node in _nodes)
+                foreach (var node in _runtimeNodes)
                     node.Release();
             }
 

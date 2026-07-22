@@ -5,6 +5,7 @@ using DDOIT.Tools.Scenario.Nodes;
 namespace DDOIT.Tools.Editor
 {
     [CustomEditor(typeof(WalkingStickNode))]
+    [CanEditMultipleObjects]
     public class WalkingStickNodeEditor : UnityEditor.Editor
     {
         private SerializedProperty _enable;
@@ -19,6 +20,12 @@ namespace DDOIT.Tools.Editor
         public override void OnInspectorGUI()
         {
             serializedObject.Update();
+
+            if (ConditionGroupDrawer.DrawMultiObjectExecutionOnly(serializedObject))
+                return;
+
+            ConditionGroupDrawer.DrawExecutionToggle(serializedObject, (MonoBehaviour)target);
+            EditorGUILayout.Space(4);
 
             EditorGUILayout.LabelField("WalkingStick 설정", EditorStyles.boldLabel);
             EditorGUILayout.PropertyField(_enable, new GUIContent("활성화"));

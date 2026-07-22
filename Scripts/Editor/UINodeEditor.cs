@@ -10,6 +10,7 @@ using DDOIT.Tools.UI;
 namespace DDOIT.Tools.Editor
 {
     [CustomEditor(typeof(UINode))]
+    [CanEditMultipleObjects]
     public class UINodeEditor : UnityEditor.Editor
     {
         private const float PANEL_LAYOUT_REFERENCE_HEIGHT = 1080f;
@@ -111,6 +112,12 @@ namespace DDOIT.Tools.Editor
         {
             serializedObject.Update();
 
+            if (ConditionGroupDrawer.DrawMultiObjectExecutionOnly(serializedObject))
+                return;
+
+            bool executionDisabled = ConditionGroupDrawer.DrawExecutionToggle(serializedObject, (MonoBehaviour)target);
+            EditorGUILayout.Space(4);
+
             ClearLegacyConditionGroup();
 
             // Theme
@@ -138,7 +145,8 @@ namespace DDOIT.Tools.Editor
             DrawPlacementSection();
 
             // Warnings
-            DrawWarnings();
+            if (!executionDisabled)
+                DrawWarnings();
 
             serializedObject.ApplyModifiedProperties();
         }

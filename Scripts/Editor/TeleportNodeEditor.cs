@@ -6,6 +6,7 @@ using DDOIT.Tools.Settings;
 namespace DDOIT.Tools.Editor
 {
     [CustomEditor(typeof(TeleportNode))]
+    [CanEditMultipleObjects]
     public class TeleportNodeEditor : UnityEditor.Editor
     {
         private SerializedProperty _destination;
@@ -21,6 +22,12 @@ namespace DDOIT.Tools.Editor
         {
             serializedObject.Update();
 
+            if (ConditionGroupDrawer.DrawMultiObjectExecutionOnly(serializedObject))
+                return;
+
+            bool executionDisabled = ConditionGroupDrawer.DrawExecutionToggle(serializedObject, (MonoBehaviour)target);
+            EditorGUILayout.Space(4);
+
             EditorGUILayout.LabelField("텔레포트 설정", EditorStyles.boldLabel);
             EditorGUILayout.PropertyField(_destination, new GUIContent("목적지"));
 
@@ -32,7 +39,7 @@ namespace DDOIT.Tools.Editor
             EditorGUI.EndDisabledGroup();
             EditorGUILayout.HelpBox("Settings 탭에서 변경 가능", MessageType.None);
 
-            if (_destination.objectReferenceValue == null)
+            if (!executionDisabled && _destination.objectReferenceValue == null)
             {
                 EditorGUILayout.Space(4);
                 EditorGUILayout.HelpBox("목적지 Transform이 지정되지 않았습니다.", MessageType.Warning);

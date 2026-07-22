@@ -6,6 +6,7 @@ using DDOIT.Tools.Scenario;
 namespace DDOIT.Tools.Editor
 {
     [CustomEditor(typeof(ToggleNode))]
+    [CanEditMultipleObjects]
     public class ToggleNodeEditor : UnityEditor.Editor
     {
         private SerializedProperty _mode;
@@ -31,6 +32,12 @@ namespace DDOIT.Tools.Editor
         {
             serializedObject.Update();
 
+            if (ConditionGroupDrawer.DrawMultiObjectExecutionOnly(serializedObject))
+                return;
+
+            bool executionDisabled = ConditionGroupDrawer.DrawExecutionToggle(serializedObject, (MonoBehaviour)target);
+            EditorGUILayout.Space(4);
+
             EditorGUILayout.LabelField("토글 설정", EditorStyles.boldLabel);
             EditorGUILayout.PropertyField(_mode, new GUIContent("모드"));
 
@@ -48,14 +55,16 @@ namespace DDOIT.Tools.Editor
                     break;
                 case ToggleMode.Script:
                     EditorGUILayout.PropertyField(_targetScript, new GUIContent("대상"));
-                    DrawScriptWarnings();
+                    if (!executionDisabled)
+                        DrawScriptWarnings();
                     break;
             }
 
             EditorGUILayout.Space(4);
             DrawActivateToggle(mode);
 
-            DrawWarnings(mode);
+            if (!executionDisabled)
+                DrawWarnings(mode);
 
             EditorGUILayout.Space(4);
             EditorGUILayout.PropertyField(_onEnd, new GUIContent("완료 이벤트"));

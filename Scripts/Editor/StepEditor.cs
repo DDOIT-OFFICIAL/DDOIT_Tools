@@ -268,6 +268,7 @@ namespace DDOIT.Tools.Editor
         {
             var grouped = new Dictionary<int, List<ScenarioNode>>();
             var ungrouped = new List<ScenarioNode>();
+            var disabled = new List<ScenarioNode>();
 
             // 외부 marker callsite 수집 (Scene scan)
             var externalMarkers = ((Step)target).CollectExternalMarkerCallsites();
@@ -285,6 +286,12 @@ namespace DDOIT.Tools.Editor
 
             foreach (var node in nodes)
             {
+                if (node.IsExecutionDisabled)
+                {
+                    disabled.Add(node);
+                    continue;
+                }
+
                 if (node is UINode uiNode)
                 {
                     if (externalMarkerNodes.Contains(uiNode))
@@ -352,6 +359,15 @@ namespace DDOIT.Tools.Editor
                 EditorGUILayout.EndVertical();
             }
 
+            if (disabled.Count > 0)
+            {
+                EditorGUILayout.BeginVertical("box");
+                EditorGUILayout.LabelField($"실행 제외 ({disabled.Count}개)", EditorStyles.boldLabel);
+                foreach (var node in disabled)
+                    DrawNodeRow(node, Color.gray);
+                EditorGUILayout.EndVertical();
+            }
+
             foreach (var kvp in grouped)
             {
                 if (kvp.Key > groupCount)
@@ -404,7 +420,14 @@ namespace DDOIT.Tools.Editor
 
             EditorGUILayout.BeginHorizontal();
 
-            if (Application.isPlaying && isConditionNode)
+            if (node.IsExecutionDisabled)
+            {
+                var prevColor = GUI.contentColor;
+                GUI.contentColor = Color.gray;
+                EditorGUILayout.LabelField("×", GUILayout.Width(14));
+                GUI.contentColor = prevColor;
+            }
+            else if (Application.isPlaying && isConditionNode)
             {
                 var prevColor = GUI.contentColor;
                 GUI.contentColor = node.IsConditionMet ? Color.green : Color.yellow;
@@ -430,8 +453,9 @@ namespace DDOIT.Tools.Editor
             }
 
             var prevContentColor = GUI.contentColor;
-            GUI.contentColor = new Color(0.7f, 0.8f, 1f);
-            EditorGUILayout.LabelField(typeName, EditorStyles.miniLabel, GUILayout.Width(130));
+            GUI.contentColor = node.IsExecutionDisabled ? Color.gray : new Color(0.7f, 0.8f, 1f);
+            string stateLabel = node.IsExecutionDisabled ? $"{typeName} (실행 제외)" : typeName;
+            EditorGUILayout.LabelField(stateLabel, EditorStyles.miniLabel, GUILayout.Width(130));
             GUI.contentColor = prevContentColor;
 
             EditorGUILayout.EndHorizontal();
@@ -449,7 +473,7 @@ namespace DDOIT.Tools.Editor
             var grouped = new Dictionary<int, List<ScenarioNode>>();
             foreach (var node in nodes)
             {
-                if (node is UINode)
+                if (node.IsExecutionDisabled || node is UINode)
                     continue;
 
                 int g = node.ConditionGroup;

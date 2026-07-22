@@ -5,6 +5,7 @@ using DDOIT.Tools.Scenario.Nodes;
 namespace DDOIT.Tools.Editor
 {
     [CustomEditor(typeof(TimerConditionNode))]
+    [CanEditMultipleObjects]
     public class TimerConditionNodeEditor : UnityEditor.Editor
     {
         private SerializedProperty _conditionGroup;
@@ -22,13 +23,19 @@ namespace DDOIT.Tools.Editor
         {
             serializedObject.Update();
 
+            if (ConditionGroupDrawer.DrawMultiObjectExecutionOnly(serializedObject))
+                return;
+
+            bool executionDisabled = ConditionGroupDrawer.DrawExecutionToggle(serializedObject, (MonoBehaviour)target);
+            EditorGUILayout.Space(4);
+
             ConditionGroupDrawer.Draw(_conditionGroup, (MonoBehaviour)target);
             EditorGUILayout.Space(4);
 
             EditorGUILayout.LabelField("타이머 설정", EditorStyles.boldLabel);
             EditorGUILayout.PropertyField(_duration, new GUIContent("대기 시간 (초)"));
 
-            if (_duration.floatValue <= 0f)
+            if (!executionDisabled && _duration.floatValue <= 0f)
                 EditorGUILayout.HelpBox("대기 시간이 0 이하이면 즉시 완료됩니다.", MessageType.Warning);
 
             EditorGUILayout.Space(4);

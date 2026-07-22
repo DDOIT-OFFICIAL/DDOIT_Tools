@@ -5,13 +5,14 @@ namespace DDOIT.Tools.Scenario
     /// <summary>
     /// 단일 기능을 수행하는 노드의 추상 베이스 클래스.
     /// Step이 활성화되면 Init()이 호출되며,
-    /// _conditionGroup이 1 이상이면 해당 그룹의 완료 조건에 참여한다.
+    /// _executionDisabled가 꺼져 있고 _conditionGroup이 1 이상이면 해당 그룹의 완료 조건에 참여한다.
     /// Step이 종료되면 Release()가 호출되어 노드를 정리한다.
     /// </summary>
     public abstract class ScenarioNode : MonoBehaviour
     {
         #region Serialized Fields
 
+        [SerializeField] private bool _executionDisabled;
         [SerializeField] private int _conditionGroup;
 
         #endregion
@@ -19,7 +20,10 @@ namespace DDOIT.Tools.Scenario
         #region Properties
 
         /// <summary>이 노드가 Step 완료 조건에 참여하는지 여부.</summary>
-        public bool IsStepCondition => _conditionGroup > 0;
+        public bool IsStepCondition => !_executionDisabled && _conditionGroup > 0;
+
+        /// <summary>이 노드를 Step 실행에서 제외할지 여부.</summary>
+        public bool IsExecutionDisabled => _executionDisabled;
 
         /// <summary>이 노드가 속한 조건 그룹 번호 (0=미참여).</summary>
         public int ConditionGroup => _conditionGroup;
@@ -43,6 +47,13 @@ namespace DDOIT.Tools.Scenario
         {
             _parentStep = GetComponentInParent<Step>();
             IsConditionMet = false;
+
+            if (_executionDisabled)
+            {
+                if (ScenarioManager.DebugMode)
+                    Debug.Log($"[Node] '{gameObject.name}' Init skipped (노드 실행 제외)");
+                return;
+            }
 
             if (ScenarioManager.DebugMode)
                 Debug.Log($"[Node] '{gameObject.name}' Init (조건 그룹: {_conditionGroup})");
@@ -73,7 +84,7 @@ namespace DDOIT.Tools.Scenario
         /// </summary>
         protected void SetConditionMet()
         {
-            if (_conditionGroup <= 0) return;
+            if (_executionDisabled || _conditionGroup <= 0) return;
             if (IsConditionMet) return;
 
             IsConditionMet = true;

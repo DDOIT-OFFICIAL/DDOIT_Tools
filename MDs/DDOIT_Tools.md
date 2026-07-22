@@ -298,19 +298,19 @@ ScenarioManager          ← 진입점. 시퀀스 시작/종료
 - **ScenarioManager**: `StartSequence()`로 Entry Scenario를 시작. 모든 Scenario를 초기화.
 - **Scenario**: 하위 Step을 순차 실행. `_nextScenario`로 다음 시나리오 연결. 모든 Step 완료 시 `EndTrigger()`.
 - **Step**: 하위 Node를 활성화하고 `Init()` 호출. **조건 그룹 시스템**으로 분기 가능 (§4.1.7). 조건 그룹이 0개이면 자동 진행하지 않고 `Step.EndTrigger()` 호출 전까지 대기.
-- **ScenarioNode**: 모든 노드의 추상 베이스 클래스. 각 노드는 `ConditionGroup`(int) 프로퍼티로 그룹 소속을 가짐 (0 = 미소속).
+- **ScenarioNode**: 모든 노드의 추상 베이스 클래스. 각 노드는 `ConditionGroup`(int) 프로퍼티로 그룹 소속을 가짐 (0 = 미소속). `노드 실행 제외`가 켜진 노드는 조건 수집, `Init()`, `Release()` 대상에서 빠진다.
 
 #### 4.1.2 실행 흐름
 
 ```
 ScenarioManager.StartSequence()
   → Scenario.StartTrigger()
-    → Step.StartTrigger()
+      → Step.StartTrigger()
       → _onStart UnityEvent 발동
-      → node.Init() → OnInit()          ← 각 노드 초기화
+      → 실행 제외가 아닌 node.Init() → OnInit()
       → (조건 그룹별 AND 대기, 그룹 간 OR)
       → 한 그룹 완료 → 그룹 index 기록
-      → node.Release() → OnRelease()    ← 각 노드 정리
+      → 실행된 node.Release() → OnRelease()
       → _onRelease UnityEvent 발동
     → Step.EndTrigger()
       → _onEnd UnityEvent 발동
@@ -329,6 +329,10 @@ ScenarioManager.StartSequence()
 | 종료 | `Release()` → `OnRelease()` | Step 종료 시 (비활성화 전) | 시나리오 흐름 내 정리 |
 | 비활성화 | `OnDisable()` | `gameObject.SetActive(false)` 시 | 코루틴 강제 중단 (안전장치) |
 
+- 노드를 잠시 사용하지 않으려면 GameObject Active를 끄지 말고 각 노드 인스펙터의 `노드 실행 제외`를 켠다.
+- Step은 설계상 비활성 하위 노드도 찾아 실행할 수 있다. 따라서 플레이 모드 진입 전 GameObject를 `SetActive(false)`로 해도 실행 제외 의미가 아니다.
+- `노드 실행 제외`가 켜진 노드는 조건 그룹에 값이 남아 있어도 Step 완료 조건에 참여하지 않는다.
+- 실행 제외된 UINode는 버튼 조건 marker와 legacy `MarkConditionGroupN` UnityEvent marker 수집에서도 제외된다.
 - `OnRelease()`는 **시나리오 흐름**에서의 정리 (예: 원래 위치 복귀, 이벤트 해제)
 - `OnDisable()`는 **Unity 라이프사이클**에서의 안전장치 (예: 씬 전환 시 코루틴 중단)
 - 두 콜백의 역할이 다르므로 모두 유지
@@ -398,10 +402,11 @@ namespace DDOIT.Tools
 - `OnInit()` 구현 (abstract)
 - 조건 노드로 사용 시 완료 시점에 `SetConditionMet()` 호출
 - 코루틴 사용 시 `OnDisable()`에서 정리
+- 커스텀 인스펙터를 만들 경우 상단에 `ConditionGroupDrawer.DrawExecutionToggle(serializedObject, (MonoBehaviour)target)`를 호출해 `노드 실행 제외` 토글을 노출
 
 **선택 사항**:
 - `OnRelease()` override (시나리오 흐름 내 정리가 필요한 경우)
-- 커스텀 에디터 작성 (`UnityEditor.Editor` 상속, `_isStepCondition`과 `_onRelease` 프로퍼티 포함)
+- 커스텀 에디터 작성 (`UnityEditor.Editor` 상속, 조건 노드는 `_conditionGroup`, 완료 이벤트가 있는 노드는 `_onEnd` 프로퍼티 포함)
 
 #### 4.1.6 에디터 도구
 
@@ -409,7 +414,7 @@ namespace DDOIT.Tools
 |---|---|
 | **ScenarioManagerEditor** | 흐름 미리보기 + **Scenario 분기 시각화**, 시나리오 목록, 런타임 상태 표시 |
 | **ScenarioEditor** | Step 목록 + **분기 트리 시각화**, 자동 넘버링, 조건 노드 수/진행 표시 |
-| **StepEditor** | 노드 목록, **메모 편집**, 조건 충족 상태 (✓/○), UINode 버튼 marker 표시, 노드 추가 버튼 (9종) |
+| **StepEditor** | 노드 목록, **메모 편집**, 조건 충족 상태 (✓/○), 실행 제외 노드 표시, UINode 버튼 marker 표시, 노드 추가 버튼 (9종) |
 | **TransformNodeEditor** | Translate/Rotate/Scale 독립 토글, 모드별(Duration/Speed/Instant) 필드 표시 |
 | **TeleportNodeEditor** | 목적지 Transform 설정, `_onEnd` 이벤트 |
 | **WalkingStickNodeEditor** | 활성화 toggle, 동작 안내 HelpBox, `_onEnd` 이벤트 |
@@ -419,7 +424,9 @@ namespace DDOIT.Tools
 | **UINodeEditor** | UI 요소 플래그별 조건부 필드, 버튼 조건 드롭다운, Theme 기본값 안내, 버튼 이벤트 섹션, 작성 누락/분기 경고 |
 | **SoundNodeEditor** | 사운드 이름 드롭다운, Step 종료 시 정지 옵션, 오디오 미리듣기, 미선택/누락/Loop 조건 경고 |
 | **TimerConditionNodeEditor** | 대기 시간 설정, 0 이하 경고 |
-| **ConditionGroupDrawer** | ScenarioNode의 `_conditionGroup` 필드를 그룹 번호 버튼 UI로 표시 |
+| **ConditionGroupDrawer** | ScenarioNode의 `노드 실행 제외` 토글과 `_conditionGroup` 필드를 공통 UI로 표시 |
+
+기본 제공 노드 커스텀 인스펙터는 같은 타입 노드를 여러 개 선택한 경우 `노드 실행 제외`만 멀티 편집할 수 있다. 다른 필드는 노드별 참조, 드롭다운, 경고 계산이 섞일 수 있어 멀티 선택 상태에서는 숨긴다.
 
 #### 4.1.7 조건 그룹 시스템 (Step 분기)
 
@@ -427,6 +434,7 @@ Step은 **조건 그룹**을 통해 여러 완료 경로와 각 경로별 분기
 
 **구조**:
 - 각 ScenarioNode는 `ConditionGroup` 값을 가짐 (0 = 그룹 미소속)
+- `노드 실행 제외`가 켜진 ScenarioNode는 `ConditionGroup` 값이 있어도 해당 Step 실행에서는 조건 그룹에 포함되지 않음
 - Step의 `_conditionGroupCount`로 그룹 개수 설정 (기본 0, **최대 7**)
 - 같은 그룹 내 모든 노드가 충족(AND) → 그룹 완료
 - 그룹 중 하나라도 완료(OR) → Step 종료
@@ -984,7 +992,7 @@ public class DDOITSettings : ScriptableObject
 ```
 1. Unity에서 새 프로젝트 생성 (Unity 6, URP)
 2. Package Manager > Add package from git URL
-   https://github.com/DDOIT-OFFICIAL/DDOIT_Tools.git#v0.19.20
+   https://github.com/DDOIT-OFFICIAL/DDOIT_Tools.git#v0.19.22
 3. Unity 상단 메뉴에서 DDOIT Tools > Setup 실행
 4. 필수 패키지 설치/업데이트 실행
 5. Init Project 실행
@@ -1104,5 +1112,5 @@ MAJOR.MINOR.PATCH
 ---
 
 **문서 버전**: 0.4.0
-**DDOIT_Tools 패키지 버전**: v0.19.20
+**DDOIT_Tools 패키지 버전**: v0.19.22
 **최종 업데이트**: 2026-07-22

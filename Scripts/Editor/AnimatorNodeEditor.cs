@@ -7,6 +7,7 @@ using DDOIT.Tools.Scenario.Nodes;
 namespace DDOIT.Tools.Editor
 {
     [CustomEditor(typeof(AnimatorNode))]
+    [CanEditMultipleObjects]
     public class AnimatorNodeEditor : UnityEditor.Editor
     {
         private SerializedProperty _animator;
@@ -31,6 +32,12 @@ namespace DDOIT.Tools.Editor
         public override void OnInspectorGUI()
         {
             serializedObject.Update();
+
+            if (ConditionGroupDrawer.DrawMultiObjectExecutionOnly(serializedObject))
+                return;
+
+            bool executionDisabled = ConditionGroupDrawer.DrawExecutionToggle(serializedObject, (MonoBehaviour)target);
+            EditorGUILayout.Space(4);
 
             // 대상
             EditorGUILayout.LabelField("대상", EditorStyles.boldLabel);
@@ -60,7 +67,7 @@ namespace DDOIT.Tools.Editor
             }
 
             // 경고
-            if (_animator.objectReferenceValue == null)
+            if (!executionDisabled && _animator.objectReferenceValue == null)
             {
                 EditorGUILayout.Space(4);
                 EditorGUILayout.HelpBox("Animator가 지정되지 않았습니다.", MessageType.Warning);

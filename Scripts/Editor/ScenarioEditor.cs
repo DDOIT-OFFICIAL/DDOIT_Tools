@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Text.RegularExpressions;
 using UnityEditor;
 using UnityEngine;
@@ -88,8 +89,12 @@ namespace DDOIT.Tools.Editor
                 var nodes = step.GetComponentsInChildren<ScenarioNode>(true);
 
                 int conditionCount = 0;
+                int disabledCount = 0;
                 foreach (var node in nodes)
                 {
+                    if (node.IsExecutionDisabled)
+                        disabledCount++;
+
                     if (node.IsStepCondition) conditionCount++;
                 }
 
@@ -130,10 +135,8 @@ namespace DDOIT.Tools.Editor
                 {
                     prevContentColor = GUI.contentColor;
                     GUI.contentColor = nodes.Length > 0 ? new Color(0.5f, 0.9f, 1f) : Color.gray;
-                    string nodeInfo = conditionCount > 0
-                        ? $"Node {nodes.Length} / 조건 {conditionCount}"
-                        : $"Node {nodes.Length}개";
-                    EditorGUILayout.LabelField(nodeInfo, EditorStyles.miniLabel, GUILayout.Width(120));
+                    string nodeInfo = BuildNodeInfo(nodes.Length, conditionCount, disabledCount);
+                    EditorGUILayout.LabelField(nodeInfo, EditorStyles.miniLabel, GUILayout.Width(150));
                     GUI.contentColor = prevContentColor;
                 }
 
@@ -201,6 +204,19 @@ namespace DDOIT.Tools.Editor
                     DrawBranchArrow($"  ↳ 그룹{g + 1} → {targetName}", groupColor);
                 }
             }
+        }
+
+        private static string BuildNodeInfo(int nodeCount, int conditionCount, int disabledCount)
+        {
+            var parts = new List<string> { $"Node {nodeCount}" };
+
+            if (disabledCount > 0)
+                parts.Add($"제외 {disabledCount}");
+
+            if (conditionCount > 0)
+                parts.Add($"조건 {conditionCount}");
+
+            return string.Join(" / ", parts);
         }
 
         private static void DrawBranchArrow(string text, Color color)

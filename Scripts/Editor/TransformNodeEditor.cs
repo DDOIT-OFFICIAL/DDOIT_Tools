@@ -5,6 +5,7 @@ using DDOIT.Tools.Scenario.Nodes;
 namespace DDOIT.Tools.Editor
 {
     [CustomEditor(typeof(TransformNode))]
+    [CanEditMultipleObjects]
     public class TransformNodeEditor : UnityEditor.Editor
     {
         // Base
@@ -79,6 +80,12 @@ namespace DDOIT.Tools.Editor
         public override void OnInspectorGUI()
         {
             serializedObject.Update();
+
+            if (ConditionGroupDrawer.DrawMultiObjectExecutionOnly(serializedObject))
+                return;
+
+            ConditionGroupDrawer.DrawExecutionToggle(serializedObject, (MonoBehaviour)target);
+            EditorGUILayout.Space(4);
 
             ConditionGroupDrawer.Draw(_conditionGroup, (MonoBehaviour)target);
             EditorGUILayout.Space(4);
