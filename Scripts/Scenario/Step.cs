@@ -82,8 +82,10 @@ namespace DDOIT.Tools.Scenario
                 if (node is DDOIT.Tools.Scenario.Nodes.UINode)
                     continue;
 
+                if (!node.IsStepCondition)
+                    continue;
+
                 int group = node.ConditionGroup;
-                if (group <= 0) continue;
 
                 if (!_conditionGroups.ContainsKey(group))
                     _conditionGroups[group] = new List<ScenarioNode>();

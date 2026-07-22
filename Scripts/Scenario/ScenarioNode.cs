@@ -20,7 +20,7 @@ namespace DDOIT.Tools.Scenario
         #region Properties
 
         /// <summary>이 노드가 Step 완료 조건에 참여하는지 여부.</summary>
-        public bool IsStepCondition => !_executionDisabled && _conditionGroup > 0;
+        public virtual bool IsStepCondition => !_executionDisabled && _conditionGroup > 0;
 
         /// <summary>이 노드를 Step 실행에서 제외할지 여부.</summary>
         public bool IsExecutionDisabled => _executionDisabled;

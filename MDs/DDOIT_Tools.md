@@ -292,7 +292,7 @@ ScenarioManager          ← 진입점. 시퀀스 시작/종료
         ├── AnimatorNode           ← Animator 파라미터 설정 (Trigger/Bool/Int/Float)
         ├── UINode                 ← UI 패널 표시 (버튼 이벤트)
         ├── TriggerConditionNode   ← 트리거 감지 (Enter/Exit/Stay 조건)
-        └── TimerConditionNode     ← 시간 경과 (조건)
+        └── TimerConditionNode     ← 시간 경과 조건 또는 수행 시간 측정
 ```
 
 - **ScenarioManager**: `StartSequence()`로 Entry Scenario를 시작. 모든 Scenario를 초기화.
@@ -349,7 +349,7 @@ ScenarioManager.StartSequence()
 | **AnimatorNode** | Animator의 Trigger/Bool/Int/Float 파라미터 설정 | — (즉시 완료, `_onEnd` 이벤트) |
 | **UINode** | UIManager를 통한 UI 패널 표시 | O (버튼 조건 드롭다운으로 충족) |
 | **TriggerConditionNode** | 특정 태그 객체의 트리거 감지 (Enter/Exit/Stay) | O (전용 조건 노드) |
-| **TimerConditionNode** | 지정 시간 경과 | O (전용 조건 노드) |
+| **TimerConditionNode** | 시간 경과 조건 또는 수행 시간 측정 | O (Countdown 전용), X (CountUp) |
 
 > **IToggleable 인터페이스**: `Go()` / `Stop()` 두 메서드를 구현하면 ToggleNode의 Script 모드에서 해당 스크립트를 On/Off할 수 있다.
 
@@ -360,6 +360,19 @@ ScenarioManager.StartSequence()
 - 조건 그룹에 속한 `SoundNode`는 일반 사운드 재생이 끝났을 때 조건을 충족한다.
 - Loop 사운드는 자연 종료 시점이 없으므로 조건 그룹 자동 완료용으로 사용하지 않는다.
 - `Step 종료 시 정지` 옵션을 켜면 Step 종료, 노드 Release, 비활성화 시 해당 노드가 시작한 사운드를 정지한다. 기본값은 기존 동작 호환을 위해 꺼져 있다.
+
+**TimerConditionNode 정책**:
+
+- `TimerConditionNode`는 `Countdown`과 `CountUp` 모드를 가진다.
+- `Countdown`은 기존 기본 동작이다. 지정 시간이 끝나면 `_onEnd`를 호출하고, 조건 그룹이 있으면 Step 완료 조건을 충족한다.
+- `CountUp`은 수행 시간 측정 전용이다. 조건 그룹 값이 남아 있어도 Step 완료 조건에는 참여하지 않는다.
+- 외부 스크립트는 `CurrentTime`, `ElapsedTime`, `RemainingTime`, `LastSavedTime`, `SavedTimes`를 읽을 수 있다.
+- `CurrentTime`은 모드별 대표 표시값이다. `Countdown`에서는 남은 시간, `CountUp`에서는 경과 시간이다.
+- `PauseTimer()`는 두 모드 모두 현재 시간을 `SavedTimes`에 저장한 뒤 일시정지한다.
+- `ResumeTimer()`와 `SetPaused(bool)`로 외부에서 타이머를 재개하거나 일시정지 상태를 제어할 수 있다.
+- `SaveCurrentTime()`은 현재 시간을 수동 저장한다.
+- `Release()` 시 두 모드 모두 현재 타이머 값은 초기화된다. 단, `CountUp`은 초기화 직전에 최종 시간을 `SavedTimes`에 저장한다.
+- `ClearSavedTimes()`를 호출하기 전까지 저장된 기록은 유지된다.
 
 **Global SoundDatabase 정책**:
 
@@ -423,7 +436,7 @@ namespace DDOIT.Tools
 | **TriggerConditionNodeEditor** | 외부 Collider 설정, Collider 타입 버튼 (Box/Sphere/Capsule), 감지 모드(Enter/Exit/Stay) |
 | **UINodeEditor** | UI 요소 플래그별 조건부 필드, 버튼 조건 드롭다운, Theme 기본값 안내, 버튼 이벤트 섹션, 작성 누락/분기 경고 |
 | **SoundNodeEditor** | 사운드 이름 드롭다운, Step 종료 시 정지 옵션, 오디오 미리듣기, 미선택/누락/Loop 조건 경고 |
-| **TimerConditionNodeEditor** | 대기 시간 설정, 0 이하 경고 |
+| **TimerConditionNodeEditor** | Countdown/CountUp 모드 선택, Countdown 조건/대기 시간 설정, CountUp 조건 불가 안내, Play Mode 시간 상태 표시 |
 | **ConditionGroupDrawer** | ScenarioNode의 `노드 실행 제외` 토글과 `_conditionGroup` 필드를 공통 UI로 표시 |
 
 기본 제공 노드 커스텀 인스펙터는 같은 타입 노드를 여러 개 선택한 경우 `노드 실행 제외`만 멀티 편집할 수 있다. 다른 필드는 노드별 참조, 드롭다운, 경고 계산이 섞일 수 있어 멀티 선택 상태에서는 숨긴다.
@@ -992,7 +1005,7 @@ public class DDOITSettings : ScriptableObject
 ```
 1. Unity에서 새 프로젝트 생성 (Unity 6, URP)
 2. Package Manager > Add package from git URL
-   https://github.com/DDOIT-OFFICIAL/DDOIT_Tools.git#v0.19.22
+   https://github.com/DDOIT-OFFICIAL/DDOIT_Tools.git#v0.19.23
 3. Unity 상단 메뉴에서 DDOIT Tools > Setup 실행
 4. 필수 패키지 설치/업데이트 실행
 5. Init Project 실행
@@ -1112,5 +1125,5 @@ MAJOR.MINOR.PATCH
 ---
 
 **문서 버전**: 0.4.0
-**DDOIT_Tools 패키지 버전**: v0.19.22
+**DDOIT_Tools 패키지 버전**: v0.19.23
 **최종 업데이트**: 2026-07-22

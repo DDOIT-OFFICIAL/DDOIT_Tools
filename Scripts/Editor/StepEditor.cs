@@ -301,15 +301,16 @@ namespace DDOIT.Tools.Editor
                     continue;
                 }
 
-                int g = node.ConditionGroup;
-                if (g <= 0)
-                    ungrouped.Add(node);
-                else
+                if (!node.IsStepCondition)
                 {
-                    if (!grouped.ContainsKey(g))
-                        grouped[g] = new List<ScenarioNode>();
-                    grouped[g].Add(node);
+                    ungrouped.Add(node);
+                    continue;
                 }
+
+                int g = node.ConditionGroup;
+                if (!grouped.ContainsKey(g))
+                    grouped[g] = new List<ScenarioNode>();
+                grouped[g].Add(node);
             }
 
             EditorGUILayout.LabelField($"노드 목록 ({nodes.Length}개)", EditorStyles.boldLabel);
@@ -476,8 +477,10 @@ namespace DDOIT.Tools.Editor
                 if (node.IsExecutionDisabled || node is UINode)
                     continue;
 
+                if (!node.IsStepCondition)
+                    continue;
+
                 int g = node.ConditionGroup;
-                if (g <= 0) continue;
                 if (!grouped.ContainsKey(g))
                     grouped[g] = new List<ScenarioNode>();
                 grouped[g].Add(node);
