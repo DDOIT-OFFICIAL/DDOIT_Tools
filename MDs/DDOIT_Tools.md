@@ -348,7 +348,7 @@ ScenarioManager.StartSequence()
 | **ToggleNode** | GameObject / Component / ParticleSystem / IToggleable 스크립트 On/Off | — (즉시 완료, `_onEnd` 이벤트) |
 | **AnimatorNode** | Animator의 Trigger/Bool/Int/Float 파라미터 설정 | — (즉시 완료, `_onEnd` 이벤트) |
 | **UINode** | UIManager를 통한 UI 패널 표시 | O (버튼 조건 드롭다운으로 충족) |
-| **TriggerConditionNode** | 특정 태그 객체의 트리거 감지 (Enter/Exit/Stay) | O (전용 조건 노드) |
+| **TriggerConditionNode** | 특정 태그 객체의 트리거 감지 (Enter/Exit/Stay, Stay 진행률 확인) | O (전용 조건 노드) |
 | **TimerConditionNode** | 시간 경과 조건 또는 수행 시간 측정 | O (Countdown 전용), X (CountUp) |
 
 > **IToggleable 인터페이스**: `Go()` / `Stop()` 두 메서드를 구현하면 ToggleNode의 Script 모드에서 해당 스크립트를 On/Off할 수 있다.
@@ -373,6 +373,20 @@ ScenarioManager.StartSequence()
 - `SaveCurrentTime()`은 현재 시간을 수동 저장한다.
 - `Release()` 시 두 모드 모두 현재 타이머 값은 초기화된다. 단, `CountUp`은 초기화 직전에 최종 시간을 `SavedTimes`에 저장한다.
 - `ClearSavedTimes()`를 호출하기 전까지 저장된 기록은 유지된다.
+
+**TriggerConditionNode 정책**:
+
+- `TriggerConditionNode`는 `Enter`, `Exit`, `Stay` 세 가지 감지 모드를 가진다.
+- 자기 GameObject의 Collider를 사용하거나, `외부 Collider`를 지정해 별도 Collider의 trigger event를 Relay로 받을 수 있다.
+- 감지 대상은 `TargetTag` 기준으로 판단한다. 직접 들어온 Collider, attached Rigidbody, 부모 GameObject 순서로 `CompareTag()`를 확인한다.
+- `TargetTag`가 기본값인 `Player`인 경우, Meta XR 리그의 손/컨트롤러/몸 Collider처럼 하위 Collider가 `Untagged`여도 부모 체인에 `PlayerRig`가 있으면 DDOIT Player로 간주한다.
+- Tag가 비어 있거나 Unity에 정의되지 않은 경우 조건을 감지하지 않고 warning을 남긴다.
+- Collider가 없으면 조건을 감지할 수 없다. 자기 Collider가 없고 외부 Collider도 지정하지 않은 경우 커스텀 인스펙터가 경고를 표시한다.
+- Collider가 `isTrigger`가 아니면 Play Mode에서 자동으로 Trigger로 전환한다.
+- `Stay` 모드는 대상이 진입하면 체류 시간을 누적하고, 중간에 이탈하면 체류 타이머를 초기화한다.
+- `StayDuration`이 0 이하이면 진입 즉시 조건을 충족한다.
+- 외부 스크립트와 Play Mode 인스펙터는 `IsInside`, `IsStayRunning`, `StayElapsedTime`, `StayProgress`, `CurrentTarget`, `CurrentMatchedTarget`, `InsideTargetCount`, `ActiveCollider`를 확인할 수 있다.
+- `Release()`, `OnDisable()`, `OnDestroy()`는 Stay 코루틴과 외부 Relay 연결을 정리한다.
 
 **Global SoundDatabase 정책**:
 
@@ -433,7 +447,7 @@ namespace DDOIT.Tools
 | **WalkingStickNodeEditor** | 활성화 toggle, 동작 안내 HelpBox, `_onEnd` 이벤트 |
 | **ToggleNodeEditor** | 모드별(GameObject/Component/Particle/Script) 대상 필드, Activate 토글 |
 | **AnimatorNodeEditor** | 파라미터 타입별 입력 필드(Trigger/Bool/Int/Float) |
-| **TriggerConditionNodeEditor** | 외부 Collider 설정, Collider 타입 버튼 (Box/Sphere/Capsule), 감지 모드(Enter/Exit/Stay) |
+| **TriggerConditionNodeEditor** | 외부 Collider 설정, Collider 타입 버튼 (Box/Sphere/Capsule), 감지 모드(Enter/Exit/Stay), Collider/Tag 경고, Play Mode 감지 상태와 Stay 진행률 표시 |
 | **UINodeEditor** | UI 요소 플래그별 조건부 필드, 버튼 조건 드롭다운, Theme 기본값 안내, 버튼 이벤트 섹션, 작성 누락/분기 경고 |
 | **SoundNodeEditor** | 사운드 이름 드롭다운, Step 종료 시 정지 옵션, 오디오 미리듣기, 미선택/누락/Loop 조건 경고 |
 | **TimerConditionNodeEditor** | Countdown/CountUp 모드 선택, Countdown 조건/대기 시간 설정, CountUp 조건 불가 안내, Play Mode 시간 상태 표시 |
@@ -1005,7 +1019,7 @@ public class DDOITSettings : ScriptableObject
 ```
 1. Unity에서 새 프로젝트 생성 (Unity 6, URP)
 2. Package Manager > Add package from git URL
-   https://github.com/DDOIT-OFFICIAL/DDOIT_Tools.git#v0.19.23
+   https://github.com/DDOIT-OFFICIAL/DDOIT_Tools.git#v0.19.24
 3. Unity 상단 메뉴에서 DDOIT Tools > Setup 실행
 4. 필수 패키지 설치/업데이트 실행
 5. Init Project 실행
@@ -1125,5 +1139,5 @@ MAJOR.MINOR.PATCH
 ---
 
 **문서 버전**: 0.4.0
-**DDOIT_Tools 패키지 버전**: v0.19.23
+**DDOIT_Tools 패키지 버전**: v0.19.24
 **최종 업데이트**: 2026-07-22

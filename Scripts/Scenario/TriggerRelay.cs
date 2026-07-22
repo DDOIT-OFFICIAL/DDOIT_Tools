@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 using DDOIT.Tools.Scenario.Nodes;
@@ -9,23 +10,70 @@ namespace DDOIT.Tools.Scenario
     /// </summary>
     public class TriggerRelay : MonoBehaviour
     {
-        private TriggerConditionNode _owner;
+        private readonly List<TriggerConditionNode> _owners = new List<TriggerConditionNode>();
 
         public void Setup(TriggerConditionNode owner)
         {
-            _owner = owner;
+            AddOwner(owner);
+        }
+
+        public void AddOwner(TriggerConditionNode owner)
+        {
+            if (owner == null || _owners.Contains(owner)) return;
+
+            _owners.Add(owner);
+        }
+
+        public void RemoveOwner(TriggerConditionNode owner)
+        {
+            if (owner == null) return;
+
+            _owners.Remove(owner);
+        }
+
+        public bool HasOwners
+        {
+            get
+            {
+                PruneOwners();
+                return _owners.Count > 0;
+            }
+        }
+
+        public int OwnerCount
+        {
+            get
+            {
+                PruneOwners();
+                return _owners.Count;
+            }
+        }
+
+        private void PruneOwners()
+        {
+            for (int i = _owners.Count - 1; i >= 0; i--)
+            {
+                if (_owners[i] == null)
+                    _owners.RemoveAt(i);
+            }
+        }
+
+        private TriggerConditionNode[] GetOwnerSnapshot()
+        {
+            PruneOwners();
+            return _owners.ToArray();
         }
 
         private void OnTriggerEnter(Collider other)
         {
-            if (_owner != null)
-                _owner.OnRelayTriggerEnter(other);
+            foreach (var owner in GetOwnerSnapshot())
+                owner.OnRelayTriggerEnter(other);
         }
 
         private void OnTriggerExit(Collider other)
         {
-            if (_owner != null)
-                _owner.OnRelayTriggerExit(other);
+            foreach (var owner in GetOwnerSnapshot())
+                owner.OnRelayTriggerExit(other);
         }
     }
 }
