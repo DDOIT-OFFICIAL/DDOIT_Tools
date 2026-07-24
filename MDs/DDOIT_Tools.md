@@ -371,6 +371,14 @@ ScenarioManager.StartSequence()
 - 목표 Transform이 없거나 항목별 목표 Transform이 누락된 경우 warning을 남긴다. 항목별 목표 누락, 0 이하 duration, 0 이하 speed는 기존 호환을 위해 해당 항목 완료로 처리한다.
 - 외부 스크립트와 Play Mode 인스펙터는 `IsRunning`, `IsReleased`, `TranslateProgress`, `RotateProgress`, `ScaleProgress`, 각 항목 Done 상태를 확인할 수 있다.
 
+**AnimatorNode 실행 정책**:
+
+- `AnimatorNode`는 즉시 실행 노드다. Step 조건 그룹에는 참여하지 않으며, 숨겨진 legacy 조건 그룹 값이 남아 있어도 `IsStepCondition`은 항상 `false`다.
+- 실행 시 `Animator`, 파라미터 이름, 파라미터 존재 여부, 파라미터 타입을 확인한 뒤 값 적용을 시도한다.
+- 파라미터가 없거나 타입이 다르면 warning을 남기고 Animator에는 값을 쓰지 않는다. 단, 즉시 실행 노드 흐름을 유지하기 위해 `_onEnd` 이벤트는 호출한다.
+- 커스텀 인스펙터는 선택된 Animator의 실제 `parameters` 목록을 읽어 타입별 드롭다운을 표시한다. 현재 저장된 이름이 Animator에 없으면 "현재 값 유지" 항목으로 표시하고 경고를 낸다.
+- Play Mode 인스펙터에서는 마지막 실행 결과와 메시지를 확인할 수 있다.
+
 **TimerConditionNode 정책**:
 
 - `TimerConditionNode`는 `Countdown`과 `CountUp` 모드를 가진다.
@@ -456,7 +464,7 @@ namespace DDOIT.Tools
 | **TeleportNodeEditor** | 목적지 Transform 설정, `_onEnd` 이벤트 |
 | **WalkingStickNodeEditor** | 활성화 toggle, 동작 안내 HelpBox, `_onEnd` 이벤트 |
 | **ToggleNodeEditor** | 모드별(GameObject/Component/Particle/Script) 대상 필드, Activate 토글 |
-| **AnimatorNodeEditor** | 파라미터 타입별 입력 필드(Trigger/Bool/Int/Float) |
+| **AnimatorNodeEditor** | Animator 파라미터 타입별 드롭다운, 누락/타입 불일치 경고, Play Mode 마지막 실행 결과 표시 |
 | **TriggerConditionNodeEditor** | 외부 Collider 설정, Collider 타입 버튼 (Box/Sphere/Capsule), 감지 모드(Enter/Exit/Stay), Collider/Tag 경고, Play Mode 감지 상태와 Stay 진행률 표시 |
 | **UINodeEditor** | UI 요소 플래그별 조건부 필드, 버튼 조건 드롭다운, Theme 기본값 안내, 버튼 이벤트 섹션, 작성 누락/분기 경고 |
 | **SoundNodeEditor** | 사운드 이름 드롭다운, Step 종료 시 정지 옵션, 오디오 미리듣기, 미선택/누락/Loop 조건 경고 |
@@ -1029,7 +1037,7 @@ public class DDOITSettings : ScriptableObject
 ```
 1. Unity에서 새 프로젝트 생성 (Unity 6, URP)
 2. Package Manager > Add package from git URL
-   https://github.com/DDOIT-OFFICIAL/DDOIT_Tools.git#v0.19.25
+   https://github.com/DDOIT-OFFICIAL/DDOIT_Tools.git#v0.19.26
 3. Unity 상단 메뉴에서 DDOIT Tools > Setup 실행
 4. 필수 패키지 설치/업데이트 실행
 5. Init Project 실행
@@ -1149,5 +1157,5 @@ MAJOR.MINOR.PATCH
 ---
 
 **문서 버전**: 0.4.0
-**DDOIT_Tools 패키지 버전**: v0.19.25
+**DDOIT_Tools 패키지 버전**: v0.19.26
 **최종 업데이트**: 2026-07-22

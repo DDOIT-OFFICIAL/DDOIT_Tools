@@ -1,15 +1,24 @@
 using System.Collections.Generic;
 using UnityEditor;
-using UnityEditor.Animations;
 using UnityEngine;
 
 using DDOIT.Tools.Scenario.Nodes;
+
 namespace DDOIT.Tools.Editor
 {
     [CustomEditor(typeof(AnimatorNode))]
     [CanEditMultipleObjects]
     public class AnimatorNodeEditor : UnityEditor.Editor
     {
+        #region Constants
+
+        private const string CONDITION_GROUP_PROPERTY = "_conditionGroup";
+
+        #endregion
+
+        #region Serialized Properties
+
+        private SerializedProperty _conditionGroup;
         private SerializedProperty _animator;
         private SerializedProperty _paramType;
         private SerializedProperty _paramName;
@@ -18,8 +27,13 @@ namespace DDOIT.Tools.Editor
         private SerializedProperty _floatValue;
         private SerializedProperty _onEnd;
 
+        #endregion
+
+        #region Unity Lifecycle
+
         private void OnEnable()
         {
+            _conditionGroup = serializedObject.FindProperty(CONDITION_GROUP_PROPERTY);
             _animator = serializedObject.FindProperty("_animator");
             _paramType = serializedObject.FindProperty("_paramType");
             _paramName = serializedObject.FindProperty("_paramName");
@@ -29,9 +43,15 @@ namespace DDOIT.Tools.Editor
             _onEnd = serializedObject.FindProperty("_onEnd");
         }
 
+        #endregion
+
+        #region Inspector
+
         public override void OnInspectorGUI()
         {
             serializedObject.Update();
+
+            bool clearedLegacyConditionGroup = ClearHiddenConditionGroup();
 
             if (ConditionGroupDrawer.DrawMultiObjectExecutionOnly(serializedObject))
                 return;
@@ -39,20 +59,51 @@ namespace DDOIT.Tools.Editor
             bool executionDisabled = ConditionGroupDrawer.DrawExecutionToggle(serializedObject, (MonoBehaviour)target);
             EditorGUILayout.Space(4);
 
-            // 대상
+            if (clearedLegacyConditionGroup)
+            {
+                EditorGUILayout.HelpBox(
+                    "AnimatorNode는 즉시 실행 노드이므로 Step 조건 그룹에 참여하지 않습니다. 숨겨져 있던 기존 조건 그룹 값은 0으로 정리했습니다.",
+                    MessageType.Info);
+                EditorGUILayout.Space(4);
+            }
+
             EditorGUILayout.LabelField("대상", EditorStyles.boldLabel);
             EditorGUILayout.PropertyField(_animator, new GUIContent("Animator"));
             EditorGUILayout.Space(4);
 
-            var controller = GetAnimatorController();
+            var animator = _animator.objectReferenceValue as Animator;
+            var type = (AnimatorParamType)_paramType.enumValueIndex;
 
-            // 파라미터
             EditorGUILayout.LabelField("파라미터", EditorStyles.boldLabel);
             EditorGUILayout.PropertyField(_paramType, new GUIContent("타입"));
+            DrawParamNameField(animator, type);
+            DrawValueField(type);
 
-            var type = (AnimatorParamType)_paramType.enumValueIndex;
-            DrawParamNameDropdown(controller, type);
+            if (!executionDisabled)
+                DrawWarnings(animator, type);
 
+            EditorGUILayout.Space(4);
+            EditorGUILayout.PropertyField(_onEnd, new GUIContent("완료 이벤트"));
+
+            DrawRuntimeStatus((AnimatorNode)target);
+
+            serializedObject.ApplyModifiedProperties();
+        }
+
+        private bool ClearHiddenConditionGroup()
+        {
+            if (_conditionGroup == null || serializedObject.isEditingMultipleObjects)
+                return false;
+
+            if (_conditionGroup.intValue == 0)
+                return false;
+
+            _conditionGroup.intValue = 0;
+            return true;
+        }
+
+        private void DrawValueField(AnimatorParamType type)
+        {
             switch (type)
             {
                 case AnimatorParamType.Bool:
@@ -65,29 +116,155 @@ namespace DDOIT.Tools.Editor
                     EditorGUILayout.PropertyField(_floatValue, new GUIContent("값"));
                     break;
             }
+        }
 
-            // 경고
-            if (!executionDisabled && _animator.objectReferenceValue == null)
+        private void DrawRuntimeStatus(AnimatorNode node)
+        {
+            if (!EditorApplication.isPlaying || node == null)
+                return;
+
+            EditorGUILayout.Space(8);
+            EditorGUILayout.LabelField("실행 상태", EditorStyles.boldLabel);
+            EditorGUILayout.LabelField("Last Result", node.LastExecutionSucceeded ? "Success" : "Failed / Not Executed");
+            EditorGUILayout.LabelField("Message", node.LastExecutionMessage);
+            Repaint();
+        }
+
+        #endregion
+
+        #region Parameter UI
+
+        private void DrawParamNameField(Animator animator, AnimatorParamType type)
+        {
+            if (animator == null || animator.runtimeAnimatorController == null)
+            {
+                EditorGUILayout.PropertyField(_paramName, new GUIContent("이름"));
+                return;
+            }
+
+            List<string> matchingNames = GetParameterNames(animator, ToUnityParamType(type));
+            if (matchingNames.Count == 0)
+            {
+                EditorGUILayout.PropertyField(_paramName, new GUIContent("이름"));
+                EditorGUILayout.HelpBox($"{type} 타입의 파라미터가 Animator에 없습니다.", MessageType.Warning);
+                return;
+            }
+
+            string currentName = _paramName.stringValue;
+            bool hasCurrentName = !string.IsNullOrWhiteSpace(currentName);
+            bool currentIsValid = hasCurrentName && matchingNames.Contains(currentName);
+
+            var options = new List<string>();
+            int selectedIndex;
+
+            if (!hasCurrentName)
+            {
+                options.Add("선택 안 함");
+                options.AddRange(matchingNames);
+                selectedIndex = 0;
+            }
+            else if (!currentIsValid)
+            {
+                options.Add($"현재 값 유지: {currentName}");
+                options.AddRange(matchingNames);
+                selectedIndex = 0;
+            }
+            else
+            {
+                options.AddRange(matchingNames);
+                selectedIndex = matchingNames.IndexOf(currentName);
+            }
+
+            EditorGUI.BeginChangeCheck();
+            int nextIndex = EditorGUILayout.Popup("이름", selectedIndex, options.ToArray());
+            if (EditorGUI.EndChangeCheck())
+            {
+                if (!hasCurrentName || !currentIsValid)
+                {
+                    if (nextIndex > 0)
+                        _paramName.stringValue = options[nextIndex];
+                }
+                else
+                {
+                    _paramName.stringValue = options[nextIndex];
+                }
+            }
+
+            if (!hasCurrentName)
+                EditorGUILayout.HelpBox("Animator 파라미터를 선택해야 실행 시 값을 적용할 수 있습니다.", MessageType.Warning);
+            else if (!currentIsValid)
+                EditorGUILayout.HelpBox($"'{currentName}' 파라미터가 Animator의 {type} 목록에 없습니다.", MessageType.Warning);
+        }
+
+        private static List<string> GetParameterNames(Animator animator, AnimatorControllerParameterType type)
+        {
+            var names = new List<string>();
+            if (animator == null)
+                return names;
+
+            foreach (AnimatorControllerParameter parameter in animator.parameters)
+            {
+                if (parameter.type == type)
+                    names.Add(parameter.name);
+            }
+
+            return names;
+        }
+
+        #endregion
+
+        #region Validation
+
+        private void DrawWarnings(Animator animator, AnimatorParamType type)
+        {
+            if (animator == null)
             {
                 EditorGUILayout.Space(4);
                 EditorGUILayout.HelpBox("Animator가 지정되지 않았습니다.", MessageType.Warning);
+                return;
             }
 
-            EditorGUILayout.Space(4);
-            EditorGUILayout.PropertyField(_onEnd, new GUIContent("완료 이벤트"));
+            if (animator.runtimeAnimatorController == null)
+            {
+                EditorGUILayout.Space(4);
+                EditorGUILayout.HelpBox("Animator에 Runtime Animator Controller가 없습니다.", MessageType.Warning);
+                return;
+            }
 
-            serializedObject.ApplyModifiedProperties();
+            if (string.IsNullOrWhiteSpace(_paramName.stringValue))
+            {
+                EditorGUILayout.Space(4);
+                EditorGUILayout.HelpBox("파라미터 이름이 비어 있습니다.", MessageType.Warning);
+                return;
+            }
+
+            AnimatorControllerParameter parameter = FindParameter(animator, _paramName.stringValue);
+            if (parameter == null)
+            {
+                EditorGUILayout.Space(4);
+                EditorGUILayout.HelpBox($"Animator에 '{_paramName.stringValue}' 파라미터가 없습니다.", MessageType.Warning);
+                return;
+            }
+
+            AnimatorControllerParameterType expectedType = ToUnityParamType(type);
+            if (parameter.type != expectedType)
+            {
+                EditorGUILayout.Space(4);
+                EditorGUILayout.HelpBox(
+                    $"'{_paramName.stringValue}' 파라미터 타입이 일치하지 않습니다. 현재: {parameter.type}, 필요: {expectedType}.",
+                    MessageType.Warning);
+            }
         }
 
-        #region Animator Helpers
-
-        private AnimatorController GetAnimatorController()
+        private static AnimatorControllerParameter FindParameter(Animator animator, string paramName)
         {
-            var animator = _animator.objectReferenceValue as Animator;
-            if (animator == null || animator.runtimeAnimatorController == null)
-                return null;
+            foreach (AnimatorControllerParameter parameter in animator.parameters)
+            {
+                if (parameter.name == paramName)
+                    return parameter;
+            }
 
-            return animator.runtimeAnimatorController as AnimatorController;
+            return null;
         }
 
         private static AnimatorControllerParameterType ToUnityParamType(AnimatorParamType type)
@@ -100,42 +277,6 @@ namespace DDOIT.Tools.Editor
                 AnimatorParamType.Float => AnimatorControllerParameterType.Float,
                 _ => AnimatorControllerParameterType.Trigger,
             };
-        }
-
-        #endregion
-
-        #region Dropdowns
-
-        private void DrawParamNameDropdown(AnimatorController controller, AnimatorParamType type)
-        {
-            if (controller == null)
-            {
-                EditorGUILayout.PropertyField(_paramName, new GUIContent("이름"));
-                return;
-            }
-
-            var unityType = ToUnityParamType(type);
-            var names = new List<string>();
-            foreach (var param in controller.parameters)
-            {
-                if (param.type == unityType)
-                    names.Add(param.name);
-            }
-
-            if (names.Count == 0)
-            {
-                EditorGUILayout.PropertyField(_paramName, new GUIContent("이름"));
-                EditorGUILayout.HelpBox($"{type} 타입의 파라미터가 없습니다.", MessageType.Warning);
-                return;
-            }
-
-            int selectedIndex = names.IndexOf(_paramName.stringValue);
-            if (selectedIndex < 0) selectedIndex = 0;
-
-            EditorGUI.BeginChangeCheck();
-            selectedIndex = EditorGUILayout.Popup("이름", selectedIndex, names.ToArray());
-            if (EditorGUI.EndChangeCheck())
-                _paramName.stringValue = names[selectedIndex];
         }
 
         #endregion
