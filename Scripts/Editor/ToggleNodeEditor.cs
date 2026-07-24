@@ -9,6 +9,15 @@ namespace DDOIT.Tools.Editor
     [CanEditMultipleObjects]
     public class ToggleNodeEditor : UnityEditor.Editor
     {
+        #region Constants
+
+        private const string CONDITION_GROUP_PROPERTY = "_conditionGroup";
+
+        #endregion
+
+        #region Serialized Properties
+
+        private SerializedProperty _conditionGroup;
         private SerializedProperty _mode;
         private SerializedProperty _targetObject;
         private SerializedProperty _targetComponent;
@@ -17,8 +26,13 @@ namespace DDOIT.Tools.Editor
         private SerializedProperty _activate;
         private SerializedProperty _onEnd;
 
+        #endregion
+
+        #region Unity Lifecycle
+
         private void OnEnable()
         {
+            _conditionGroup = serializedObject.FindProperty(CONDITION_GROUP_PROPERTY);
             _mode = serializedObject.FindProperty("_mode");
             _targetObject = serializedObject.FindProperty("_targetObject");
             _targetComponent = serializedObject.FindProperty("_targetComponent");
@@ -28,15 +42,29 @@ namespace DDOIT.Tools.Editor
             _onEnd = serializedObject.FindProperty("_onEnd");
         }
 
+        #endregion
+
+        #region Inspector
+
         public override void OnInspectorGUI()
         {
             serializedObject.Update();
+
+            bool clearedLegacyConditionGroup = ClearHiddenConditionGroup();
 
             if (ConditionGroupDrawer.DrawMultiObjectExecutionOnly(serializedObject))
                 return;
 
             bool executionDisabled = ConditionGroupDrawer.DrawExecutionToggle(serializedObject, (MonoBehaviour)target);
             EditorGUILayout.Space(4);
+
+            if (clearedLegacyConditionGroup)
+            {
+                EditorGUILayout.HelpBox(
+                    "ToggleNode는 즉시 실행 노드이므로 Step 조건 그룹에 참여하지 않습니다. 숨겨져 있던 기존 조건 그룹 값은 0으로 정리했습니다.",
+                    MessageType.Info);
+                EditorGUILayout.Space(4);
+            }
 
             EditorGUILayout.LabelField("토글 설정", EditorStyles.boldLabel);
             EditorGUILayout.PropertyField(_mode, new GUIContent("모드"));
@@ -69,8 +97,26 @@ namespace DDOIT.Tools.Editor
             EditorGUILayout.Space(4);
             EditorGUILayout.PropertyField(_onEnd, new GUIContent("완료 이벤트"));
 
+            DrawRuntimeStatus((ToggleNode)target);
+
             serializedObject.ApplyModifiedProperties();
         }
+
+        private bool ClearHiddenConditionGroup()
+        {
+            if (_conditionGroup == null || serializedObject.isEditingMultipleObjects)
+                return false;
+
+            if (_conditionGroup.intValue == 0)
+                return false;
+
+            _conditionGroup.intValue = 0;
+            return true;
+        }
+
+        #endregion
+
+        #region Draw Methods
 
         private void DrawActivateToggle(ToggleMode mode)
         {
@@ -128,6 +174,52 @@ namespace DDOIT.Tools.Editor
                 EditorGUILayout.Space(4);
                 EditorGUILayout.HelpBox("대상이 지정되지 않았습니다.", MessageType.Warning);
             }
+
+            if (mode == ToggleMode.Component)
+                DrawComponentSupportWarning();
+
+            if (mode == ToggleMode.Particle && hasTarget)
+            {
+                EditorGUILayout.HelpBox(
+                    "OFF는 ParticleSystem.Stop() 기본 동작을 사용합니다. 이미 방출된 파티클을 즉시 지우는 Clear 동작은 수행하지 않습니다.",
+                    MessageType.None);
+            }
         }
+
+        private void DrawComponentSupportWarning()
+        {
+            var component = _targetComponent.objectReferenceValue as Component;
+            if (component == null || SupportsEnabled(component))
+                return;
+
+            EditorGUILayout.HelpBox(
+                $"'{component.GetType().Name}'은 ToggleNode Component 모드에서 enabled 제어를 지원하지 않습니다.",
+                MessageType.Warning);
+        }
+
+        private void DrawRuntimeStatus(ToggleNode node)
+        {
+            if (!EditorApplication.isPlaying || node == null)
+                return;
+
+            EditorGUILayout.Space(8);
+            EditorGUILayout.LabelField("실행 상태", EditorStyles.boldLabel);
+            EditorGUILayout.LabelField("State", node.State.ToString());
+            EditorGUILayout.LabelField("Action", node.Activate ? "ON / Go()" : "OFF / Stop()");
+            EditorGUILayout.LabelField("Last Result", node.LastExecutionSucceeded ? "Success" : "Failed / Not Executed");
+            EditorGUILayout.LabelField("Message", node.LastExecutionMessage);
+            Repaint();
+        }
+
+        #endregion
+
+        #region Utility
+
+        private static bool SupportsEnabled(Component component)
+        {
+            return component is Behaviour || component is Renderer || component is Collider;
+        }
+
+        #endregion
     }
 }

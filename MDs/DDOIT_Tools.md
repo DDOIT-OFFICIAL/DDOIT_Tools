@@ -353,6 +353,16 @@ ScenarioManager.StartSequence()
 
 > **IToggleable 인터페이스**: `Go()` / `Stop()` 두 메서드를 구현하면 ToggleNode의 Script 모드에서 해당 스크립트를 On/Off할 수 있다.
 
+**ToggleNode 실행 정책**:
+
+- `ToggleNode`는 즉시 실행 노드다. Step 조건 그룹에는 참여하지 않으며, 숨겨진 legacy 조건 그룹 값이 남아 있어도 `IsStepCondition`은 항상 `false`다.
+- GameObject 모드는 대상 GameObject의 `SetActive()`를 호출한다.
+- Component 모드는 `Behaviour`, `Renderer`, `Collider`의 `enabled` 값을 변경한다. 그 외 Component 타입은 warning을 남기고 값을 변경하지 않는다.
+- Particle 모드는 ON 시 `ParticleSystem.Play()`, OFF 시 Unity 기본 `ParticleSystem.Stop()`을 호출한다. 기존 방출 파티클을 즉시 지우는 Clear 동작은 수행하지 않는다.
+- Script 모드는 대상 MonoBehaviour가 `IToggleable`을 구현해야 하며, ON 시 `Go()`, OFF 시 `Stop()`을 호출한다.
+- 대상이 없거나 지원하지 않는 타입이면 warning을 남긴다. 단, 즉시 실행 노드 흐름을 유지하기 위해 `_onEnd` 이벤트는 호출한다.
+- 외부 스크립트와 Play Mode 인스펙터는 `State`, `Activate`, `LastExecutionSucceeded`, `LastExecutionMessage`를 확인할 수 있다.
+
 **SoundNode 재생 정책**:
 
 - `SoundNode`는 `SoundManager`가 존재하고 초기화된 상태에서만 사운드 재생을 시도한다.
@@ -473,7 +483,7 @@ namespace DDOIT.Tools
 | **TransformNodeEditor** | Translate/Rotate/Scale 독립 토글, 모드별(Duration/Speed/Instant) 필드 표시, 작성 경고, Play Mode 진행률/Release 상태 표시 |
 | **TeleportNodeEditor** | 목적지 Transform 설정, 작성 경고, Play Mode 실행 상태/Fade 복구 상태 표시, `_onEnd` 이벤트 |
 | **WalkingStickNodeEditor** | 활성화 toggle, 동작 안내 HelpBox, `_onEnd` 이벤트 |
-| **ToggleNodeEditor** | 모드별(GameObject/Component/Particle/Script) 대상 필드, Activate 토글 |
+| **ToggleNodeEditor** | 모드별(GameObject/Component/Particle/Script) 대상 필드, Activate 토글, 작성 경고, Play Mode 마지막 실행 결과 표시 |
 | **AnimatorNodeEditor** | Animator 파라미터 타입별 드롭다운, 누락/타입 불일치 경고, Play Mode 마지막 실행 결과 표시 |
 | **TriggerConditionNodeEditor** | 외부 Collider 설정, Collider 타입 버튼 (Box/Sphere/Capsule), 감지 모드(Enter/Exit/Stay), Collider/Tag 경고, Play Mode 감지 상태와 Stay 진행률 표시 |
 | **UINodeEditor** | UI 요소 플래그별 조건부 필드, 버튼 조건 드롭다운, Theme 기본값 안내, 버튼 이벤트 섹션, 작성 누락/분기 경고 |
@@ -1048,7 +1058,7 @@ public class DDOITSettings : ScriptableObject
 ```
 1. Unity에서 새 프로젝트 생성 (Unity 6, URP)
 2. Package Manager > Add package from git URL
-   https://github.com/DDOIT-OFFICIAL/DDOIT_Tools.git#v0.19.27
+   https://github.com/DDOIT-OFFICIAL/DDOIT_Tools.git#v0.19.28
 3. Unity 상단 메뉴에서 DDOIT Tools > Setup 실행
 4. 필수 패키지 설치/업데이트 실행
 5. Init Project 실행
@@ -1168,5 +1178,5 @@ MAJOR.MINOR.PATCH
 ---
 
 **문서 버전**: 0.4.0
-**DDOIT_Tools 패키지 버전**: v0.19.27
+**DDOIT_Tools 패키지 버전**: v0.19.28
 **최종 업데이트**: 2026-07-22
