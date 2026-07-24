@@ -344,7 +344,7 @@ ScenarioManager.StartSequence()
 | **SoundNode** | SoundDatabase의 사운드 재생 | O (재생 완료 시 충족) |
 | **TransformNode** | 오브젝트 이동/회전/스케일 (Duration/Speed/Instant 모드, 항목 독립 제어) | O (활성화된 모든 항목 완료 시 충족) |
 | **TeleportNode** | 플레이어 텔레포트 (Fade→Teleport→FadeClear) | — (즉시 완료, `_onEnd` 이벤트) |
-| **WalkingStickNode** | `PlayerRig.EnableWalkingStick()` / `DisableWalkingStick()` 호출. 활성화 시점의 HMD 높이로 stick 길이 자동 결정 | — (즉시 완료, `_onEnd` 이벤트) |
+| **WalkingStickNode** | `PlayerRig.EnableWalkingStick()` / `DisableWalkingStick()` 호출. 현재 컨트롤러 중심 워크플로에서는 보존용 숨김 노드로 취급 | — (즉시 완료, `_onEnd` 이벤트, 조건 그룹 불가) |
 | **ToggleNode** | GameObject / Component / ParticleSystem / IToggleable 스크립트 On/Off | — (즉시 완료, `_onEnd` 이벤트) |
 | **AnimatorNode** | Animator의 Trigger/Bool/Int/Float 파라미터 설정 | — (즉시 완료, `_onEnd` 이벤트) |
 | **UINode** | UIManager를 통한 UI 패널 표시 | O (버튼 조건 드롭다운으로 충족) |
@@ -479,10 +479,10 @@ namespace DDOIT.Tools
 |---|---|
 | **ScenarioManagerEditor** | 흐름 미리보기 + **Scenario 분기 시각화**, 시나리오 목록, 런타임 상태 표시 |
 | **ScenarioEditor** | Step 목록 + **분기 트리 시각화**, 자동 넘버링, 조건 노드 수/진행 표시 |
-| **StepEditor** | 노드 목록, **메모 편집**, 조건 충족 상태 (✓/○), 실행 제외 노드 표시, UINode 버튼 marker 표시, 노드 추가 버튼 (9종) |
+| **StepEditor** | 노드 목록, **메모 편집**, 조건 충족 상태 (✓/○), 실행 제외 노드 표시, UINode 버튼 marker 표시, 용도별 노드 추가 그룹(실행/조건/UI, `WalkingStickNode` 숨김) |
 | **TransformNodeEditor** | Translate/Rotate/Scale 독립 토글, 모드별(Duration/Speed/Instant) 필드 표시, 작성 경고, Play Mode 진행률/Release 상태 표시 |
 | **TeleportNodeEditor** | 목적지 Transform 설정, 작성 경고, Play Mode 실행 상태/Fade 복구 상태 표시, `_onEnd` 이벤트 |
-| **WalkingStickNodeEditor** | 활성화 toggle, 동작 안내 HelpBox, `_onEnd` 이벤트 |
+| **WalkingStickNodeEditor** | 보존용 숨김 노드 안내, 활성화 toggle, 동작 안내 HelpBox, `_onEnd` 이벤트 |
 | **ToggleNodeEditor** | 모드별(GameObject/Component/Particle/Script) 대상 필드, Activate 토글, 작성 경고, Play Mode 마지막 실행 결과 표시 |
 | **AnimatorNodeEditor** | Animator 파라미터 타입별 드롭다운, 누락/타입 불일치 경고, Play Mode 마지막 실행 결과 표시 |
 | **TriggerConditionNodeEditor** | 외부 Collider 설정, Collider 타입 버튼 (Box/Sphere/Capsule), 감지 모드(Enter/Exit/Stay), Collider/Tag 경고, Play Mode 감지 상태와 Stay 진행률 표시 |
@@ -719,7 +719,8 @@ Player Transform 갱신
 - 토글(Disable→Enable)할 때마다 새 길이 갱신 — 체험자 키 변화 대응
 
 **WalkingStick 토글 운영 패턴**:
-- 시나리오: `WalkingStickNode`에서 `_enable=true/false` 설정
+- 시나리오: `WalkingStickNode`에서 `_enable=true/false` 설정. 단, 현재 DDOIT 기본 워크플로는 컨트롤러 이동 중심이므로 `WalkingStickNode`는 Step의 노드 추가 메뉴에서 숨김 처리된다.
+- 기존 씬에 이미 배치된 `WalkingStickNode`는 계속 편집/실행 가능하다. 추후 핸드 이동 워크플로를 다시 도입할 때 재활성화할 수 있도록 코드와 커스텀 인스펙터는 유지한다.
 - 코드: `PlayerRig.Instance.EnableWalkingStick()` / `.DisableWalkingStick()`
 - 디버그: `_enableDebugKeyboard=true` 후 스페이스바 (Game window focus 필요)
 
@@ -1058,7 +1059,7 @@ public class DDOITSettings : ScriptableObject
 ```
 1. Unity에서 새 프로젝트 생성 (Unity 6, URP)
 2. Package Manager > Add package from git URL
-   https://github.com/DDOIT-OFFICIAL/DDOIT_Tools.git#v0.19.28
+   https://github.com/DDOIT-OFFICIAL/DDOIT_Tools.git#v0.19.29
 3. Unity 상단 메뉴에서 DDOIT Tools > Setup 실행
 4. 필수 패키지 설치/업데이트 실행
 5. Init Project 실행
@@ -1178,5 +1179,5 @@ MAJOR.MINOR.PATCH
 ---
 
 **문서 버전**: 0.4.0
-**DDOIT_Tools 패키지 버전**: v0.19.28
+**DDOIT_Tools 패키지 버전**: v0.19.29
 **최종 업데이트**: 2026-07-22

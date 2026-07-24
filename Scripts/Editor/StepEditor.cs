@@ -547,6 +547,8 @@ namespace DDOIT.Tools.Editor
             if (_cachedNodeTypes != null) return _cachedNodeTypes;
             _cachedNodeTypes = TypeCache.GetTypesDerivedFrom<ScenarioNode>()
                 .Where(t => !t.IsAbstract && !t.IsGenericType)
+                // WalkingStickNode is preserved for future hand locomotion, but hidden from the controller-first add menu.
+                .Where(t => t != typeof(WalkingStickNode))
                 .OrderBy(t => t.Name)
                 .ToArray();
             return _cachedNodeTypes;
@@ -556,14 +558,67 @@ namespace DDOIT.Tools.Editor
         {
             EditorGUILayout.LabelField("노드 추가", EditorStyles.boldLabel);
 
-            foreach (var type in GetScenarioNodeTypes())
+            var nodeTypes = GetScenarioNodeTypes();
+
+            DrawAddNodeGroup(
+                step,
+                "실행 노드",
+                "동작을 실행하는 노드입니다. SoundNode와 TransformNode는 조건 그룹을 지정하면 완료 대기 조건으로도 사용할 수 있습니다.",
+                nodeTypes.Where(IsExecutionAddNode));
+
+            DrawAddNodeGroup(
+                step,
+                "조건 노드",
+                "Step 진행을 대기시키는 전용 조건 노드입니다.",
+                nodeTypes.Where(IsConditionAddNode));
+
+            DrawAddNodeGroup(
+                step,
+                "UI 노드",
+                "UI 패널을 표시하고 버튼 조건 드롭다운으로 Step 조건을 보고할 수 있는 노드입니다.",
+                nodeTypes.Where(IsUiAddNode));
+        }
+
+        private static void DrawAddNodeGroup(
+            Step step,
+            string title,
+            string help,
+            IEnumerable<System.Type> types)
+        {
+            var groupTypes = types.ToArray();
+            if (groupTypes.Length == 0)
+                return;
+
+            EditorGUILayout.BeginVertical("box");
+            EditorGUILayout.LabelField(title, EditorStyles.boldLabel);
+            EditorGUILayout.HelpBox(help, MessageType.None);
+
+            foreach (var type in groupTypes)
             {
                 if (GUILayout.Button($"+ {type.Name}"))
                     CreateNodeChild(step.transform, type);
             }
+
+            EditorGUILayout.EndVertical();
         }
 
-        private void CreateNodeChild(Transform parent, System.Type componentType)
+        private static bool IsUiAddNode(System.Type type)
+        {
+            return type == typeof(UINode);
+        }
+
+        private static bool IsConditionAddNode(System.Type type)
+        {
+            return type == typeof(TimerConditionNode) ||
+                   type == typeof(TriggerConditionNode);
+        }
+
+        private static bool IsExecutionAddNode(System.Type type)
+        {
+            return !IsUiAddNode(type) && !IsConditionAddNode(type);
+        }
+
+        private static void CreateNodeChild(Transform parent, System.Type componentType)
         {
             var go = new GameObject(componentType.Name);
             go.AddComponent(componentType);
