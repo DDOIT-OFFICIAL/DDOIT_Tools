@@ -371,6 +371,16 @@ ScenarioManager.StartSequence()
 - 목표 Transform이 없거나 항목별 목표 Transform이 누락된 경우 warning을 남긴다. 항목별 목표 누락, 0 이하 duration, 0 이하 speed는 기존 호환을 위해 해당 항목 완료로 처리한다.
 - 외부 스크립트와 Play Mode 인스펙터는 `IsRunning`, `IsReleased`, `TranslateProgress`, `RotateProgress`, `ScaleProgress`, 각 항목 Done 상태를 확인할 수 있다.
 
+**TeleportNode 실행 정책**:
+
+- `TeleportNode`는 즉시 실행 노드다. Step 조건 그룹에는 참여하지 않으며, 숨겨진 legacy 조건 그룹 값이 남아 있어도 `IsStepCondition`은 항상 `false`다.
+- 실행 순서는 `FadeToBlack` → `PlayerRig.TryTeleport()` → `FadeClear`이다.
+- 목적지 Transform이 없거나 PlayerRig가 없거나 PlayerRig의 player origin이 연결되지 않은 경우 warning을 남기고 실제 이동은 하지 않는다. 단, 즉시 실행 노드 흐름을 유지하기 위해 `_onEnd` 이벤트는 호출한다.
+- `ScreenFadeManager`가 없으면 Fade 없이 텔레포트한다. 이 경우 warning을 남기지만 PlayerRig 이동 자체는 진행한다.
+- Teleport fade duration이 0이면 Fade 단계를 생략하고 즉시 이동한다.
+- `Release()` 또는 `OnDisable()`이 실행 중에 호출되면 TeleportNode 코루틴을 중단하고 `ScreenFadeManager.ClearFadeImmediate()`로 암전을 즉시 해제한다. 따라서 Step 전환 중 화면이 검게 남는 상황을 방지한다.
+- 외부 스크립트와 Play Mode 인스펙터는 `State`, `IsRunning`, `IsReleased`, `DidTeleport`, `LastExecutionSucceeded`, `LastExecutionMessage`를 확인할 수 있다.
+
 **AnimatorNode 실행 정책**:
 
 - `AnimatorNode`는 즉시 실행 노드다. Step 조건 그룹에는 참여하지 않으며, 숨겨진 legacy 조건 그룹 값이 남아 있어도 `IsStepCondition`은 항상 `false`다.
@@ -461,7 +471,7 @@ namespace DDOIT.Tools
 | **ScenarioEditor** | Step 목록 + **분기 트리 시각화**, 자동 넘버링, 조건 노드 수/진행 표시 |
 | **StepEditor** | 노드 목록, **메모 편집**, 조건 충족 상태 (✓/○), 실행 제외 노드 표시, UINode 버튼 marker 표시, 노드 추가 버튼 (9종) |
 | **TransformNodeEditor** | Translate/Rotate/Scale 독립 토글, 모드별(Duration/Speed/Instant) 필드 표시, 작성 경고, Play Mode 진행률/Release 상태 표시 |
-| **TeleportNodeEditor** | 목적지 Transform 설정, `_onEnd` 이벤트 |
+| **TeleportNodeEditor** | 목적지 Transform 설정, 작성 경고, Play Mode 실행 상태/Fade 복구 상태 표시, `_onEnd` 이벤트 |
 | **WalkingStickNodeEditor** | 활성화 toggle, 동작 안내 HelpBox, `_onEnd` 이벤트 |
 | **ToggleNodeEditor** | 모드별(GameObject/Component/Particle/Script) 대상 필드, Activate 토글 |
 | **AnimatorNodeEditor** | Animator 파라미터 타입별 드롭다운, 누락/타입 불일치 경고, Play Mode 마지막 실행 결과 표시 |
@@ -613,6 +623,7 @@ UPM 패키지의 `package.json`은 `com.meta.xr.sdk.all@201.0.0`, `com.unity.inp
 - `Singleton<PlayerRig>` — `PlayerRig.Instance` / `HasInstance`
 - `HeadTransform` (read-only Transform) — `OVRCameraRig/TrackingSpace/CenterEyeAnchor` 노출. UI lookAt/follow 등에 사용
 - `Teleport(Vector3 position)` / `Teleport(Vector3 position, Quaternion rotation)` — `_playerOrigin` (OVRCameraRig root) 위치 이동
+- `CanTeleport` / `TryTeleport(...)` — `_playerOrigin` wiring 여부를 확인하고 텔레포트 성공/실패를 반환. TeleportNode는 이 API로 실제 이동 성공 여부를 판단
 - `ApplyDefaultControllerLocomotionProfile()` — 왼쪽 스틱 이동, 오른쪽 스틱 45도 스냅턴, comfort tunneling 비활성 표준값 적용
 - `SetComfortTunnelingEnabled(bool enabled)` — `SmoothMovementTunneling`, `WallPenetrationTunneling` 활성 상태 일괄 변경
 - `EnableWalkingStick()` / `DisableWalkingStick()` — `_walkingStickRoot.SetActive` 토글, `IsWalkingStickMode {get; private set}` 갱신
@@ -1037,7 +1048,7 @@ public class DDOITSettings : ScriptableObject
 ```
 1. Unity에서 새 프로젝트 생성 (Unity 6, URP)
 2. Package Manager > Add package from git URL
-   https://github.com/DDOIT-OFFICIAL/DDOIT_Tools.git#v0.19.26
+   https://github.com/DDOIT-OFFICIAL/DDOIT_Tools.git#v0.19.27
 3. Unity 상단 메뉴에서 DDOIT Tools > Setup 실행
 4. 필수 패키지 설치/업데이트 실행
 5. Init Project 실행
@@ -1157,5 +1168,5 @@ MAJOR.MINOR.PATCH
 ---
 
 **문서 버전**: 0.4.0
-**DDOIT_Tools 패키지 버전**: v0.19.26
+**DDOIT_Tools 패키지 버전**: v0.19.27
 **최종 업데이트**: 2026-07-22

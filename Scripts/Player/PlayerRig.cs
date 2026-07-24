@@ -137,6 +137,9 @@ namespace DDOIT.Tools.Player
         /// <summary> 현재 comfort tunneling 오브젝트 활성 목표값. </summary>
         public bool IsComfortTunnelingEnabled => _comfortTunnelingEnabled;
 
+        /// <summary> Player origin이 연결되어 텔레포트 가능한 상태인지 여부. </summary>
+        public bool CanTeleport => _playerOrigin != null;
+
         #endregion
 
         #region Public Methods — Teleport
@@ -146,13 +149,23 @@ namespace DDOIT.Tools.Player
         /// </summary>
         public void Teleport(Vector3 position)
         {
+            TryTeleport(position);
+        }
+
+        /// <summary>
+        /// 특정 위치로 즉시 텔레포트하고 성공 여부를 반환합니다.
+        /// </summary>
+        public bool TryTeleport(Vector3 position)
+        {
             if (_playerOrigin == null)
             {
                 Debug.LogError("[PlayerRig] _playerOrigin이 wiring되지 않았습니다.");
-                return;
+                return false;
             }
+
             _playerOrigin.position = position;
             RecoverLocomotionAfterTeleport();
+            return true;
         }
 
         /// <summary>
@@ -160,13 +173,23 @@ namespace DDOIT.Tools.Player
         /// </summary>
         public void Teleport(Vector3 position, Quaternion rotation)
         {
+            TryTeleport(position, rotation);
+        }
+
+        /// <summary>
+        /// 특정 위치와 방향으로 즉시 텔레포트하고 성공 여부를 반환합니다.
+        /// </summary>
+        public bool TryTeleport(Vector3 position, Quaternion rotation)
+        {
             if (_playerOrigin == null)
             {
                 Debug.LogError("[PlayerRig] _playerOrigin이 wiring되지 않았습니다.");
-                return;
+                return false;
             }
+
             _playerOrigin.SetPositionAndRotation(position, rotation);
             RecoverLocomotionAfterTeleport();
+            return true;
         }
 
         #endregion

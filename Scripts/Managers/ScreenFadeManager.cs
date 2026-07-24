@@ -91,6 +91,21 @@ namespace DDOIT.Tools.Managers
         }
 
         /// <summary>
+        /// 진행 중인 페이드를 중단하고 화면 암전을 즉시 해제합니다.
+        /// </summary>
+        public void ClearFadeImmediate()
+        {
+            if (_fadeCoroutine != null)
+            {
+                StopCoroutine(_fadeCoroutine);
+                _fadeCoroutine = null;
+            }
+
+            IsFading = false;
+            SetFadeAlpha(0f);
+        }
+
+        /// <summary>
         /// 지정 색으로 페이드
         /// </summary>
         public Coroutine FadeToColor(Color color, float duration = -1f)
